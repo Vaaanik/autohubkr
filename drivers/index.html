@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>АвтоХаб: автомобільна спільнота Кривого Рогу</title>
+<meta name="description" content="Гараж з історією ремонтів, страхування, перевірка авто за відкритими базами, кілька авто й автопарк, ІІ-помічник і сервіси Кривого Рогу. Збираємо автомобільну спільноту міста: закритий тест на 300 місць, безкоштовно.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230E2433'/%3E%3Crect x='7' y='20' width='18' height='5' rx='2.5' fill='%23FFC629'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#0E2433">
+<meta property="og:type" content="website">
+<meta property="og:title" content="АвтоХаб: автомобільна спільнота Кривого Рогу">
+<meta property="og:description" content="Гараж з історією ремонтів, страхування, перевірка авто за відкритими базами, кілька авто й автопарк, ІІ-помічник і сервіси Кривого Рогу. Збираємо автомобільну спільноту міста: закритий тест на 300 місць, безкоштовно.">
+<meta property="og:locale" content="uk_UA">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+
+<header class="wrap top">
+  <a class="logo" href="../" aria-label="АвтоХаб, на головну"><i></i>АвтоХаб</a>
+  <nav class="topnav"><a class="sw" href="../services/">Для сервісів</a><a class="small" href="#join">Долучитися</a></nav>
+</header>
+
+<main>
+<section class="hero" style="padding-top:28px">
+  <div class="wrap hero-grid">
+    <div>
+      <h1>Збираємо автомобільну спільноту Кривого Рогу, щоб стати прикладом для всієї країни</h1>
+      <p class="lead">АвтоХаб об'єднує водіїв і автосервіси міста: гараж з історією ремонтів і страхуванням, перевірка авто за відкритими базами, облік кількох авто чи автопарку та ІІ-помічник. Закритий тест на 300 учасників, вхід безкоштовний.</p>
+      <a class="btn" href="#join">Долучитися до спільноти</a>
+      <p class="note">Займає дві хвилини. Оплата не потрібна.</p>
+      <div class="meter" id="meter">
+        <div class="bar"><b id="meterBar"></b></div>
+        <span id="meterText"></span>
+      </div>
+    </div>
+
+    <div class="book" aria-label="Приклад картки гаража">
+      <div class="tag">Приклад картки</div>
+      <div class="car">
+        <div>
+          <strong>Skoda Octavia A7</strong>
+          <small>2016, 1.6 MPI, пробіг 148 000 км</small>
+        </div>
+        <div class="plate">АЕ 0000 XX</div>
+      </div>
+      <ul class="log">
+        <li><time>03.2026</time><span>Заміна масла та фільтрів</span><em>147 200 км</em></li>
+        <li><time>11.2025</time><span>Шиномонтаж, сезонна заміна</span><em>141 800 км</em></li>
+        <li><time>06.2025</time><span>Діагностика ходової</span><em>135 400 км</em></li>
+      </ul>
+      <div class="remind"><b>Нагадування:</b> орієнтовно через 2 000 км час на ТО за регламентом. Підберемо сервіс.</div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="community">
+  <div class="wrap comm">
+    <div>
+      <h2>Спільнота водіїв і сервісів, де все чесно й на виду</h2>
+      <p style="margin-top:16px;color:var(--ink-soft)">Хочемо, щоб Кривий Ріг став прикладом для всієї країни: водії діляться чесним досвідом, а сервіси працюють на репутацію. Ми починаємо тут, з перших 300 учасників.</p>
+    </div>
+    <ul class="comm-list">
+      <li><h3>Водії</h3><p>Чесні відгуки, історія робіт і поради від людей з такими самими авто.</p></li>
+      <li><h3>Сервіси</h3><p>Конкурують якістю й репутацією, а не лише ціною в оголошенні.</p></li>
+      <li><h3>Ви</h3><p>Перші 300 учасників формують правила платформи й порядок появи функцій.</p></li>
+    </ul>
+  </div>
+</section>
+
+<section id="app">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Так виглядатиме застосунок</h2>
+      <p>Це концепт інтерфейсу, а не робоча версія. Дані на екранах умовні. У тесті ви допоможете визначити, що з показаного робити першим.</p>
+    </div>
+    <div class="phones" tabindex="0" aria-label="Екрани застосунку, гортайте вбік">
+
+      <figure class="pcol" style="margin:0">
+        <div class="phone"><div class="scr">
+          <div class="sb"><span>9:41</span><span>LTE</span></div>
+          <div class="ah"><h4>Мій гараж</h4><small>2 авто, 1 нагадування</small></div>
+          <div class="sc">
+            <div class="seg"><span class="on">Особисті</span><span>Автопарк</span></div>
+            <div class="vc"><strong>Skoda Octavia A7</strong><small>2016, 1.6 MPI, 148 000 км</small><br><span class="pill y">ТО через 2 000 км</span></div>
+            <div class="vc"><strong>Volkswagen Caddy</strong><small>2019, 2.0 TDI, 96 000 км</small><br><span class="pill r">ОСЦПВ закінчується через 12 днів</span></div>
+            <div class="add">+ Додати авто за VIN</div>
+          </div>
+          <div class="tabbar"><span class="on">Гараж</span><span>Сервіси</span><span>Помічник</span><span>Профіль</span></div>
+        </div></div>
+        <figcaption><b>Гараж</b>Усі ваші авто на одному екрані й найближчі нагадування.</figcaption>
+      </figure>
+
+      <figure class="pcol" style="margin:0">
+        <div class="phone"><div class="scr">
+          <div class="sb"><span>9:41</span><span>LTE</span></div>
+          <div class="ah"><h4>Skoda Octavia A7</h4><small>148 000 км</small></div>
+          <div class="sc">
+            <div class="seg"><span class="on">Історія</span><span>Документи</span><span>Витрати</span></div>
+            <div class="sum"><span>Витрати за рік</span><b>18 450 ₴</b></div>
+            <ul class="tl">
+              <li><b>Заміна масла й фільтрів</b><em>3 200 ₴</em><small>03.2026, 147 200 км, чек додано</small></li>
+              <li><b>Гальмівні колодки спереду</b><em>4 100 ₴</em><small>09.2025, 140 300 км</small></li>
+              <li><b>Діагностика ходової</b><em>600 ₴</em><small>06.2025, 135 400 км</small></li>
+            </ul>
+          </div>
+          <div class="tabbar"><span class="on">Гараж</span><span>Сервіси</span><span>Помічник</span><span>Профіль</span></div>
+        </div></div>
+        <figcaption><b>Історія ремонтів і витрат</b>Роботи, запчастини, чеки, пробіг. Чек можна просто сфотографувати.</figcaption>
+      </figure>
+
+      <figure class="pcol" style="margin:0">
+        <div class="phone"><div class="scr">
+          <div class="sb"><span>9:41</span><span>LTE</span></div>
+          <div class="ah"><h4>Документи й страхування</h4><small>Volkswagen Caddy</small></div>
+          <div class="sc">
+            <div class="doc"><div><b>ОСЦПВ</b><small>діє до 10.11.2026</small></div><span class="pill r">12 днів</span></div>
+            <div class="doc"><div><b>КАСКО</b><small>не оформлено</small></div><span class="pill y">Додати</span></div>
+            <div class="doc"><div><b>Техпаспорт</b><small>фото в гаражі</small></div><span class="pill g">Є</span></div>
+            <div class="doc"><div><b>Нагадати про поліс</b><small>за 30, 14 і 3 дні до кінця</small></div><span class="pill g">Увімк.</span></div>
+          </div>
+          <div class="tabbar"><span class="on">Гараж</span><span>Сервіси</span><span>Помічник</span><span>Профіль</span></div>
+        </div></div>
+        <figcaption><b>Страхування й документи</b>Строки полісів, фото документів і нагадування наперед.</figcaption>
+      </figure>
+
+      <figure class="pcol" style="margin:0">
+        <div class="phone"><div class="scr">
+          <div class="sb"><span>9:41</span><span>LTE</span></div>
+          <div class="ah"><h4>Перевірка авто</h4><small>за відкритими базами</small></div>
+          <div class="sc">
+            <div class="vin">TMBJ•••••G0••••••</div>
+            <div class="chk">
+              <div><span>Реєстраційні дані</span><span class="ok">збігаються</span></div>
+              <div><span>Розшук</span><span class="ok">не знайдено</span></div>
+              <div><span>Обмеження на дії</span><span class="ok">немає</span></div>
+              <div><span>Пробіг за записами</span><span class="ok">без розбіжностей</span></div>
+              <div><span>ОСЦПВ</span><span class="ok">чинний</span></div>
+            </div>
+            <div class="lab">Приклад результату. Склад перевірок залежить від доступності відкритих даних.</div>
+          </div>
+          <div class="tabbar"><span class="on">Гараж</span><span>Сервіси</span><span>Помічник</span><span>Профіль</span></div>
+        </div></div>
+        <figcaption><b>Перевірка за відкритими базами</b>Корисно перед купівлею й для картки гаража: історія не лише зі слів продавця.</figcaption>
+      </figure>
+
+      <figure class="pcol" style="margin:0">
+        <div class="phone"><div class="scr">
+          <div class="sb"><span>9:41</span><span>LTE</span></div>
+          <div class="ah"><h4>Помічник</h4><small>опишіть проблему своїми словами</small></div>
+          <div class="sc">
+            <div class="bub me">Під час гальмування б'є кермо.</div>
+            <div class="bub">Імовірні причини: деформовані диски, зношені колодки, ходова. Радимо діагностику гальм і розвал-сходження.</div>
+            <div class="svc"><div><b>СТО «Приклад»</b><small>ходова й гальма, 2,4 км</small></div><span class="b">Записатися</span></div>
+            <div class="svc"><div><b>Майстер «Приклад»</b><small>діагностика, є вільний час</small></div><span class="b">Записатися</span></div>
+          </div>
+          <div class="tabbar"><span>Гараж</span><span>Сервіси</span><span class="on">Помічник</span><span>Профіль</span></div>
+        </div></div>
+        <figcaption><b>ІІ-помічник і підбір майстра</b>Підказка за симптомами й перелік сервісів, які можуть це зробити.</figcaption>
+      </figure>
+
+      <figure class="pcol" style="margin:0">
+        <div class="phone"><div class="scr">
+          <div class="sb"><span>9:41</span><span>LTE</span></div>
+          <div class="ah"><h4>Автопарк</h4><small>5 авто</small></div>
+          <div class="sc">
+            <div class="seg"><span>Особисті</span><span class="on">Автопарк</span></div>
+            <div class="fl">
+              <div><b>41 200 ₴</b><small>витрати за місяць</small></div>
+              <div><b>3</b><small>найближчі ТО</small></div>
+            </div>
+            <div class="vc"><strong>Caddy, АЕ 1111 XX</strong><small>водій: Олег, 96 000 км</small><br><span class="pill r">ОСЦПВ, 12 днів</span></div>
+            <div class="vc"><strong>Sprinter, АЕ 2222 XX</strong><small>водій: Андрій, 212 000 км</small><br><span class="pill y">ТО через 800 км</span></div>
+            <div class="vc"><strong>Octavia, АЕ 3333 XX</strong><small>водій: Марія, 64 000 км</small><br><span class="pill g">Усе гаразд</span></div>
+          </div>
+          <div class="tabbar"><span class="on">Гараж</span><span>Сервіси</span><span>Помічник</span><span>Профіль</span></div>
+        </div></div>
+        <figcaption><b>Кілька авто й автопарк</b>Усі авто родини або малого бізнесу, витрати, ТО й документи для кожного.</figcaption>
+      </figure>
+    </div>
+    <p class="mock-note">Назви сервісів, номери й суми на екранах умовні.</p>
+  </div>
+</section>
+
+<section class="alt" id="what">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Що ми будуємо</h2>
+      <p>Платформа знаходиться в розробці. У тесті ви побачите перші функції та самі вплинете на те, якими вони будуть.</p>
+    </div>
+    <div class="what">
+      <div class="w1">
+        <h3>Гараж і історія ремонтів</h3>
+        <p>Додаєте авто за VIN або вручну. Платформа розпізнає комплектацію, веде історію ремонтів і обслуговування та нагадує про ТО за регламентом. Чек можна сфотографувати, витрати порахуються самі.</p>
+      </div>
+      <div class="w2">
+        <h3>Перевірка за відкритими базами</h3>
+        <p>Для картки авто підтягуємо відомості з відкритих джерел: реєстраційні дані, обмеження, поліс. Корисно перед купівлею й для підтвердженої історії. Перелік перевірок залежить від доступності даних.</p>
+      </div>
+      <div class="w4">
+        <h3>Страхування й документи</h3>
+        <p>Строки ОСЦПВ і КАСКО, фото техпаспорта й нагадування наперед, щоб не прострочити.</p>
+      </div>
+      <div class="w5">
+        <h3>Кілька авто й автопарк</h3>
+        <p>Усі машини родини або малого бізнесу в одному кабінеті: витрати на кожну, ТО, документи й відповідальний водій. Для автопарків це спрощує утримання.</p>
+      </div>
+      <div class="w3">
+        <div>
+          <h3>ІІ-помічник і підбір майстра</h3>
+          <p>Опишіть симптом простими словами. Помічник запропонує ймовірні причини, а платформа підбере сервіс і майстра для точної діагностики з відгуками, фото робіт і цехом.</p>
+        </div>
+        <div class="chat" aria-hidden="true">
+          <p class="me">Під час гальмування на швидкості б'є кермо.</p>
+          <p>Імовірні причини: диски, колодки або ходова. Радимо діагностику гальм і розвал-сходження. Показати сервіси поруч?</p>
+        </div>
+      </div>
+    </div>
+    <div class="idea-box">
+      <p><b>Не бачите потрібної функції?</b> Напишіть у заявці, чого вам бракує. Ідеї тестувальників ми збираємо в перелік і беремо в роботу в першу чергу.</p>
+      <a class="btn" href="#wishes">Запропонувати функцію</a>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <div class="sec-head"><h2>Як проходить тест</h2></div>
+    <ol class="steps">
+      <li><h3>Заявка</h3><p>Залишаєте контакт і коротко розповідаєте про авто та які послуги вам потрібні.</p></li>
+      <li><h3>Закрита група</h3><p>Після заявки отримуєте запрошення до Telegram-групи тестувальників.</p></li>
+      <li><h3>Перші функції</h3><p>Відкриваємо доступ до гаража, підбору сервісів та ІІ-помічника поетапно.</p></li>
+      <li><h3>Ваш відгук</h3><p>Кажете, що зручно, а що ні. З цього складається план розвитку.</p></li>
+    </ol>
+  </div>
+</section>
+
+<section class="alt" id="pool">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Які послуги збираємо в єдиний пул</h2>
+      <p>Ми набираємо сервіси та майстрів Кривого Рогу. Серед форми заявки позначте те, що вам потрібно найчастіше. Ми почнемо з найпопулярнішого.</p>
+    </div>
+    <div class="chips">
+      <span>Автомийка</span><span>Детейлінг і хімчистка</span><span>Шиномонтаж</span><span>Діагностика</span><span>Ремонт ходової</span><span>Двигун і КПП</span><span>Автоелектрика</span><span>Кузовний ремонт і ЛКП</span><span>Кондиціонери</span><span>Скло й тонування</span><span>Автозвук</span><span>Евакуатор</span><span>Магазини автотоварів</span>
+    </div>
+  </div>
+</section>
+
+<section id="gain">
+  <div class="wrap">
+    <div class="sec-head"><h2>Що отримує тестувальник</h2></div>
+    <div class="ben">
+      <div><h3>Безкоштовний доступ</h3><p>Усі функції тесту без оплати. Картку банку просити не будемо.</p></div>
+      <div><h3>Першочерговий підбір</h3><p>Ваші запити на сервіс опрацьовуються в першу чергу, спочатку з нашою допомогою.</p></div>
+      <div><h3>Вплив на продукт</h3><p>Ви в групі з тими, хто будує сервіс. Що вам потрібно, те й робимо раніше.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="join">
+  <div class="wrap">
+    <div class="form-box">
+      <aside>
+        <h2>Станьте одним із перших 300</h2>
+        <p style="margin-top:14px">Ми збираємо автомобільну спільноту Кривого Рогу. Заповніть форму, і ви одразу потрапите на сторінку з запрошенням до групи.</p>
+        <ul>
+          <li>Безкоштовно</li>
+          <li>VIN вказувати не обов'язково</li>
+          <li>Є місце для ваших ідей і побажань</li>
+          <li>Займає близько двох хвилин</li>
+        </ul>
+      </aside>
+
+      <div>
+        <form id="f" novalidate>
+          <p class="req-note">Усі поля обов'язкові, крім VIN і номера авто. Незаповнені поля підсвічуються червоним, кнопка спрацює, коли форма буде заповнена.</p>
+          <div class="row2">
+            <div>
+              <label class="l" for="name">Ім'я</label>
+              <input type="text" id="name" name="name" autocomplete="given-name">
+              <div class="err" id="e-name">Вкажіть ім'я.</div>
+            </div>
+            <div>
+              <label class="l" for="tg">Telegram <span class="hint">(нік або номер телефону)</span></label>
+              <input type="text" id="tg" name="telegram" placeholder="@нік" autocomplete="off">
+              <div class="err" id="e-tg">Вкажіть Telegram, щоб ми додали вас до групи.</div>
+            </div>
+          </div>
+
+          <fieldset>
+            <legend>Ваше авто</legend>
+            <div class="row3">
+              <input type="text" name="car_brand" placeholder="Марка" aria-label="Марка">
+              <input type="text" name="car_model" placeholder="Модель" aria-label="Модель">
+              <input type="number" name="car_year" placeholder="Рік" min="1950" max="2027" aria-label="Рік випуску">
+            </div>
+            <div class="row2" style="margin-top:12px">
+              <input type="text" name="vin" placeholder="VIN (необов'язково)" aria-label="VIN" maxlength="20" autocomplete="off">
+              <input type="text" name="plate" placeholder="Номер авто (необов'язково)" aria-label="Номер авто" maxlength="12" autocomplete="off">
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Які послуги хочете бачити на платформі? <span class="hint">Оберіть хоча б одну, можна кілька</span></legend>
+            <div class="opts">
+              <label><input type="checkbox" name="services" value="Автомийка"><span>Автомийка</span></label>
+              <label><input type="checkbox" name="services" value="Детейлінг і хімчистка"><span>Детейлінг і хімчистка</span></label>
+              <label><input type="checkbox" name="services" value="Шиномонтаж"><span>Шиномонтаж</span></label>
+              <label><input type="checkbox" name="services" value="Діагностика"><span>Діагностика</span></label>
+              <label><input type="checkbox" name="services" value="Ремонт ходової"><span>Ремонт ходової</span></label>
+              <label><input type="checkbox" name="services" value="Двигун і КПП"><span>Двигун і КПП</span></label>
+              <label><input type="checkbox" name="services" value="Автоелектрика"><span>Автоелектрика</span></label>
+              <label><input type="checkbox" name="services" value="Кузовний ремонт і ЛКП"><span>Кузовний ремонт і ЛКП</span></label>
+              <label><input type="checkbox" name="services" value="Кондиціонери"><span>Кондиціонери</span></label>
+              <label><input type="checkbox" name="services" value="Скло й тонування"><span>Скло й тонування</span></label>
+              <label><input type="checkbox" name="services" value="Автозвук"><span>Автозвук</span></label>
+              <label><input type="checkbox" name="services" value="Евакуатор"><span>Евакуатор</span></label>
+              <label><input type="checkbox" name="services" value="Автотовари"><span>Магазини автотоварів</span></label>
+            </div>
+            <div style="margin-top:12px">
+              <input type="text" name="services_other" placeholder="Інше, за бажанням: що ще додати?" aria-label="Інші послуги">
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Як ви шукаєте сервіс зараз?</legend>
+            <div class="radios">
+              <label><input type="radio" name="search_now" value="Питаю знайомих"> Питаю знайомих</label>
+              <label><input type="radio" name="search_now" value="Google або карти"> Google або карти</label>
+              <label><input type="radio" name="search_now" value="Місцеві чати"> Місцеві чати в Telegram чи Viber</label>
+              <label><input type="radio" name="search_now" value="Один майстер"> Їжджу до одного й того самого майстра</label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Що для вас найважливіше?</legend>
+            <div class="radios">
+              <label><input type="radio" name="top_feature" value="Гараж з історією"> Гараж з історією авто</label>
+              <label><input type="radio" name="top_feature" value="ІІ-помічник"> ІІ-помічник за симптомами</label>
+              <label><input type="radio" name="top_feature" value="Каталог сервісів"> Каталог перевірених сервісів</label>
+              <label><input type="radio" name="top_feature" value="Нагадування про ТО"> Нагадування про ТО</label>
+              <label><input type="radio" name="top_feature" value="Історія авто з баз"> Перевірка історії авто з відкритих баз</label>
+              <label><input type="radio" name="top_feature" value="Страхування й документи"> Страхування й документи</label>
+              <label><input type="radio" name="top_feature" value="Кілька авто / автопарк"> Облік кількох авто або автопарку</label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Скільки авто ви обслуговуєте?</legend>
+            <div class="radios">
+              <label><input type="radio" name="fleet_size" value="1"> Одне</label>
+              <label><input type="radio" name="fleet_size" value="2-3"> 2–3 (родина)</label>
+              <label><input type="radio" name="fleet_size" value="4-10"> 4–10 (малий автопарк)</label>
+              <label><input type="radio" name="fleet_size" value="10+"> Понад 10</label>
+            </div>
+          </fieldset>
+
+          <div id="wishes">
+            <label class="l" for="wish">Яких функцій вам бракує? <span class="hint">Напишіть хоча б кілька слів</span></label>
+            <textarea id="wish" name="wishes" maxlength="1500" placeholder="Що б ви хотіли бачити в застосунку, чого немає в переліку вище? Опишіть, як вам зручно."></textarea>
+          </div>
+
+          <div>
+            <label class="consent">
+              <input type="checkbox" id="consent" name="consent">
+              <span>Погоджуюся на обробку моїх даних для участі в тесті та зв'язку зі мною. Дані потрібні лише для тесту платформи й не передаються третім особам.</span>
+            </label>
+            <div class="err" id="e-consent">Потрібна ваша згода, щоб продовжити.</div>
+          </div>
+
+          <input type="hidden" name="utm" id="utm">
+          <input type="text" name="company" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true">
+
+          <div>
+            <button class="btn" id="send" type="submit" aria-disabled="true">Долучитися до спільноти</button>
+            <div class="missing" id="missing" aria-live="polite"></div>
+            <div class="err" id="e-send" style="margin-top:12px">Не вдалося надіслати заявку. Перевірте з'єднання й спробуйте ще раз.</div>
+          </div>
+        </form>
+
+        <div class="thanks" id="thanks" role="status">
+          <div class="tick" aria-hidden="true">&#10003;</div>
+          <h2>Заявку прийнято</h2>
+          <p style="margin-top:14px">Дякуємо, що ви з нами! Наступний крок: вступіть до Telegram-групи автоспільноти Кривого Рогу. Там ми повідомимо про відкриття перших функцій.</p>
+          <a class="btn" id="tgBtn" href="#" target="_blank" rel="noopener">Перейти до групи в Telegram</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head"><h2>Питання, які часто ставлять</h2></div>
+    <details><summary>Скільки це коштує?</summary><p>Участь у тесті безкоштовна. Платити за доступ тестувальникам не доведеться, а про платні можливості в майбутньому ми скажемо заздалегідь.</p></details>
+    <details><summary>Коли відкриється доступ?</summary><p>Спочатку набираємо групу. Про відкриття перших функцій напишемо в Telegram-групі, і точну дату назвемо тоді, коли вона буде впевнено відома.</p></details>
+    <details><summary>Чи обов'язково вказувати VIN?</summary><p>Ні. Можна лише марку, модель і рік або взагалі пропустити авто й додати його пізніше в гаражі.</p></details>
+    <details><summary>Що станеться з моїми даними?</summary><p>Ми використовуємо їх тільки для участі в тесті та зв'язку з вами. Видалити заявку можна, написавши нам у групі.</p></details>
+    <details><summary>Які саме бази використовуватиме перевірка авто?</summary><p>Ми працюємо з відкритими даними. Точний перелік перевірок залежить від доступності цих даних, і в тесті ми покажемо, що вже працює. Це не заміна офіційної перевірки перед купівлею.</p></details>
+    <details><summary>Чи можна вести кілька авто або автопарк?</summary><p>Так, у гаражі можна тримати кілька авто. Окремий режим для автопарку з витратами, ТО й документами по кожній машині ми теж хочемо перевірити в тесті, тож позначте це у формі.</p></details>
+    <details><summary>Чому лише Кривий Ріг?</summary><p>Кривий Ріг у нас пілот. Тут ми відпрацюємо модель з реальними водіями й сервісами, щоб показати приклад, який зможуть повторити інші міста.</p></details>
+    <details><summary>Я власник сервісу або майстер. Це для мене?</summary><p>Для вас окрема сторінка й умови партнерів-засновників. Напишіть нам, і ми надішлемо посилання.</p></details>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <span>АвтоХаб. Автомобільна спільнота Кривого Рогу. Платформа в розробці, закритий тест.</span>
+    <nav><a href="../">Головна</a><a href="../drivers/">Для водіїв</a><a href="../services/">Для сервісів</a></nav>
+  </div>
+</footer>
+
+<div class="sticky"><a class="btn" href="#join">Долучитися до спільноти</a></div>
+
+<script src="../assets/config.js"></script>
+<script>
+/* Налаштування беруться з assets/config.js */
+var CFG = window.AUTOHUB_CONFIG || {};
+var FORM_ENDPOINT = CFG.formEndpoint || "";
+var TG_GROUP_URL  = CFG.tgDrivers || "";
+var SPOTS_TOTAL   = CFG.driversTotal || 300;
+var SPOTS_TAKEN   = (typeof CFG.driversTaken === 'number') ? CFG.driversTaken : null;
+
+(function(){
+  var f = document.getElementById('f');
+  var $ = function(id){return document.getElementById(id)};
+
+  // лічильник місць: показуємо лише справжнє число
+  if (typeof SPOTS_TAKEN === 'number') {
+    $('meter').classList.add('on');
+    $('meterBar').style.width = Math.min(100, SPOTS_TAKEN / SPOTS_TOTAL * 100) + '%';
+    $('meterText').textContent = 'Зайнято ' + SPOTS_TAKEN + ' з ' + SPOTS_TOTAL + ' місць';
+  }
+
+  // UTM-мітки
+  try {
+    var p = new URLSearchParams(location.search), u = {};
+    ['utm_source','utm_medium','utm_campaign','utm_content','utm_term'].forEach(function(k){ if(p.get(k)) u[k]=p.get(k) });
+    $('utm').value = JSON.stringify(u);
+  } catch(e){}
+
+  function show(id, on){ $(id).classList.toggle('on', on) }
+
+  var btn = $('send');
+  var BTN_TEXT = btn.textContent;
+  var showAll = false, touched = {};
+  function grp(name){ return function(){ return f.querySelector('input[name='+name+']').closest('fieldset'); }; }
+  function chk(name){ return function(){ return !!f.querySelector('input[name='+name+']:checked'); }; }
+  var SPECS = [
+    {key:'name',  label:"ім'я",              box:function(){return f.name;},       ok:function(){return !!f.name.value.trim();}},
+    {key:'tg',    label:'Telegram',          box:function(){return f.telegram;},   ok:function(){return f.telegram.value.trim().length >= 4;}},
+    {key:'brand', label:'марку авто',        box:function(){return f.car_brand;},  ok:function(){return !!f.car_brand.value.trim();}},
+    {key:'model', label:'модель',            box:function(){return f.car_model;},  ok:function(){return !!f.car_model.value.trim();}},
+    {key:'year',  label:'рік випуску',       box:function(){return f.car_year;},   ok:function(){var y=parseInt(f.car_year.value,10); return y>=1950 && y<=2027;}},
+    {key:'svc',   label:'хоча б одну послугу', group:true, box:grp('services'),    ok:chk('services')},
+    {key:'srch',  label:'як шукаєте сервіс зараз', group:true, box:grp('search_now'), ok:chk('search_now')},
+    {key:'top',   label:'що для вас найважливіше', group:true, box:grp('top_feature'), ok:chk('top_feature')},
+    {key:'fleet', label:'кількість авто',    group:true, box:grp('fleet_size'),    ok:chk('fleet_size')},
+    {key:'wish',  label:'побажання до функцій', box:function(){return f.wishes;}, ok:function(){return f.wishes.value.trim().length >= 3;}},
+    {key:'cons',  label:'згоду на обробку даних', group:true, box:function(){return f.consent.closest('label');}, ok:function(){return f.consent.checked;}}
+  ];
+  function refresh(){
+    var m = [];
+    SPECS.forEach(function(sp){
+      var ok = sp.ok();
+      if (!ok) m.push(sp.label);
+      var bad = !ok && !!(showAll || touched[sp.key]);
+      sp.box().classList.toggle(sp.group ? 'bad-group' : 'bad', bad);
+    });
+    btn.setAttribute('aria-disabled', m.length ? 'true' : 'false');
+    $('missing').textContent = m.length ? 'Залишилось заповнити: ' + m.join(', ') + '.' : 'Усе заповнено, можна надсилати.';
+    return m;
+  }
+  f.addEventListener('input', refresh);
+  f.addEventListener('change', refresh);
+  // поле стає червоним, коли користувач залишив його порожнім
+  f.addEventListener('focusout', function(e){
+    SPECS.forEach(function(sp){
+      var box = sp.box();
+      if (box.contains(e.target) && !(e.relatedTarget && box.contains(e.relatedTarget))) touched[sp.key] = true;
+    });
+    refresh();
+  });
+  refresh();
+
+  f.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    if (refresh().length) {
+      showAll = true; refresh();
+      var firstBad = f.querySelector('.bad, .bad-group');
+      if (firstBad) {
+        firstBad.scrollIntoView({block:'center', behavior:'smooth'});
+        var inp = firstBad.matches('input,textarea') ? firstBad : firstBad.querySelector('input,textarea');
+        if (inp) { try { inp.focus({preventScroll:true}); } catch(e){} }
+      }
+      return;
+    }
+    var ok = true;
+    var name = f.name.value.trim(), tg = f.telegram.value.trim();
+    show('e-name', !name); f.name.classList.toggle('bad', !name); if(!name) ok = false;
+    show('e-tg', !tg);     f.telegram.classList.toggle('bad', !tg); if(!tg) ok = false;
+    show('e-consent', !f.consent.checked); if(!f.consent.checked) ok = false;
+    show('e-send', false);
+    if(!ok){
+      var first = document.querySelector('.err.on');
+      if(first) first.scrollIntoView({block:'center', behavior:'smooth'});
+      return;
+    }
+    if (f.company.value) return; // пастка для ботів
+
+    var data = {
+      type: 'driver',
+      ts: new Date().toISOString(),
+      name: name,
+      telegram: tg,
+      car: [f.car_brand.value, f.car_model.value, f.car_year.value].join(' ').trim(),
+      vin: f.vin.value.trim(),
+      plate: f.plate.value.trim(),
+      services: Array.prototype.map.call(f.querySelectorAll('input[name=services]:checked'), function(i){return i.value}).join('; '),
+      services_other: f.services_other.value.trim(),
+      search_now: (f.querySelector('input[name=search_now]:checked')||{}).value || '',
+      top_feature: (f.querySelector('input[name=top_feature]:checked')||{}).value || '',
+      fleet_size: (f.querySelector('input[name=fleet_size]:checked')||{}).value || '',
+      wishes: f.wishes.value.trim(),
+      utm: f.utm.value,
+      referrer: document.referrer
+    };
+
+    btn.disabled = true; btn.textContent = 'Надсилаємо...';
+
+    function done(){
+      f.style.display = 'none';
+      var t = $('thanks'); t.classList.add('on');
+      var b = $('tgBtn');
+      if (TG_GROUP_URL) b.href = TG_GROUP_URL; else b.style.display = 'none';
+      t.scrollIntoView({block:'center', behavior:'smooth'});
+    }
+
+    if (!FORM_ENDPOINT) {
+      var local = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+      if (local) { console.log('DEMO заявка:', data); done(); return; } // демо-режим лише локально
+      btn.disabled = false; btn.textContent = BTN_TEXT; refresh(); // на живому сайті без адреси таблиці не вдаємо успіх
+      $('e-send').classList.add('on'); return;
+    }
+    fetch(FORM_ENDPOINT, {method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(data)})
+      .then(done)
+      .catch(function(){
+        btn.disabled = false; btn.textContent = BTN_TEXT; refresh();
+        show('e-send', true);
+      });
+  });
+})();
+</script>
+</body>
+</html>
