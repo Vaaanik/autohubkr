@@ -15,7 +15,7 @@ var FROM = 'info@autohubkr.com';
 var FROM_NAME = 'АвтоХаб';
 var BATCH = 20;               // листів за один запуск
 var PAUSE_MS = 4000;          // пауза між листами
-var LINK = 'http://autohubkr.com/services/?s=email_sto';
+var LINK = 'https://autohubkr.com/services/?s=email_sto';
 var SUBJECT = 'Запрошення: станьте партнером-засновником АвтоХабу в Кривому Розі';
 
 var COL = { name: 2, email: 6, status: 10, date: 11, note: 12 };
@@ -140,7 +140,7 @@ function html_(name) {
   '<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#FFC629;border-radius:10px;"><a href="' + LINK + '" style="display:inline-block;padding:14px 26px;font-size:16px;font-weight:bold;color:#0E2433;text-decoration:none;">Заповнити анкету партнера</a></td></tr></table>' +
   '<p style="margin:14px 0 0;font-size:13px;color:#6b7c8a;">Або відкрийте посилання: <a href="' + LINK + '" style="color:#0E2433;">autohubkr.com/services</a></p></td></tr>' +
   '<tr><td style="padding:24px 28px 28px;"><p style="margin:0;font-size:15px;line-height:1.6;color:#33475a;">Якщо є питання, просто дайте відповідь на цей лист.<br>З повагою,<br><b>Іван Малихін</b>, команда АвтоХаб<br>' +
-  '<a href="http://autohubkr.com" style="color:#0E2433;">autohubkr.com</a> · ' + FROM + '</p></td></tr>' +
+  '<a href="https://autohubkr.com" style="color:#0E2433;">autohubkr.com</a> · ' + FROM + '</p></td></tr>' +
   '<tr><td style="padding:14px 28px;background:#F6F8FA;font-size:12px;line-height:1.5;color:#7a8a97;">Ми написали вам, бо ' + n + ' є у відкритому каталозі автосервісів Кривого Рогу. Якщо не хочете отримувати від нас листів, дайте відповідь словом «Відписатися», і ми більше не писатимемо.</td></tr>' +
   '</table></td></tr></table>';
 }
