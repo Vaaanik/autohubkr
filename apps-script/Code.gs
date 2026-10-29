@@ -1,4 +1,6 @@
 /**
+ * @OnlyCurrentDoc
+ *
  * АвтоХаб: приймає заявки з сайту й записує їх у Google Таблицю.
  *
  * Як підключити (3 хвилини, деталі в README.md):
@@ -11,9 +13,6 @@
  *
  * Листи «Водії» й «Сервіси» та заголовки створюються автоматично під час першої заявки.
  */
-
-// Якщо хочете отримувати листа про кожну нову заявку, впишіть свою пошту між лапками.
-var NOTIFY_EMAIL = '';
 
 var SHEETS = {
   driver: {
@@ -56,17 +55,6 @@ function doPost(e) {
     var range = sh.getRange(sh.getLastRow() + 1, 1, 1, row.length);
     range.setNumberFormat('@');
     range.setValues([row]);
-
-    if (NOTIFY_EMAIL) {
-      try {
-        var who = data.type === 'service' ? (row[1] + ', ' + row[2]) : row[1];
-        MailApp.sendEmail(
-          NOTIFY_EMAIL,
-          'АвтоХаб: нова заявка (' + cfg.name + ')',
-          'Нова заявка в листі «' + cfg.name + '».\n' + who + '\nКонтакт: ' + (data.type === 'service' ? row[3] : row[2])
-        );
-      } catch (mailErr) { /* лист не вдалося надіслати, але заявка вже збережена */ }
-    }
 
     return reply_({ ok: true });
   } catch (err) {
