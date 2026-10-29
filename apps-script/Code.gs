@@ -12,6 +12,7 @@
  *  5. Скопіюйте адресу веб-застосунку (закінчується на /exec) у assets/config.js, поле formEndpoint.
  *
  * Листи «Водії» й «Сервіси» та заголовки створюються автоматично під час першої заявки.
+ * Про кожну нову заявку приходить лист на NOTIFY_EMAIL.
  */
 
 var SHEETS = {
@@ -28,6 +29,9 @@ var SHEETS = {
 };
 
 var MAX_LEN = 2000;
+
+// Куди надсилати сповіщення про нові заявки. Щоб вимкнути, залиште порожнім: ''.
+var NOTIFY_EMAIL = 'malykhinivan8@gmail.com';
 
 function doPost(e) {
   var lock = LockService.getScriptLock();
@@ -56,6 +60,9 @@ function doPost(e) {
     range.setNumberFormat('@');
     range.setValues([row]);
 
+    // Лист про нову заявку. Помилка пошти не скасовує запис у таблицю.
+    try { notify_(cfg, row, ss.getUrl() + '#gid=' + sh.getSheetId()); } catch (mailErr) { console.error(mailErr); }
+
     return reply_({ ok: true });
   } catch (err) {
     return reply_({ ok: false, error: String(err) });
@@ -67,6 +74,32 @@ function doPost(e) {
 // Відкрийте адресу /exec у браузері: побачите «OK», отже розгортання працює.
 function doGet() {
   return ContentService.createTextOutput('OK');
+}
+
+function notify_(cfg, row, url) {
+  if (!NOTIFY_EMAIL) return;
+  var who = cfg.name === 'Водії' ? row[1] : row[1] + ' (' + row[2] + ')';
+  var subject = 'Нова заявка (' + cfg.name + '): ' + who;
+  var lines = [], html = [];
+  for (var i = 0; i < cfg.heads.length; i++) {
+    if (!row[i]) continue;
+    lines.push(cfg.heads[i] + ': ' + row[i]);
+    html.push('<tr><td style="padding:4px 12px 4px 0;color:#555;vertical-align:top">' + esc_(cfg.heads[i]) +
+              '</td><td style="padding:4px 0"><b>' + esc_(row[i]).replace(/\n/g, '<br>') + '</b></td></tr>');
+  }
+  MailApp.sendEmail({
+    to: NOTIFY_EMAIL,
+    subject: subject,
+    body: lines.join('\n') + '\n\nТаблиця: ' + url,
+    htmlBody: '<p style="font:15px Arial">Нова заявка на сайті АвтоХаб, лист «' + esc_(cfg.name) + '».</p>' +
+              '<table style="font:14px Arial;border-collapse:collapse">' + html.join('') + '</table>' +
+              '<p style="font:14px Arial"><a href="' + url + '">Відкрити таблицю</a></p>',
+    name: 'АвтоХаб заявки'
+  });
+}
+
+function esc_(v) {
+  return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function clean_(v) {
