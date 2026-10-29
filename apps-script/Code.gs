@@ -13,6 +13,7 @@
  *
  * Листи «Водії» й «Сервіси» та заголовки створюються автоматично під час першої заявки.
  * Про кожну нову заявку приходить лист на NOTIFY_EMAIL.
+ * Перегляди сторінок пишуться в лист «Переходи» без листів на пошту.
  */
 
 var SHEETS = {
@@ -25,6 +26,13 @@ var SHEETS = {
     name: 'Сервіси',
     keys:  ['ts', 'biz', 'name', 'telegram', 'social', 'district', 'services', 'services_other', 'posts', 'booking', 'capacity', 'ready', 'pay', 'crm_interest', 'crm_features', 'tools_now', 'wishes', 'utm', 'referrer'],
     heads: ['Дата і час', 'Назва сервісу', 'Контактна особа', 'Telegram або телефон', 'Instagram або сайт', 'Район', 'Послуги', 'Інші послуги', 'Постів або майстрів', 'Як приймає записи', 'Вільна завантаженість', 'Готовий приймати заявки', 'Модель оплати', 'Потрібна єдина система', 'Що найкорисніше в системі', 'Чим веде облік зараз', 'Побажання до функцій', 'Джерело (UTM)', 'Звідки прийшов']
+  },
+  // Перегляди сторінок сайту (assets/track.js). Листів про них не надсилаємо.
+  visit: {
+    name: 'Переходи',
+    notify: false,
+    keys:  ['ts', 'page', 'source', 'device', 'new_visitor', 'visitor', 'utm', 'referrer'],
+    heads: ['Дата і час', 'Сторінка', 'Джерело', 'Пристрій', 'Новий відвідувач', 'ID відвідувача', 'UTM', 'Звідки прийшов']
   }
 };
 
@@ -61,7 +69,7 @@ function doPost(e) {
     range.setValues([row]);
 
     // Лист про нову заявку. Помилка пошти не скасовує запис у таблицю.
-    try { notify_(cfg, row, ss.getUrl() + '#gid=' + sh.getSheetId()); } catch (mailErr) { console.error(mailErr); }
+    if (cfg.notify !== false) try { notify_(cfg, row, ss.getUrl() + '#gid=' + sh.getSheetId()); } catch (mailErr) { console.error(mailErr); }
 
     return reply_({ ok: true });
   } catch (err) {
