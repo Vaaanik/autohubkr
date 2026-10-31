@@ -21,6 +21,9 @@
  */
 
 var ADMIN_EMAIL = 'vaaanik8@gmail.com';
+// З 31.10.2026 дані й логіка живуть у Supabase (supabase/functions/api). Цей скрипт лише пересилає листи адміністратору.
+var MIGRATED = true;
+var RELAY_LIMIT = 60; // листів на годину
 var SHEET_ID = '1q05aDr-xorCI6q8YmOO4aVuPQpg1foL0RqP1YGD2PSc'; // «АвтоХаб MVP: дані застосунку»
 var SESSION_DAYS = 60;
 var MAX_LEN = 1500;
@@ -63,6 +66,8 @@ function doPost(e) {
   var lock = LockService.getScriptLock();
   try {
     var req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    if (req.action === 'relay.notify') return out_(relayNotify_(req));
+    if (MIGRATED && req.action !== 'meta') return out_({ ok: false, error: 'Застосунок оновлено. Оновіть сторінку.' });
     var fn = ACTIONS[req.action];
     if (!fn) return out_({ ok: false, error: 'Невідома дія' });
     if (!NO_LOCK[req.action]) lock.waitLock(20000);
@@ -125,6 +130,19 @@ var ACTIONS = {
     return { id: row.id };
   }
 };
+
+/* ---------- пересилання листів для сервера Supabase ---------- */
+// Лист іде лише на ADMIN_EMAIL, тож сторонній запит не може надіслати пошту комусь іншому; є ліміт на годину.
+function relayNotify_(r) {
+  var cache = CacheService.getScriptCache();
+  var n = Number(cache.get('relay_n') || 0);
+  if (n >= RELAY_LIMIT) return { ok: false, error: 'limit' };
+  cache.put('relay_n', String(n + 1), 3600);
+  var subject = s_(r.subject).slice(0, 150), body = s_(r.body);
+  if (!subject) return { ok: false, error: 'empty' };
+  MailApp.sendEmail(ADMIN_EMAIL, '[АвтоХаб] ' + subject, body + '\n\nАдмін-панель: https://autohubkr.com/app/');
+  return { ok: true };
+}
 
 /* ---------- облікові записи ---------- */
 

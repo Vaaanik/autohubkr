@@ -1,5 +1,5 @@
 /* АвтоХаб: мінімальний service worker — оболонка застосунку працює й без мережі, дані завжди з сервера. */
-var CACHE = 'autohub-app-v4';
+var CACHE = 'autohub-app-v5';
 var SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', '../assets/config.js'];
 self.addEventListener('install', function (e) { e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); })); });
 self.addEventListener('activate', function (e) { e.waitUntil(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); })); }).then(function () { return self.clients.claim(); })); });

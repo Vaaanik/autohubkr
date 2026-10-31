@@ -4,7 +4,7 @@ window.AUTOHUB_CONFIG = {
   formEndpoint: "https://script.google.com/macros/s/AKfycbx1u_c42CSht90TSYOYSZ0bSXzQHrKEIgbvSXo6o5JUj2nDutfFp1ldkzwZ8KJBUIpA/exec",
 
   // Адреса сервера застосунку autohubkr.com/app/ (Apps Script таблиці «АвтоХаб MVP: дані застосунку»)
-  appEndpoint: "https://script.google.com/macros/s/AKfycbzt3ji9te4beOmCgvywZSMUL7WsU1lqRxnM005T11vXVNcGGV1b-3BrPWL4Q8D4YY4C/exec",
+  appEndpoint: "https://uukjizyksppxeakafsua.supabase.co/functions/v1/api",
 
   // Посилання на Telegram-групи, куди переходить людина після заявки
   tgDrivers:  "",   // група автоспільноти для водіїв
