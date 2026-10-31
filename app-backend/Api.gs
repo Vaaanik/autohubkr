@@ -108,7 +108,7 @@ var ACTIONS = {
   'admin.sto.set': adminStoSet_,
   'admin.requests': adminRequests_,
   'admin.users': adminUsers_,
-  'admin.geocode': function (r) { auth_(r, 'admin'); return geocodeBatch_(Math.min(Number(r.limit) || 25, 40)); },
+  'admin.geocode': function (r) { auth_(r, 'admin'); return geocodeBatch_(Math.min(Number(r.limit) || 25, 40), r.retry === true); },
 
   'history.list': function (r) {
     var u = auth_(r, 'driver'); var c = ownCar_(u, r.car_id);
@@ -368,7 +368,7 @@ function adminStos_(r) {
     var p = pubSto_(s, true);
     p.owner = null;
     if (s.owner_id) { var o = users.filter(function (u) { return u.id === s.owner_id; })[0]; p.owner = o ? { name: o.name, phone: o.phone } : { name: '—', phone: '' }; }
-    p.source = s.source; p.created = s.created; p.geo = s.lat === 'x' ? 'not_found' : (Number(s.lat) ? 'ok' : '');
+    p.source = s.source; p.created = s.created; p.geo = String(s.lat).charAt(0) === 'x' ? 'not_found' : (Number(s.lat) ? 'ok' : '');
     return p;
   });
   var rank = function (s) { return s.owner && !s.active ? 0 : s.owner ? 1 : 2; };
@@ -402,7 +402,7 @@ function adminStoSet_(r) {
       if (g && !g.notFound) table_('stos').update(sto, { lat: g.lat, lng: g.lng, district: sto.district || g.district });
     } catch (e) { console.error(e); }
   }
-  var p = pubSto_(sto, true); p.source = sto.source; p.geo = sto.lat === 'x' ? 'not_found' : (Number(sto.lat) ? 'ok' : '');
+  var p = pubSto_(sto, true); p.source = sto.source; p.geo = String(sto.lat).charAt(0) === 'x' ? 'not_found' : (Number(sto.lat) ? 'ok' : '');
   return { sto: p };
 }
 
@@ -439,9 +439,11 @@ function geocodeOne_(address) {
   var base = String(address || '').trim();
   if (!base) return null;
   var plain = base.replace(/^(вул\.|вулиця|ул\.|улица|пр-т|просп\.|проспект|пров\.|провулок|пер\.|бул\.|бульвар)\s*/i, '');
+  var street = plain.replace(/,?\s*\d.*$/, '').trim(); // без номера будинку: точність до вулиці
   var tries = [base + ', Кривий Ріг', plain + ', Кривий Ріг'];
+  if (street && street.length > 3) tries.push(street + ', Кривий Ріг');
   for (var i = 0; i < tries.length; i++) {
-    if (i && tries[i] === tries[0]) continue;
+    if (tries.indexOf(tries[i]) !== i) continue;
     var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=ua&accept-language=uk' +
       '&viewbox=33.05,48.15,33.65,47.62&bounded=1&q=' + encodeURIComponent(tries[i]);
     var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { 'User-Agent': 'AutoHubKR/1.0 (info@autohubkr.com)' } });
@@ -458,8 +460,9 @@ function geocodeOne_(address) {
 }
 
 /** Визначає координати й район для СТО без координат. Мережеві запити йдуть без блокування, запис — під блокуванням. */
-function geocodeBatch_(limit) {
-  var todo = table_('stos').all().filter(function (s) { return !Number(s.lat) && s.lat !== 'x' && s.address; }).slice(0, limit);
+function geocodeBatch_(limit, retry) {
+  // Звичайний прохід: ще не шукані. Повторний (retry): ті, що не знайшлися раз (x); після другої невдачі — xx.
+  var todo = table_('stos').all().filter(function (s) { return s.address && (retry ? s.lat === 'x' : (!Number(s.lat) && String(s.lat).charAt(0) !== 'x')); }).slice(0, limit);
   var found = [];
   todo.forEach(function (s) { var g = geocodeOne_(s.address); if (g) found.push([s.id, g]); });
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
@@ -468,12 +471,12 @@ function geocodeBatch_(limit) {
     var ok = 0, miss = 0;
     found.forEach(function (x) {
       var s = table_('stos').find('id', x[0]); if (!s) return;
-      if (x[1].notFound) { table_('stos').update(s, { lat: 'x', lng: '' }); miss++; return; }
+      if (x[1].notFound) { table_('stos').update(s, { lat: retry ? 'xx' : 'x', lng: '' }); miss++; return; }
       var patch = { lat: x[1].lat, lng: x[1].lng };
       if (!s.district && x[1].district) patch.district = x[1].district;
       table_('stos').update(s, patch); ok++;
     });
-    var left = table_('stos').all().filter(function (s) { return !Number(s.lat) && s.lat !== 'x' && s.address; }).length;
+    var left = table_('stos').all().filter(function (s) { return s.address && (retry ? s.lat === 'x' : (!Number(s.lat) && String(s.lat).charAt(0) !== 'x')); }).length;
     return { done: ok, notFound: miss, left: left };
   } finally { lock.releaseLock(); }
 }
@@ -482,6 +485,12 @@ function geocodeBatch_(limit) {
 function geocodeAll() {
   var t0 = Date.now(), res;
   do { res = geocodeBatch_(20); console.log(JSON.stringify(res)); } while (res.left && Date.now() - t0 < 270000);
+}
+
+/** Повторний пошук для СТО, які раніше не знайшлися (з пошуком до рівня вулиці). */
+function geocodeRetry() {
+  var t0 = Date.now(), res;
+  do { res = geocodeBatch_(15, true); console.log(JSON.stringify(res)); } while (res.left && Date.now() - t0 < 250000);
 }
 
 /* ---------- AI-помічник (Google Gemini) ---------- */
