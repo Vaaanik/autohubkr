@@ -11,7 +11,7 @@
  * у колонці «Активний» поставити TRUE (приходить лист-сповіщення).
  */
 
-var ADMIN_EMAIL = 'malykhinivan8@gmail.com';
+var ADMIN_EMAIL = 'vaaanik8@gmail.com';
 var SESSION_DAYS = 60;
 var MAX_LEN = 1500;
 
