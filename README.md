@@ -83,3 +83,13 @@
 - **Карта:** OpenStreetMap + Leaflet. Координати й район СТО визначаються за адресою (OSM Nominatim) кнопкою «Визначити координати» в адмін-панелі або функцією `geocodeAll()` у редакторі скрипту.
 - **AI-помічник:** Google Gemini. Ключ — у властивостях скрипту `GEMINI_API_KEY` (необов'язково `GEMINI_MODEL`).
 - **Довідкові СТО:** рядки на листі «СТО» з порожнім «ID власника». Водії бачать їх для дзвінка, заявки в них не надсилаються.
+
+### Сервер застосунку: Supabase (з 31.10.2026)
+
+- Проєкт Supabase `autohubkr` (акаунт vaaanik8@gmail.com), база PostgreSQL, регіон West EU (Paris).
+- Схема: `supabase/schema.sql`. Таблиці закриті RLS, доступ лише через Edge Function.
+- Сервер: Edge Function `api` → `https://uukjizyksppxeakafsua.supabase.co/functions/v1/api` (перевірку JWT вимкнено, авторизація — власна, телефон + PIN).
+- Код: правити `supabase/functions/api/core.js` і `server.part.ts`, потім `supabase/build.sh` збирає `index.ts`; вставити його в редактор функції в панелі Supabase і натиснути Deploy.
+- Секрети функції (Edge Functions → Secrets): `GEMINI_API_KEY`, необов'язково `GEMINI_MODEL`.
+- Адміністратор: у SQL Editor `update users set role = 'admin' where phone = '+380…';`
+- Листи адміністратору надсилає старий Google-скрипт (дія `relay.notify`); решту його дій вимкнено (`MIGRATED = true`).
