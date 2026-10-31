@@ -3,7 +3,14 @@
 // @ts-nocheck
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
-const sb = createClient(Deno.env.get('SUPABASE_URL'), Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
+// Ключ з повним доступом платформа передає сама: SUPABASE_SERVICE_ROLE_KEY (старі ключі) або SUPABASE_SECRET_KEYS (нові).
+function serviceKey() {
+  const legacy = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (legacy) return legacy;
+  const raw = Deno.env.get('SUPABASE_SECRET_KEYS') || '';
+  try { const o = JSON.parse(raw); return o.default || Object.values(o)[0]; } catch (_) { return raw; }
+}
+const sb = createClient(Deno.env.get('SUPABASE_URL'), serviceKey(), { auth: { persistSession: false } });
 const PK = { kv: 'key', sessions: 'token' };
 const pk = (t) => PK[t] || 'id';
 const chk = ({ data, error }) => { if (error) throw new Error(error.message); return data; };
