@@ -742,11 +742,12 @@ function renderAdminSto() {
   Promise.all([meta(), api('admin.stos')]).then(function (res) {
     var M = res[0], all = res[1].stos, tab = store('ah_admin_sto_tab') || 'pending', q = '';
     var groups = { pending: function (s) { return s.owner && !s.active; }, partners: function (s) { return s.owner && s.active; }, listed: function (s) { return !s.owner; }, map: function () { return true; } };
-    var noGeo = all.filter(function (s) { return !s.geo && s.address; }).length;
+    var noGeo = all.filter(function (s) { return !s.geo && s.address; }).length, notFound = all.filter(function (s) { return s.geo === 'not_found'; }).length;
     view.innerHTML = '<div class="between" style="margin-bottom:12px"><h1>СТО</h1><span class="mini">' + all.length + ' усього</span></div>' +
       '<div class="seg" id="aTabs" style="margin-bottom:12px">' + [['pending', 'Перевірка'], ['partners', 'Партнери'], ['listed', 'Довідник'], ['map', 'Карта']].map(function (t) {
         return '<button type="button" data-v="' + t[0] + '" class="' + (tab === t[0] ? 'on' : '') + '">' + t[1] + '<small data-n="' + t[0] + '"></small></button>'; }).join('') + '</div>' +
-      (noGeo ? '<div class="card"><div class="small" style="margin-bottom:8px">Без координат: <b id="geoLeft">' + noGeo + '</b>. Координати й район визначаються за адресою через OpenStreetMap (близько 1 сервісу за секунду).</div><button class="btn sm dark" id="geoBtn">Визначити координати</button><div id="geoOut" class="mini" style="margin-top:6px"></div></div>' : '') +
+      (noGeo ? '<div class="card"><div class="small" style="margin-bottom:8px">Без координат: <b id="geoLeft">' + noGeo + '</b>. Координати й район визначаються за адресою через OpenStreetMap (близько 1 сервісу за секунду).</div><button class="btn sm dark" id="geoBtn">Визначити координати</button><div id="geoOut" class="mini" style="margin-top:6px"></div></div>' :
+        notFound ? '<div class="card"><div class="small" style="margin-bottom:8px">Не знайдено на карті: <b>' + notFound + '</b>. Можна повторити пошук з точністю до вулиці або вписати координати вручну в «Редагувати».</div><button class="btn sm ghost" id="geoBtn" data-retry="1">Повторити пошук</button><div id="geoOut" class="mini" style="margin-top:6px"></div></div>' : '') +
       '<input class="i search" id="aQ" placeholder="Пошук за назвою, адресою, телефоном" type="search">' +
       '<div id="aList"></div>';
     function draw() {
@@ -782,8 +783,8 @@ function renderAdminSto() {
       var btn = this, out = $('#geoOut'), total = 0, miss = 0; busy(btn, true);
       (function step() {
         out.textContent = 'Шукаю адреси на карті… знайдено ' + total + (miss ? ', не знайдено ' + miss : '');
-        api('admin.geocode', { limit: 25 }).then(function (r) {
-          total += r.done; miss += r.notFound; $('#geoLeft').textContent = r.left;
+        api('admin.geocode', { limit: 25, retry: !!btn.dataset.retry }).then(function (r) {
+          total += r.done; miss += r.notFound; if ($('#geoLeft')) $('#geoLeft').textContent = r.left;
           if (r.left && view.contains(btn)) return step();
           busy(btn, false); out.textContent = 'Готово: знайдено ' + total + ', не знайдено ' + miss + '. Для ненайдених можна вписати координати вручну в «Редагувати».';
           api('admin.stos').then(function (x) { all = x.stos; draw(); });
