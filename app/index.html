@@ -10,6 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://uukjizyksppxeakafsua.supabase.co" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700&family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
@@ -231,7 +232,7 @@ dialog .dlg{padding:20px}
 <nav class="tabs" id="tabs" hidden><div class="in" id="tabsIn"></div></nav>
 <dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
 
-<script src="../assets/config.js"></script>
+<script src="../assets/config.js?v=4"></script>
 <script>
 (function () {
 'use strict';
@@ -430,7 +431,7 @@ function loadCars() { return api('cars.list').then(function (r) { state.cars = r
 
 function renderGarage() {
   loading();
-  loadCars().then(function (cars) {
+  (state.cars ? Promise.resolve(state.cars) : loadCars()).then(function (cars) {
     view.innerHTML = '<div class="page-head"><h1>Мій гараж</h1><button class="btn sm ghost" id="addCar">Додати авто</button></div>' +
       (cars.length ? cars.map(function (c) {
         return '<a class="dash" href="#/car/' + esc(c.id) + '" aria-label="' + esc(c.make + ' ' + c.model) + ': історія і заявки">' +
@@ -996,8 +997,10 @@ function closeDialog() { var d = document.getElementById('dlg'); if (d.close) d.
 
 /* ---------- старт ---------- */
 function boot() {
-  return api('me').then(function (r) {
-    state.user = r.user; state.sto = r.sto; store('ah_user', JSON.stringify(r.user));
+  // один запит на старті: користувач, довідники й авто
+  return api('boot').then(function (r) {
+    state.user = r.user; state.sto = r.sto; state.meta = r.meta; if (r.user.role === 'driver') state.cars = r.cars;
+    store('ah_user', JSON.stringify(r.user));
     route();
   });
 }
