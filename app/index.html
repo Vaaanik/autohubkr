@@ -5,128 +5,225 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>АвтоХаб — застосунок</title>
 <meta name="description" content="АвтоХаб: гараж ваших авто, заявки в перевірені СТО Кривого Рогу, історія ремонтів і відгуки.">
-<meta name="theme-color" content="#0E2433">
+<meta name="theme-color" content="#06111F">
 <meta name="robots" content="noindex">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700&family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--paper:#EDF0F3;--card:#fff;--ink:#0E2433;--soft:#4A5E6D;--line:#CBD4DB;--petrol:#0E2433;--petrol2:#17384E;--signal:#FFC629;--signal-ink:#3A2C00;--ok:#1F7A4D;--okbg:#E5F4EA;--err:#B3261E;--errbg:#FBECEA;--warnbg:#FFF4D1;--r:14px;
-  --head:'Unbounded','Onest',system-ui,sans-serif;--body:'Onest',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+/* АвтоХаб · система: «нічна приладова панель». Темне — лише шапка, вхід і приладка авто; решта світла для читання надворі. */
+:root{
+  --night:#06111F;--night2:#0C1C33;--glow:#4DA3FF;--chrome:#C9D3DE;
+  --volt:#1F7BFF;--volt-d:#1462D6;--volt-bg:#E6F0FF;
+  --ink:#0F2340;--soft:#51637A;--faint:#8494A8;--line:#D8E0EA;--line2:#E7ECF2;
+  --paper:#EEF2F6;--card:#fff;
+  --stop:#D42B26;--stop-bg:#FDECEB;--ok:#16794A;--ok-bg:#E3F5EB;--amber:#8A5A00;--amber-bg:#FFF2D6;
+  --r-card:18px;--r-ctl:12px;
+  --head:'Exo 2','Onest',system-ui,sans-serif;--body:'Onest',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  /* сумісність зі старими іменами в розмітці */
+  --petrol:var(--night);--petrol2:var(--volt-d);--signal:var(--volt);--signal-ink:#fff;--r:var(--r-card);
+  --err:var(--stop);--errbg:var(--stop-bg);--okbg:var(--ok-bg);--warnbg:var(--amber-bg)
+}
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+html,body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 var(--body);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
 button,input,select,textarea{font:inherit;color:inherit}
-a{color:inherit}
-:focus-visible{outline:3px solid var(--signal);outline-offset:2px;border-radius:8px}
-h1,h2,h3{font-family:var(--head);font-weight:600;letter-spacing:-.01em;line-height:1.2;margin:0}
-h1{font-size:22px}h2{font-size:18px}h3{font-size:16px;font-weight:500}
+a{color:var(--volt-d)}
+:focus-visible{outline:3px solid var(--glow);outline-offset:2px;border-radius:8px}
+h1,h2,h3{font-family:var(--head);letter-spacing:-.005em;line-height:1.15;margin:0;color:var(--ink)}
+h1{font-size:26px;font-weight:700}
+h2{font-size:19px;font-weight:700}
+h3{font-size:16px;font-weight:600}
 .shell{max-width:560px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
-header.bar{position:sticky;top:0;z-index:5;background:var(--petrol);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top))}
-.logo{font-family:var(--head);font-weight:600;font-size:17px;display:flex;align-items:center;gap:9px;text-decoration:none;color:#fff}
-.logo i{width:22px;height:22px;border-radius:6px;background:#fff;position:relative;display:inline-block}
-.logo i::after{content:"";position:absolute;left:4px;right:4px;bottom:5px;height:4px;border-radius:2px;background:var(--signal)}
-header .who{font-size:13px;opacity:.8;text-align:right;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-main{flex:1;padding:18px 16px 110px}
-nav.tabs{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom);z-index:6}
+
+/* шапка: логотип на нічному тлі, знизу тонка лінія світла як у логотипі */
+header.bar{position:sticky;top:0;z-index:5;background:var(--night);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:8px 16px;padding-top:max(8px,env(safe-area-inset-top));min-height:60px}
+header.bar::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(77,163,255,.9) 22%,var(--chrome) 50%,rgba(77,163,255,.9) 78%,transparent)}
+.logo{display:block;line-height:0}
+.logo img{height:44px;width:auto;display:block}
+header .who{font-size:13px;color:var(--chrome);text-align:right;max-width:52%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header .who b{display:block;color:#fff;font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis}
+main{flex:1;padding:20px 16px 112px}
+
+/* нижня навігація */
+nav.tabs{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom);z-index:6}
 nav.tabs .in{display:flex;width:100%;max-width:560px}
-nav.tabs a{flex:1;text-align:center;text-decoration:none;font-size:12px;font-weight:600;color:var(--soft);padding:9px 4px 10px;display:flex;flex-direction:column;align-items:center;gap:3px}
-nav.tabs a svg{width:22px;height:22px}
+nav.tabs a{flex:1;text-align:center;text-decoration:none;font-size:12px;font-weight:600;color:var(--faint);padding:10px 4px 9px;display:flex;flex-direction:column;align-items:center;gap:3px;position:relative}
+nav.tabs a svg{width:23px;height:23px}
 nav.tabs a.on{color:var(--ink)}
-nav.tabs a.on svg{color:var(--petrol)}
-nav.tabs a .dot{position:absolute;margin-left:18px;margin-top:-2px;min-width:16px;height:16px;border-radius:8px;background:var(--err);color:#fff;font-size:10px;line-height:16px;padding:0 4px}
-.card{background:var(--card);border-radius:var(--r);padding:16px;margin-bottom:12px;box-shadow:0 1px 0 rgba(14,36,51,.06)}
+nav.tabs a.on svg{color:var(--volt)}
+nav.tabs a.on::before{content:"";position:absolute;top:-1px;left:28%;right:28%;height:3px;border-radius:0 0 3px 3px;background:var(--volt);box-shadow:0 2px 10px rgba(31,123,255,.55)}
+
+/* поверхні */
+.card{background:var(--card);border:1px solid var(--line2);border-radius:var(--r-card);padding:16px;margin-bottom:12px}
 .muted{color:var(--soft)}
 .small{font-size:14px}
+.mini{font-size:13px;color:var(--soft)}
 .row{display:flex;gap:10px;align-items:center}
 .between{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-.stack>*+*{margin-top:12px}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;cursor:pointer;font-weight:600;padding:14px 18px;border-radius:12px;background:var(--signal);color:var(--signal-ink);text-decoration:none;min-height:48px}
+.stack>*+*{margin-top:14px}
+.page-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+
+/* кнопки */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;cursor:pointer;font-weight:600;padding:13px 18px;border-radius:var(--r-ctl);
+  background:var(--volt);color:#fff;text-decoration:none;min-height:48px;transition:background .15s,transform .1s}
+.btn:hover{background:var(--volt-d)}
+.btn:active{transform:translateY(1px)}
 .btn.wide{width:100%}
-.btn.dark{background:var(--petrol);color:#fff}
-.btn.ghost{background:transparent;border:1.5px solid var(--line);color:var(--ink)}
-.btn.danger{background:transparent;border:1.5px solid #E8B9B5;color:var(--err)}
-.btn.sm{min-height:40px;padding:9px 14px;font-size:14px}
-.btn[disabled]{opacity:.5;cursor:wait}
+.btn.dark{background:var(--night);color:#fff}
+.btn.dark:hover{background:var(--night2)}
+.btn.ghost{background:#fff;border:1.5px solid var(--line);color:var(--ink)}
+.btn.ghost:hover{border-color:var(--volt);color:var(--volt-d)}
+.btn.danger{background:#fff;border:1.5px solid #F1C2BF;color:var(--stop)}
+.btn.danger:hover{background:var(--stop-bg)}
+.btn.sm{min-height:40px;padding:8px 14px;font-size:14px}
+.btn.ai-btn{background:var(--volt-bg);border:0;color:var(--volt-d)}
+.btn.ai-btn:hover{background:#D6E6FF}
+.btn[disabled]{opacity:.55;cursor:wait}
+.link{background:none;border:0;padding:0;color:var(--volt-d);font-weight:600;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-size:14px}
+.back{display:inline-flex;align-items:center;gap:4px;font-weight:600;font-size:14px;color:var(--soft);text-decoration:none;margin-bottom:10px}
+.back:hover{color:var(--volt-d)}
+
+/* форми */
 label.f{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
 label.f span{font-weight:400;color:var(--soft)}
-input.i,select.i,textarea.i{width:100%;border:1.5px solid var(--line);border-radius:12px;background:#fff;padding:12px 14px;min-height:48px;font-size:16px}
-textarea.i{min-height:96px;resize:vertical}
-input.i:focus,select.i:focus,textarea.i:focus{outline:none;border-color:var(--petrol)}
+input.i,select.i,textarea.i{width:100%;border:1.5px solid var(--line);border-radius:var(--r-ctl);background:#fff;padding:12px 14px;min-height:50px;font-size:16px;transition:border-color .15s,box-shadow .15s}
+textarea.i{min-height:104px;resize:vertical}
+input.i:focus,select.i:focus,textarea.i:focus{outline:none;border-color:var(--volt);box-shadow:0 0 0 4px rgba(31,123,255,.14)}
+input.i::placeholder,textarea.i::placeholder{color:#9AA8B8}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:8px 13px;font-size:14px;cursor:pointer;user-select:none}
-.chip.on{background:var(--petrol);border-color:var(--petrol);color:#fff}
-.seg{display:flex;background:#E1E6EA;border-radius:12px;padding:4px;gap:4px}
+.chip{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:8px 14px;font-size:14px;font-weight:500;cursor:pointer;user-select:none;transition:border-color .15s}
+.chip:hover{border-color:var(--volt)}
+.chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.seg{display:flex;background:#E2E8EF;border-radius:var(--r-ctl);padding:4px;gap:4px}
 .seg button{flex:1;border:0;background:transparent;border-radius:9px;padding:10px;font-weight:600;cursor:pointer;color:var(--soft)}
-.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(14,36,51,.12)}
-.badge{display:inline-block;font-size:12px;font-weight:600;border-radius:99px;padding:3px 10px;white-space:nowrap}
-.b-new{background:var(--warnbg);color:#6B4E00}.b-accepted,.b-in_work{background:#E3EEF8;color:#174A75}.b-done{background:var(--okbg);color:var(--ok)}
-.b-declined,.b-cancelled{background:#ECEFF2;color:var(--soft)}
-.note{border-radius:12px;padding:12px 14px;font-size:14px}
-.note.warn{background:var(--warnbg)}.note.ok{background:var(--okbg)}.note.err{background:var(--errbg);color:var(--err)}
-.note.info{background:#E3EEF8}
-.empty{text-align:center;padding:30px 16px;color:var(--soft)}
-.empty b{display:block;color:var(--ink);font-family:var(--head);font-weight:500;margin-bottom:6px}
-.stars{display:inline-flex;gap:2px;color:#E0A800;font-size:15px;letter-spacing:1px}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(15,35,64,.14)}
+
+/* статуси: кольорова крапка + підпис */
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border-radius:99px;padding:4px 10px 4px 8px;white-space:nowrap}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.b-new{background:var(--amber-bg);color:var(--amber)}
+.b-accepted,.b-in_work{background:var(--volt-bg);color:var(--volt-d)}
+.b-done{background:var(--ok-bg);color:var(--ok)}
+.b-declined,.b-cancelled{background:#EDF1F5;color:var(--soft)}
+.note{border-radius:var(--r-ctl);padding:12px 14px;font-size:14px}
+.note.warn{background:var(--amber-bg);color:#5C3D00}
+.note.ok{background:var(--ok-bg);color:#0F5534}
+.note.err{background:var(--stop-bg);color:#9A1C17}
+.note.info{background:var(--volt-bg);color:#123F82}
+.empty{text-align:center;padding:30px 18px;color:var(--soft)}
+.empty b{display:block;color:var(--ink);font-family:var(--head);font-size:18px;font-weight:700;margin-bottom:6px}
+.stars{display:inline-flex;gap:1px;color:#F2A900;font-size:15px;letter-spacing:1px}
 .rate{display:flex;gap:6px}
-.rate button{border:0;background:none;font-size:30px;line-height:1;cursor:pointer;color:#C9D1D8;padding:2px}
-.rate button.on{color:#E0A800}
-.sto-pick{border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;background:#fff}
-.sto-pick+.sto-pick{margin-top:8px}
-.sto-pick.on{border-color:var(--petrol);box-shadow:0 0 0 2px var(--petrol) inset}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
+.rate button{border:0;background:none;font-size:32px;line-height:1;cursor:pointer;color:#C9D2DC;padding:2px}
+.rate button.on{color:#F2A900}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:14px;margin:0}
 .kv dt{color:var(--soft)}.kv dd{margin:0}
-.toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);background:var(--petrol);color:#fff;padding:11px 16px;border-radius:12px;font-size:14px;z-index:20;max-width:90vw;box-shadow:0 8px 24px rgba(14,36,51,.25)}
-.toast.err{background:var(--err)}
-.car{display:flex;gap:12px;align-items:center}
-.car .ic{width:46px;height:46px;border-radius:12px;background:var(--paper);display:grid;place-items:center;flex:none}
-.hist{border-left:3px solid var(--signal);padding-left:12px}
-.hist+.hist{margin-top:14px}
-.link{background:none;border:0;padding:0;color:var(--petrol2);font-weight:600;text-decoration:underline;cursor:pointer;font-size:14px}
-.spin{display:grid;place-items:center;padding:40px;color:var(--soft)}
-.hero{background:var(--petrol);color:#fff;border-radius:18px;padding:20px;margin-bottom:16px}
-.hero p{color:#C8D3DB;margin:8px 0 0;font-size:15px}
-dialog{border:0;border-radius:18px;padding:0;width:min(520px,94vw);max-height:90vh}
-dialog::backdrop{background:rgba(14,36,51,.45)}
-dialog .dlg{padding:18px}
-.ai{border:1.5px solid #CFE0EE;background:#F3F8FC;border-radius:14px;padding:14px}
-.ai h3{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);background:var(--night);color:#fff;padding:12px 16px;border-radius:var(--r-ctl);font-size:14px;z-index:20;max-width:90vw;box-shadow:0 10px 30px rgba(6,17,31,.35);border-left:3px solid var(--glow)}
+.toast.err{border-left-color:var(--stop)}
+.spin{display:grid;place-items:center;padding:48px;color:var(--faint)}
+
+/* приладка авто: темна плашка, номерний знак, одометр */
+.dash{display:block;position:relative;overflow:hidden;background:radial-gradient(120% 140% at 85% -20%,#16345E 0%,var(--night2) 45%,var(--night) 100%);color:#fff;border-radius:var(--r-card);padding:16px 16px 14px;margin-bottom:12px;text-decoration:none;border:1px solid #1A3156}
+.dash::after{content:"";position:absolute;left:16px;right:16px;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(77,163,255,.8),transparent)}
+a.dash:hover{border-color:#2B5797}
+.dash h3{color:#fff;font-size:19px;font-weight:700}
+.dash .yr{color:var(--chrome);font-weight:500;margin-left:6px}
+.dash .go{position:absolute;right:14px;top:16px;color:var(--glow);font-size:22px;line-height:1}
+.dash-row{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:14px;flex-wrap:wrap}
+.odo-l{font-size:12px;color:var(--chrome);margin-bottom:4px}
+.odo{display:inline-flex;gap:3px;font-family:var(--head);font-weight:600;font-size:20px;font-variant-numeric:tabular-nums}
+.odo i{font-style:normal;display:inline-block;width:20px;text-align:center;padding:3px 0;border-radius:5px;background:#030A14;border:1px solid #213A5E;color:#E8F1FF;box-shadow:inset 0 -8px 12px rgba(77,163,255,.08)}
+.odo i.z{color:#3A5274}
+.odo span{align-self:flex-end;margin-left:5px;font-size:13px;color:var(--chrome);font-family:var(--body);font-weight:500}
+.plate{display:inline-flex;align-items:stretch;background:#fff;color:#111;border:2px solid #111;border-radius:6px;overflow:hidden;font-family:var(--head);font-weight:700;font-size:17px;line-height:1;letter-spacing:.06em;height:30px}
+.plate .ua{background:#0057B8;color:#FFD500;font-size:9px;letter-spacing:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding:0 4px 3px;font-family:var(--body);position:relative;width:18px}
+.plate .ua::before{content:"";position:absolute;top:4px;left:4px;width:10px;height:7px;background:linear-gradient(#0057B8 50%,#FFD500 50%);border:1px solid #fff}
+.plate .n{padding:6px 8px 0}
+.plate.none{background:transparent;border:1px dashed #3A5274;color:var(--chrome);font-family:var(--body);font-weight:500;font-size:12px;letter-spacing:0}
+.plate.none .n{padding:8px 8px 0}
+.dash .acts{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.dash .btn.ghost{background:transparent;border-color:#2A4670;color:#fff}
+.dash .btn.ghost:hover{border-color:var(--glow);color:#fff}
+.dash .btn.danger{background:transparent;border-color:#5A2A35;color:#FF8A84}
+.dash .vin{font-size:12px;color:var(--chrome);margin-top:10px;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+
+/* історія: шкала часу */
+.hist{position:relative;padding:0 0 16px 22px}
+.hist::before{content:"";position:absolute;left:5px;top:6px;bottom:-2px;width:2px;background:var(--line)}
+.hist:last-child{padding-bottom:0}
+.hist:last-child::before{display:none}
+.hist::after{content:"";position:absolute;left:0;top:5px;width:8px;height:8px;border-radius:50%;background:#fff;border:2px solid var(--volt)}
+
+/* AI-підказка */
+.ai{border:1px solid #CFE0FA;background:linear-gradient(180deg,#F3F8FF,#fff 70%);border-radius:var(--r-card);padding:14px 16px}
+.ai h3{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .ai ul{margin:4px 0 8px;padding-left:20px;font-size:14px}
-.ai .lbl{font-size:13px;font-weight:600;color:var(--soft);margin-top:8px}
-.urg{display:inline-block;font-size:12px;font-weight:700;border-radius:99px;padding:3px 10px}
-.urg.u0{background:var(--okbg);color:var(--ok)}.urg.u1{background:var(--warnbg);color:#6B4E00}.urg.u2{background:var(--errbg);color:var(--err)}
-.btn.ai-btn{background:#fff;border:1.5px solid var(--petrol);color:var(--petrol)}
-.sto-ref{border:1.5px dashed var(--line);border-radius:12px;padding:12px 14px;background:#fff}
+.ai ul li+li{margin-top:2px}
+.ai .lbl{font-size:13px;font-weight:600;color:var(--soft);margin-top:10px}
+.urg{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:99px;padding:4px 10px 4px 8px}
+.urg::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.urg.u0{background:var(--ok-bg);color:var(--ok)}.urg.u1{background:var(--amber-bg);color:var(--amber)}.urg.u2{background:var(--stop-bg);color:var(--stop)}
+
+/* вибір сервісу */
+.sto-pick{border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;cursor:pointer;background:#fff;transition:border-color .15s}
+.sto-pick:hover{border-color:#9DBDF0}
+.sto-pick+.sto-pick{margin-top:8px}
+.sto-pick.on{border-color:var(--volt);box-shadow:0 0 0 3px rgba(31,123,255,.16)}
+.sto-ref{border:1px solid var(--line2);border-radius:14px;padding:12px 14px;background:#F8FAFC}
 .sto-ref+.sto-ref{margin-top:8px}
 .sto-ref .acts{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
-.map{height:340px;border-radius:12px;overflow:hidden;border:1.5px solid var(--line);margin-bottom:10px;background:#E8ECEF;z-index:0}
+.tag{display:inline-block;font-size:12px;font-weight:600;color:var(--volt-d);background:var(--volt-bg);border-radius:6px;padding:2px 7px}
+
+/* вхід */
+.login-hero{margin:-20px -16px 0;background:radial-gradient(90% 70% at 50% 35%,#0E2547 0%,var(--night) 70%);padding:22px 20px 56px;text-align:center;color:var(--chrome)}
+.login-hero img{width:min(330px,82vw);height:auto;display:block;margin:0 auto 6px}
+.login-hero p{margin:12px auto 0;max-width:34ch;font-size:15px;line-height:1.5}
+.login-sheet{background:#fff;border-radius:24px 24px var(--r-card) var(--r-card);margin:-36px -4px 0;padding:18px 16px 20px;position:relative;box-shadow:0 -10px 30px rgba(6,17,31,.25)}
+.login-sheet .card{border:0;padding:0;margin:16px 0 0}
+.login-foot{text-align:center;font-size:13px;color:var(--soft);margin-top:16px}
+body.is-login{background:#fff}
+body.is-login header.bar{display:none}
+
+/* карта */
+.map{height:340px;border-radius:14px;overflow:hidden;border:1px solid var(--line);margin-bottom:10px;background:#E5EAF0;z-index:0}
 .map.tall{height:60vh;min-height:360px}
 .leaflet-popup-content{font:14px/1.45 var(--body);margin:12px 14px}
 .leaflet-popup-content b{display:block;font-size:15px;margin-bottom:2px}
 .pop-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .pop-acts a,.pop-acts button{font:600 13px var(--body);border-radius:9px;padding:7px 10px;border:1.5px solid var(--line);background:#fff;color:var(--ink);text-decoration:none;cursor:pointer}
-.pop-acts .pri{background:var(--signal);border-color:var(--signal)}
+.pop-acts .pri{background:var(--volt);border-color:var(--volt);color:#fff}
 .legend{display:flex;gap:14px;font-size:13px;color:var(--soft);margin:-2px 0 10px;flex-wrap:wrap}
 .legend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+
+/* адмін */
 .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}
-.tile{background:var(--card);border-radius:var(--r);padding:14px;box-shadow:0 1px 0 rgba(14,36,51,.06)}
-.tile b{display:block;font-family:var(--head);font-size:26px;font-weight:600;line-height:1.1}
+.tile{background:var(--card);border:1px solid var(--line2);border-radius:var(--r-card);padding:14px 14px 12px}
+.tile b{display:block;font-family:var(--head);font-size:30px;font-weight:700;line-height:1.05;font-variant-numeric:tabular-nums}
 .tile span{font-size:13px;color:var(--soft)}
-.tile.warn{background:var(--warnbg)}
+.tile.warn{background:var(--amber-bg);border-color:#F3DDA8}
+a.tile:hover{border-color:var(--volt)}
 .search{margin-bottom:10px}
-.mini{font-size:13px;color:var(--soft)}
 #aTabs button{padding:8px 2px;font-size:13px;line-height:1.25}
 #aTabs button small{display:block;font-weight:500;opacity:.8}
+
+dialog{border:0;border-radius:22px;padding:0;width:min(520px,94vw);max-height:90vh;box-shadow:0 30px 80px rgba(6,17,31,.4)}
+dialog::backdrop{background:rgba(6,17,31,.55);backdrop-filter:blur(2px)}
+dialog .dlg{padding:20px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (max-width:360px){h1{font-size:23px}.odo i{width:17px;font-size:18px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
 <body>
 <div class="shell">
   <header class="bar">
-    <a class="logo" href="#/"><i></i>АвтоХаб</a>
+    <a class="logo" href="#/" aria-label="AutoHubKR — на головну"><img src="logo-head.webp" width="127" height="44" alt="AutoHubKR"></a>
     <div class="who" id="who"></div>
   </header>
   <main id="view"><div class="spin">Завантаження…</div></main>
@@ -157,6 +254,14 @@ function fmtPhone(p) { var d = String(p || '').replace(/\D/g, ''); return d.leng
 function telHref(p) { return 'tel:' + String(p || '').replace(/[^\d+]/g, ''); }
 function stars(n) { n = Math.round(n || 0); var s = ''; for (var i = 1; i <= 5; i++) s += i <= n ? '★' : '☆'; return '<span class="stars" aria-label="Оцінка ' + n + ' з 5">' + s + '</span>'; }
 function money(v) { return v ? Number(v).toLocaleString('uk-UA') + ' грн' : ''; }
+function plateHtml(p) {
+  return p ? '<span class="plate" aria-label="Номер ' + esc(p) + '"><span class="ua" aria-hidden="true">UA</span><span class="n">' + esc(p) + '</span></span>'
+           : '<span class="plate none"><span class="n">номер не вказано</span></span>';
+}
+function odoHtml(v) {
+  var n = String(Math.round(Number(v) || 0)), d = ('000000' + n).slice(-Math.max(6, n.length)), lead = true;
+  return '<span class="odo" aria-label="Пробіг ' + esc(km(v) || 'не вказано') + '">' + d.split('').map(function (c) { var z = lead && c === '0'; if (c !== '0') lead = false; return '<i' + (z ? ' class="z"' : '') + '>' + c + '</i>'; }).join('') + '<span>км</span></span>';
+}
 function km(v) { return v ? Number(v).toLocaleString('uk-UA') + ' км' : ''; }
 function dt(s) { if (!s) return ''; var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}:\d{2}))?/); return m ? m[3] + '.' + m[2] + '.' + m[1] + (m[4] ? ', ' + m[4] : '') : s; }
 function busy(btn, on) { if (!btn) return; btn.disabled = on; if (on) { btn.dataset.t = btn.textContent; btn.textContent = 'Зачекайте…'; } else if (btn.dataset.t) btn.textContent = btn.dataset.t; }
@@ -204,7 +309,8 @@ var STO_TABS = [['/sto', 'Заявки', 'wrench'], ['/sto/profile', 'Мій с�
 function route() {
   var h = location.hash.replace(/^#/, '') || '/';
   var who = document.getElementById('who');
-  who.textContent = state.user ? state.user.name + (state.sto ? ' · ' + state.sto.name : '') : '';
+  who.innerHTML = state.user ? '<b>' + esc(state.user.name) + '</b>' + esc(state.sto ? state.sto.name : ({ admin: 'Адміністратор', sto: 'Сервіс' }[state.user.role] || 'Водій')) : '';
+  document.body.classList.toggle('is-login', !state.token);
   if (!state.token) { if (h !== '/login') return go('/login'); setTabs(null); return renderLogin(); }
   if (h === '/' || h === '/login') return go({ sto: '/sto', admin: '/admin' }[state.user.role] || '/garage');
   window.scrollTo(0, 0);
@@ -242,19 +348,19 @@ function renderLogin() {
   var mode = 'login', role = 'driver';
   function draw() {
     view.innerHTML =
-      '<div class="hero"><h1>Ваші авто й перевірені СТО Кривого Рогу</h1><p>Гараж з історією ремонтів, заявки в сервіси й чесні відгуки. Пілотна версія.</p></div>' +
-      '<div class="seg" role="tablist"><button type="button" data-m="login" class="' + (mode === 'login' ? 'on' : '') + '">Увійти</button><button type="button" data-m="reg" class="' + (mode === 'reg' ? 'on' : '') + '">Реєстрація</button></div>' +
-      '<form class="card stack" id="authForm" style="margin-top:12px" novalidate>' +
+      '<div class="login-hero"><img src="logo-full.webp" width="720" height="373" alt="AutoHubKR — навігатор автопослуг"><p>Гараж з історією ремонтів, заявки в перевірені СТО Кривого Рогу й чесні відгуки.</p></div>' +
+      '<div class="login-sheet"><div class="seg" role="tablist"><button type="button" data-m="login" class="' + (mode === 'login' ? 'on' : '') + '">Увійти</button><button type="button" data-m="reg" class="' + (mode === 'reg' ? 'on' : '') + '">Реєстрація</button></div>' +
+      '<form class="card stack" id="authForm" novalidate>' +
         (mode === 'reg' ? '<div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Хто ви?</span><div class="seg"><button type="button" data-r="driver" class="' + (role === 'driver' ? 'on' : '') + '">Я водій</button><button type="button" data-r="sto" class="' + (role === 'sto' ? 'on' : '') + '">Я сервіс / майстер</button></div></div>' +
           '<div><label class="f" for="name">Ваше ім\'я</label><input class="i" id="name" autocomplete="name" required></div>' : '') +
         '<div><label class="f" for="phone">Телефон</label><input class="i" id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380 67 123 45 67" required></div>' +
-        '<div class="grid2"><div><label class="f" for="pin">PIN-код <span>4–6 цифр</span></label><input class="i" id="pin" type="password" inputmode="numeric" autocomplete="' + (mode === 'reg' ? 'new-password' : 'current-password') + '" maxlength="6" required></div>' +
-        (mode === 'reg' ? '<div><label class="f" for="pin2">Ще раз PIN</label><input class="i" id="pin2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" required></div>' : '<div></div>') + '</div>' +
+        '<div class="' + (mode === 'reg' ? 'grid2' : '') + '"><div><label class="f" for="pin">PIN-код <span>4–6 цифр</span></label><input class="i" id="pin" type="password" inputmode="numeric" autocomplete="' + (mode === 'reg' ? 'new-password' : 'current-password') + '" maxlength="6" required></div>' +
+        (mode === 'reg' ? '<div><label class="f" for="pin2">Ще раз PIN</label><input class="i" id="pin2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" required></div>' : '') + '</div>' +
         (mode === 'reg' && role === 'sto' ? stoFields({}) : '') +
         '<div id="authErr"></div>' +
         '<button class="btn wide" id="authBtn">' + (mode === 'login' ? 'Увійти' : (role === 'sto' ? 'Зареєструвати сервіс' : 'Створити акаунт')) + '</button>' +
         (mode === 'reg' ? '<p class="small muted" style="margin:0">Реєструючись, ви погоджуєтеся на обробку контактних даних для роботи сервісу. Телефон бачить лише сервіс, який прийняв вашу заявку.</p>' : '<p class="small muted" style="margin:0">Забули PIN? Напишіть нам: <a href="mailto:info@autohubkr.com">info@autohubkr.com</a></p>') +
-      '</form>';
+      '</form></div><p class="login-foot">Пілотна версія для Кривого Рогу · <a href="../">Про АвтоХаб</a></p>';
     $$('[data-m]').forEach(function (b) { b.onclick = function () { mode = b.dataset.m; draw(); }; });
     $$('[data-r]').forEach(function (b) { b.onclick = function () { role = b.dataset.r; draw(); }; });
     bindChips(view);
@@ -325,12 +431,12 @@ function loadCars() { return api('cars.list').then(function (r) { state.cars = r
 function renderGarage() {
   loading();
   loadCars().then(function (cars) {
-    view.innerHTML = '<div class="between" style="margin-bottom:12px"><h1>Мій гараж</h1><button class="btn sm ghost" id="addCar">+ Авто</button></div>' +
+    view.innerHTML = '<div class="page-head"><h1>Мій гараж</h1><button class="btn sm ghost" id="addCar">Додати авто</button></div>' +
       (cars.length ? cars.map(function (c) {
-        return '<a class="card car" href="#/car/' + esc(c.id) + '" style="text-decoration:none;display:flex">' +
-          '<div class="ic">' + IC.car + '</div><div style="flex:1;min-width:0"><h3>' + esc(c.make + ' ' + c.model) + (c.year ? ' <span class="muted">' + esc(c.year) + '</span>' : '') + '</h3>' +
-          '<div class="small muted">' + [c.plate, km(c.mileage)].filter(Boolean).map(esc).join(' · ') + '</div></div><span class="muted" aria-hidden="true">›</span></a>';
-      }).join('') + '<a class="btn wide" href="#/new" style="margin-top:4px">Нова заявка в СТО</a>'
+        return '<a class="dash" href="#/car/' + esc(c.id) + '" aria-label="' + esc(c.make + ' ' + c.model) + ': історія і заявки">' +
+          '<h3>' + esc(c.make + ' ' + c.model) + (c.year ? '<span class="yr">' + esc(c.year) + '</span>' : '') + '</h3><span class="go" aria-hidden="true">›</span>' +
+          '<div class="dash-row"><div>' + plateHtml(c.plate) + '</div><div><div class="odo-l">Пробіг</div>' + odoHtml(c.mileage) + '</div></div></a>';
+      }).join('') + '<a class="btn wide" href="#/new" style="margin-top:6px">Нова заявка в СТО</a>'
       : '<div class="card empty"><b>Додайте своє авто</b>Щоб створювати заявки й вести історію ремонтів.<div style="margin-top:14px"><button class="btn" id="addCar2">Додати авто</button></div></div>');
     $('#addCar').onclick = carDialog;
     var b2 = $('#addCar2'); if (b2) b2.onclick = carDialog;
@@ -359,16 +465,17 @@ function renderCar(id) {
     var car = res[0].filter(function (c) { return c.id === id; })[0];
     if (!car) return go('/garage');
     var hist = res[1].history;
-    view.innerHTML = '<a href="#/garage" class="link" style="text-decoration:none">‹ Гараж</a>' +
-      '<div class="card" style="margin-top:10px"><div class="car"><div class="ic">' + IC.car + '</div><div><h1 style="font-size:20px">' + esc(car.make + ' ' + car.model) + '</h1>' +
-      '<div class="small muted">' + [car.year, car.plate, km(car.mileage)].filter(Boolean).map(esc).join(' · ') + '</div></div></div>' +
-      (car.vin ? '<div class="small muted" style="margin-top:8px">VIN ' + esc(car.vin) + '</div>' : '') +
-      '<div class="row" style="margin-top:14px"><a class="btn sm" href="#/new?car=' + esc(car.id) + '">Заявка в СТО</a><button class="btn sm ghost" id="addHist">+ Запис</button><button class="btn sm danger" id="delCar" style="margin-left:auto">Видалити</button></div></div>' +
+    view.innerHTML = '<a href="#/garage" class="back">‹ Гараж</a>' +
+      '<div class="dash"><h1 style="color:#fff;font-size:22px">' + esc(car.make + ' ' + car.model) + (car.year ? '<span class="yr" style="font-size:18px">' + esc(car.year) + '</span>' : '') + '</h1>' +
+      '<div class="dash-row"><div>' + plateHtml(car.plate) + '</div><div><div class="odo-l">Пробіг</div>' + odoHtml(car.mileage) + '</div></div>' +
+      (car.vin ? '<div class="vin">VIN ' + esc(car.vin) + '</div>' : '') +
+      '<div class="acts"><a class="btn sm" href="#/new?car=' + esc(car.id) + '">Заявка в СТО</a><button class="btn sm ghost" id="addHist">Додати запис</button></div></div>' +
       '<h2 style="margin:18px 0 10px">Історія обслуговування</h2>' +
       (hist.length ? '<div class="card">' + hist.map(function (h) {
         return '<div class="hist"><div class="between"><b>' + esc(dt(h.date)) + '</b><span class="small muted">' + esc([km(h.mileage), money(h.price)].filter(Boolean).join(' · ')) + '</span></div>' +
           '<div>' + esc(h.work) + '</div>' + (h.place ? '<div class="small muted">' + esc(h.place) + (h.request_id ? ' · через АвтоХаб' : '') + '</div>' : '') + '</div>';
-      }).join('') + '</div>' : '<div class="card empty"><b>Поки порожньо</b>Тут з\'являться ремонти, виконані через АвтоХаб, і записи, які ви додасте самі.</div>');
+      }).join('') + '</div>' : '<div class="card empty"><b>Поки порожньо</b>Тут з\'являться ремонти, виконані через АвтоХаб, і записи, які ви додасте самі.</div>') +
+      '<button class="btn sm danger" id="delCar" style="margin-top:18px">Видалити авто з гаража</button>';
     $('#addHist').onclick = function () { histDialog(car); };
     $('#delCar').onclick = function () {
       openDialog('<h2>Видалити ' + esc(car.make + ' ' + car.model) + '?</h2><p class="muted">Авто зникне з гаража. Історія заявок у сервісів збережеться.</p><div class="row"><button class="btn ghost" data-close style="flex:1">Ні</button><button class="btn danger" id="yesDel" style="flex:1">Видалити</button></div>');
@@ -415,7 +522,7 @@ function renderNew() {
       '<div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Що потрібно</span><div class="chips" id="nCat">' +
         M.categories.map(function (c) { return '<span class="chip" role="radio" tabindex="0" aria-checked="false" data-v="' + esc(c) + '">' + esc(c) + '</span>'; }).join('') + '</div></div>' +
       '<div><label class="f" for="nWhen">Коли зручно <span>необов\'язково</span></label><input class="i" id="nWhen" placeholder="Будні після 17:00, або субота зранку"></div></div>' +
-      '<div class="card"><div class="between" style="margin-bottom:10px"><h2>Оберіть сервіс</h2><select class="i" id="nDistrict" style="width:auto;min-height:40px;padding:6px 10px;font-size:14px"><option value="">Усі райони</option>' +
+      '<div class="card"><div class="between" style="margin-bottom:10px;align-items:center"><h2 style="white-space:nowrap">Оберіть сервіс</h2><select class="i" id="nDistrict" style="width:auto;min-height:40px;padding:6px 10px;font-size:14px"><option value="">Усі райони</option>' +
         M.districts.map(function (d) { return '<option>' + esc(d) + '</option>'; }).join('') + '</select></div><div id="stoList"><div class="muted small">Спершу оберіть, що потрібно зробити.</div></div></div>' +
       '<div id="nErr"></div><button class="btn wide" id="nSend">Надіслати заявку</button></form>';
     bindChips($('#nCat'), true);
@@ -464,12 +571,12 @@ function renderNew() {
         }).join(''); };
         var REF_STEP = 10, withGeo = r.stos.filter(function (s) { return s.lat; }).length;
         box.innerHTML = '<div class="seg" style="margin-bottom:10px"><button type="button" data-v="list" class="' + (sel.view !== 'map' ? 'on' : '') + '">Список</button><button type="button" data-v="map" class="' + (sel.view === 'map' ? 'on' : '') + '">Карта</button></div>' +
-          '<div id="stoMapWrap" ' + (sel.view === 'map' ? '' : 'hidden') + '><div class="legend"><span><i style="background:#FFC629;border:2px solid #0E2433"></i>Партнери: заявка онлайн</span><span><i style="background:#8A99A6"></i>Інші сервіси: дзвінок</span></div><div class="map" id="stoMap"></div>' +
+          '<div id="stoMapWrap" ' + (sel.view === 'map' ? '' : 'hidden') + '><div class="legend"><span><i style="background:#1F7BFF;box-shadow:0 0 0 2px #fff,0 0 0 3px #1F7BFF"></i>Партнери: заявка онлайн</span><span><i style="background:#7D8DA1"></i>Інші сервіси: дзвінок</span></div><div class="map" id="stoMap"></div>' +
           (withGeo < r.stos.length ? '<div class="mini" style="margin-bottom:8px">На карті ' + withGeo + ' з ' + r.stos.length + ' сервісів, решта поки без точної адреси.</div>' : '') + '</div>' +
           '<div id="stoListWrap" ' + (sel.view === 'map' ? 'hidden' : '') + '>' + (partners.length ? '' : '<div class="note info" style="margin-bottom:10px">Партнерів АвтоХабу для «' + esc(sel.category) + '» поки немає. Нижче інші сервіси міста: зв\'яжіться з ними напряму.</div>') +
           partners.map(function (s) {
           return '<div class="sto-pick" role="radio" tabindex="0" aria-checked="false" data-id="' + esc(s.id) + '"><div class="between"><b>' + esc(s.name) + '</b>' +
-            (s.rating ? '<span class="small">' + stars(s.rating) + ' ' + esc(s.rating) + ' <span class="muted">(' + s.reviews + ')</span></span>' : '<span class="small muted">новий партнер</span>') + '</div>' +
+            (s.rating ? '<span class="small">' + stars(s.rating) + ' ' + esc(s.rating) + ' <span class="muted">(' + s.reviews + ')</span></span>' : '<span class="tag">новий партнер</span>') + '</div>' +
             '<div class="small muted">' + esc([s.district, s.address].filter(Boolean).join(' · ')) + '</div>' +
             (s.hours ? '<div class="small muted">' + esc(s.hours) + '</div>' : '') +
             (s.about ? '<div class="small" style="margin-top:4px">' + esc(s.about) + '</div>' : '') +
@@ -540,7 +647,7 @@ function renderRequests() {
     var list = r.requests;
     view.innerHTML = '<h1 style="margin-bottom:12px">Мої заявки</h1>' + (list.length ? list.map(function (q) {
       var s = q.sto || {};
-      var body = '<div class="between"><div><h3>' + esc(q.category) + '</h3><div class="small muted">' + esc(q.car) + '</div></div><span class="badge b-' + esc(q.status) + '">' + esc(q.status_label) + '</span></div>' +
+      var body = '<div class="between"><div><h3>' + esc(q.category) + '</h3><div class="mini">' + esc(q.car) + ' · ' + esc(dt(q.created)) + '</div></div><span class="badge b-' + esc(q.status) + '">' + esc(q.status_label) + '</span></div>' +
         '<p class="small" style="margin:8px 0">' + esc(q.description) + '</p>' +
         '<div class="small"><b>' + esc(s.name || '') + '</b>' + (s.address ? ' · <span class="muted">' + esc(s.address) + '</span>' : '') + '</div>';
       if (q.sto_comment || q.visit || q.price) body += '<div class="note info" style="margin-top:10px"><div class="small muted" style="margin-bottom:2px">Відповідь сервісу</div>' +
@@ -551,7 +658,7 @@ function renderRequests() {
       if (['new', 'accepted'].indexOf(q.status) !== -1) acts += '<button class="btn sm ghost" data-cancel="' + esc(q.id) + '">Скасувати</button>';
       if (q.status === 'done' && !q.review) acts += '<button class="btn sm" data-review="' + esc(q.id) + '">Залишити відгук</button>';
       if (q.review) body += '<div class="small" style="margin-top:8px">Ваш відгук: ' + stars(q.review.rating) + (q.review.text ? ' ' + esc(q.review.text) : '') + '</div>';
-      return '<div class="card">' + body + (acts ? '<div class="row" style="margin-top:12px;flex-wrap:wrap">' + acts + '</div>' : '') + '<div class="small muted" style="margin-top:8px">' + esc(dt(q.created)) + '</div></div>';
+      return '<div class="card">' + body + (acts ? '<div class="row" style="margin-top:12px;flex-wrap:wrap">' + acts + '</div>' : '') + '</div>';
     }).join('') : '<div class="card empty"><b>Заявок ще немає</b>Опишіть проблему й оберіть сервіс, а відповідь прийде сюди.<div style="margin-top:14px"><a class="btn" href="#/new">Нова заявка</a></div></div>');
     $$('[data-cancel]').forEach(function (b) {
       b.onclick = function () { busy(b, true); api('req.update', { id: b.dataset.cancel, status: 'cancelled' }).then(function () { toast('Заявку скасовано'); route(); }).catch(function (e) { busy(b, false); fail(e); }); };
@@ -595,7 +702,7 @@ function renderStoRequests() {
     var list = groups[stoTab];
     $('#stoReqs').innerHTML = list.length ? list.map(function (q) {
       var d = q.driver || {};
-      var body = '<div class="between"><div><h3>' + esc(q.category) + '</h3><div class="small muted">' + esc(q.car) + '</div></div><span class="badge b-' + esc(q.status) + '">' + esc(q.status_label) + '</span></div>' +
+      var body = '<div class="between"><div><h3>' + esc(q.category) + '</h3><div class="mini">' + esc(q.car) + ' · ' + esc(dt(q.created)) + '</div></div><span class="badge b-' + esc(q.status) + '">' + esc(q.status_label) + '</span></div>' +
         '<p style="margin:8px 0">' + esc(q.description) + '</p>' +
         '<dl class="kv">' + (q.preferred ? '<dt>Зручно</dt><dd>' + esc(q.preferred) + '</dd>' : '') +
         '<dt>Водій</dt><dd>' + esc(d.name || '') + (d.phone ? ' · <a href="' + esc(telHref(d.phone)) + '">' + esc(fmtPhone(d.phone)) + '</a>' : '') + '</dd>' +
@@ -607,7 +714,7 @@ function renderStoRequests() {
       if (q.status === 'new') acts = '<button class="btn sm" data-act="accept" data-id="' + esc(q.id) + '">Прийняти</button><button class="btn sm ghost" data-act="decline" data-id="' + esc(q.id) + '">Відхилити</button>';
       if (q.status === 'accepted') acts = '<button class="btn sm dark" data-act="in_work" data-id="' + esc(q.id) + '">Авто в роботі</button><button class="btn sm" data-act="done" data-id="' + esc(q.id) + '">Завершити</button>';
       if (q.status === 'in_work') acts = '<button class="btn sm" data-act="done" data-id="' + esc(q.id) + '">Завершити</button>';
-      return '<div class="card">' + body + (acts ? '<div class="row" style="margin-top:12px;flex-wrap:wrap">' + acts + '</div>' : '') + '<div class="small muted" style="margin-top:8px">' + esc(dt(q.created)) + '</div></div>';
+      return '<div class="card">' + body + (acts ? '<div class="row" style="margin-top:12px;flex-wrap:wrap">' + acts + '</div>' : '') + '</div>';
     }).join('') : '<div class="card empty"><b>' + ({ new: 'Нових заявок немає', active: 'Немає заявок у роботі', archive: 'Архів порожній' })[stoTab] + '</b>' +
       (stoTab === 'new' ? 'Коли водій обере ваш сервіс, заявка з\'явиться тут, а телефон водія відкриється після того, як ви її приймете.' : '') + '</div>';
     $$('[data-act]').forEach(function (b) { b.onclick = function () { stoAction(b.dataset.act, all.filter(function (q) { return q.id === b.dataset.id; })[0]); }; });
@@ -687,7 +794,7 @@ function stoMap(el, stos, onPick, current, opts) {
     var pts = [];
     stos.filter(function (s) { return s.lat; }).forEach(function (s) {
       var partner = opts.partner ? opts.partner(s) : !s.listed;
-      var m = L.circleMarker([s.lat, s.lng], partner ? { radius: 10, color: '#0E2433', weight: 2.5, fillColor: '#FFC629', fillOpacity: 1 } : { radius: 7, color: '#fff', weight: 1.5, fillColor: '#8A99A6', fillOpacity: .9 }).addTo(map);
+      var m = L.circleMarker([s.lat, s.lng], partner ? { radius: 10, color: '#fff', weight: 3, fillColor: '#1F7BFF', fillOpacity: 1 } : { radius: 6, color: '#fff', weight: 1.5, fillColor: '#7D8DA1', fillOpacity: .85 }).addTo(map);
       var html = '<b>' + esc(s.name) + '</b><div>' + esc([s.district, s.address].filter(Boolean).join(' · ')) + '</div>' +
         (s.rating ? '<div>' + stars(s.rating) + ' ' + esc(s.rating) + '</div>' : '') +
         (opts.extra ? opts.extra(s) : (partner ? '<div class="mini">Приймає заявки в АвтоХабі</div>' : '<div class="mini">Ще не в АвтоХабі</div>')) +
@@ -757,7 +864,7 @@ function renderAdminSto() {
       var list = all.filter(groups[tab]).filter(function (s) { return !ql || (s.name + ' ' + s.address + ' ' + s.phone + ' ' + s.district).toLowerCase().indexOf(ql) !== -1; });
       var box = $('#aList');
       if (tab === 'map') {
-        box.innerHTML = '<div class="legend"><span><i style="background:#FFC629;border:2px solid #0E2433"></i>Партнери</span><span><i style="background:#8A99A6"></i>Довідник</span></div><div class="map tall" id="aMap"></div><div class="mini">' + list.filter(function (s) { return s.lat; }).length + ' з ' + list.length + ' мають координати.</div>';
+        box.innerHTML = '<div class="legend"><span><i style="background:#1F7BFF;box-shadow:0 0 0 2px #fff,0 0 0 3px #1F7BFF"></i>Партнери</span><span><i style="background:#7D8DA1"></i>Довідник</span></div><div class="map tall" id="aMap"></div><div class="mini">' + list.filter(function (s) { return s.lat; }).length + ' з ' + list.length + ' мають координати.</div>';
         stoMap($('#aMap'), list, null, null, { partner: function (s) { return !!s.owner; }, extra: function (s) { return '<div class="mini">' + (s.owner ? (s.active ? 'Партнер' : 'На перевірці') : 'Довідник') + '</div>'; } });
         return;
       }
