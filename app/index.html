@@ -102,6 +102,24 @@ dialog .dlg{padding:18px}
 .sto-ref{border:1.5px dashed var(--line);border-radius:12px;padding:12px 14px;background:#fff}
 .sto-ref+.sto-ref{margin-top:8px}
 .sto-ref .acts{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.map{height:340px;border-radius:12px;overflow:hidden;border:1.5px solid var(--line);margin-bottom:10px;background:#E8ECEF;z-index:0}
+.map.tall{height:60vh;min-height:360px}
+.leaflet-popup-content{font:14px/1.45 var(--body);margin:12px 14px}
+.leaflet-popup-content b{display:block;font-size:15px;margin-bottom:2px}
+.pop-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.pop-acts a,.pop-acts button{font:600 13px var(--body);border-radius:9px;padding:7px 10px;border:1.5px solid var(--line);background:#fff;color:var(--ink);text-decoration:none;cursor:pointer}
+.pop-acts .pri{background:var(--signal);border-color:var(--signal)}
+.legend{display:flex;gap:14px;font-size:13px;color:var(--soft);margin:-2px 0 10px;flex-wrap:wrap}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}
+.tile{background:var(--card);border-radius:var(--r);padding:14px;box-shadow:0 1px 0 rgba(14,36,51,.06)}
+.tile b{display:block;font-family:var(--head);font-size:26px;font-weight:600;line-height:1.1}
+.tile span{font-size:13px;color:var(--soft)}
+.tile.warn{background:var(--warnbg)}
+.search{margin-bottom:10px}
+.mini{font-size:13px;color:var(--soft)}
+#aTabs button{padding:8px 2px;font-size:13px;line-height:1.25}
+#aTabs button small{display:block;font-weight:500;opacity:.8}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 </style>
 </head>
@@ -166,6 +184,7 @@ var IC = {
   list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
   user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
   wrench: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.6-2.6z"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
   shop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l2-6h14l2 6"/><path d="M4 10v10h16V10"/><path d="M9 20v-6h6v6"/></svg>'
 };
 
@@ -179,6 +198,7 @@ function setTabs(items, active) {
   }).join('');
 }
 var DRIVER_TABS = [['/garage', 'Гараж', 'car'], ['/new', 'Заявка', 'plus'], ['/requests', 'Мої заявки', 'list'], ['/profile', 'Профіль', 'user']];
+var ADMIN_TABS = [['/admin', 'Огляд', 'chart'], ['/admin/sto', 'СТО', 'shop'], ['/admin/req', 'Заявки', 'list'], ['/admin/users', 'Люди', 'user']];
 var STO_TABS = [['/sto', 'Заявки', 'wrench'], ['/sto/profile', 'Мій сервіс', 'shop'], ['/profile', 'Профіль', 'user']];
 
 function route() {
@@ -186,7 +206,7 @@ function route() {
   var who = document.getElementById('who');
   who.textContent = state.user ? state.user.name + (state.sto ? ' · ' + state.sto.name : '') : '';
   if (!state.token) { if (h !== '/login') return go('/login'); setTabs(null); return renderLogin(); }
-  if (h === '/' || h === '/login') return go(state.user.role === 'sto' ? '/sto' : '/garage');
+  if (h === '/' || h === '/login') return go({ sto: '/sto', admin: '/admin' }[state.user.role] || '/garage');
   window.scrollTo(0, 0);
   var m;
   if (state.user.role === 'driver') {
@@ -197,6 +217,15 @@ function route() {
     if ((m = h.match(/^\/car\/(\w+)$/))) return renderCar(m[1]);
     if (h === '/profile') return renderProfile();
     return go('/garage');
+  }
+  if (state.user.role === 'admin') {
+    setTabs(ADMIN_TABS, h);
+    if (h === '/admin') return renderAdmin();
+    if (h === '/admin/sto') return renderAdminSto();
+    if (h === '/admin/req') return renderAdminReq();
+    if (h === '/admin/users') return renderAdminUsers();
+    if (h === '/profile') return renderProfile();
+    return go('/admin');
   }
   setTabs(STO_TABS, h);
   if (h === '/sto') return renderStoRequests();
@@ -433,8 +462,11 @@ function renderNew() {
             '<div class="acts">' + (s.phone ? '<a class="btn sm ghost" href="' + esc(telHref(s.phone)) + '">Подзвонити</a>' : '') +
             '<a class="btn sm ghost" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' + q + '">На карті</a></div></div>';
         }).join(''); };
-        var REF_STEP = 10;
-        box.innerHTML = (partners.length ? '' : '<div class="note info" style="margin-bottom:10px">Партнерів АвтоХабу для «' + esc(sel.category) + '» поки немає. Нижче інші сервіси міста: зв\'яжіться з ними напряму.</div>') +
+        var REF_STEP = 10, withGeo = r.stos.filter(function (s) { return s.lat; }).length;
+        box.innerHTML = '<div class="seg" style="margin-bottom:10px"><button type="button" data-v="list" class="' + (sel.view !== 'map' ? 'on' : '') + '">Список</button><button type="button" data-v="map" class="' + (sel.view === 'map' ? 'on' : '') + '">Карта</button></div>' +
+          '<div id="stoMapWrap" ' + (sel.view === 'map' ? '' : 'hidden') + '><div class="legend"><span><i style="background:#FFC629;border:2px solid #0E2433"></i>Партнери: заявка онлайн</span><span><i style="background:#8A99A6"></i>Інші сервіси: дзвінок</span></div><div class="map" id="stoMap"></div>' +
+          (withGeo < r.stos.length ? '<div class="mini" style="margin-bottom:8px">На карті ' + withGeo + ' з ' + r.stos.length + ' сервісів, решта поки без точної адреси.</div>' : '') + '</div>' +
+          '<div id="stoListWrap" ' + (sel.view === 'map' ? 'hidden' : '') + '>' + (partners.length ? '' : '<div class="note info" style="margin-bottom:10px">Партнерів АвтоХабу для «' + esc(sel.category) + '» поки немає. Нижче інші сервіси міста: зв\'яжіться з ними напряму.</div>') +
           partners.map(function (s) {
           return '<div class="sto-pick" role="radio" tabindex="0" aria-checked="false" data-id="' + esc(s.id) + '"><div class="between"><b>' + esc(s.name) + '</b>' +
             (s.rating ? '<span class="small">' + stars(s.rating) + ' ' + esc(s.rating) + ' <span class="muted">(' + s.reviews + ')</span></span>' : '<span class="small muted">новий партнер</span>') + '</div>' +
@@ -445,7 +477,24 @@ function renderNew() {
         }).join('') +
           (refs.length ? '<h3 style="margin:18px 0 4px">Інші сервіси міста</h3><div class="small muted" style="margin-bottom:10px">Ще не в АвтоХабі: заявку їм надіслати не можна, але можна зателефонувати. Дані з відкритих каталогів.</div>' +
             '<div id="refList">' + refHtml(refs.slice(0, REF_STEP)) + '</div>' +
-            (refs.length > REF_STEP ? '<button type="button" class="btn sm ghost wide" id="refMore" style="margin-top:10px">Показати ще (' + (refs.length - REF_STEP) + ')</button>' : '') : '');
+            (refs.length > REF_STEP ? '<button type="button" class="btn sm ghost wide" id="refMore" style="margin-top:10px">Показати ще (' + (refs.length - REF_STEP) + ')</button>' : '') : '') + '</div>';
+        var mapDrawn = false;
+        var drawMap = function () {
+          if (mapDrawn) return; mapDrawn = true;
+          stoMap($('#stoMap'), r.stos, function (id) {
+            var el = $('.sto-pick[data-id="' + id + '"]'); if (el) el.click();
+            toast('Сервіс обрано. Можна надсилати заявку.');
+          }, sel.sto);
+        };
+        $$('.seg button', box).forEach(function (b) {
+          b.onclick = function () {
+            sel.view = b.dataset.v;
+            $$('.seg button', box).forEach(function (o) { o.classList.toggle('on', o === b); });
+            $('#stoMapWrap').hidden = sel.view !== 'map'; $('#stoListWrap').hidden = sel.view === 'map';
+            if (sel.view === 'map') drawMap();
+          };
+        });
+        if (sel.view === 'map') drawMap();
         var shown = REF_STEP;
         if ($('#refMore')) $('#refMore').onclick = function () {
           $('#refList').insertAdjacentHTML('beforeend', refHtml(refs.slice(shown, shown + REF_STEP))); shown += REF_STEP;
@@ -613,10 +662,215 @@ function renderStoProfile() {
   }).catch(fail);
 }
 
+/* ---------- карта (OpenStreetMap + Leaflet) ---------- */
+var leafletP = null;
+function loadLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  if (leafletP) return leafletP;
+  leafletP = new Promise(function (ok, no) {
+    var css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(css);
+    var js = document.createElement('script'); js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+    js.onload = function () { ok(window.L); }; js.onerror = function () { leafletP = null; no(new Error('Не вдалося завантажити карту')); };
+    document.head.appendChild(js);
+  });
+  return leafletP;
+}
+function mapsLink(s) { return s.lat ? 'https://www.google.com/maps/search/?api=1&query=' + s.lat + ',' + s.lng : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(s.name + ', ' + (s.address ? s.address + ', ' : '') + 'Кривий Ріг'); }
+/* Малює сервіси на карті. onPick(id) — для партнерів (кнопка «Обрати»); якщо не передано, кнопки немає. */
+function stoMap(el, stos, onPick, current, opts) {
+  opts = opts || {};
+  el.innerHTML = '<div class="spin">Завантаження карти…</div>';
+  return loadLeaflet().then(function (L) {
+    el.innerHTML = '';
+    var map = L.map(el, { scrollWheelZoom: false, tap: true }).setView([47.91, 33.39], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(map);
+    var pts = [];
+    stos.filter(function (s) { return s.lat; }).forEach(function (s) {
+      var partner = opts.partner ? opts.partner(s) : !s.listed;
+      var m = L.circleMarker([s.lat, s.lng], partner ? { radius: 10, color: '#0E2433', weight: 2.5, fillColor: '#FFC629', fillOpacity: 1 } : { radius: 7, color: '#fff', weight: 1.5, fillColor: '#8A99A6', fillOpacity: .9 }).addTo(map);
+      var html = '<b>' + esc(s.name) + '</b><div>' + esc([s.district, s.address].filter(Boolean).join(' · ')) + '</div>' +
+        (s.rating ? '<div>' + stars(s.rating) + ' ' + esc(s.rating) + '</div>' : '') +
+        (opts.extra ? opts.extra(s) : (partner ? '<div class="mini">Приймає заявки в АвтоХабі</div>' : '<div class="mini">Ще не в АвтоХабі</div>')) +
+        '<div class="pop-acts">' + (partner && onPick ? '<button type="button" class="pri" data-pick="' + esc(s.id) + '">Обрати</button>' : '') +
+        (s.phone ? '<a href="' + esc(telHref(s.phone)) + '">Подзвонити</a>' : '') + '<a target="_blank" rel="noopener" href="' + esc(mapsLink(s)) + '">Маршрут</a></div>';
+      m.bindPopup(html);
+      if (partner) m.bringToFront();
+      if (s.id === current) setTimeout(function () { m.openPopup(); }, 50);
+      pts.push([s.lat, s.lng]);
+    });
+    if (pts.length > 1) map.fitBounds(pts, { padding: [24, 24], maxZoom: 14 }); else if (pts.length) map.setView(pts[0], 14);
+    map.on('popupopen', function (e) {
+      var b = e.popup.getElement().querySelector('[data-pick]');
+      if (b) b.onclick = function () { onPick(b.dataset.pick); map.closePopup(); };
+    });
+    setTimeout(function () { map.invalidateSize(); }, 60);
+    return map;
+  }).catch(function (e) { el.innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
+}
+
+/* ---------- адміністратор ---------- */
+function renderAdmin() {
+  loading();
+  api('admin.stats').then(function (r) {
+    var s = r.stats, tile = function (n, label, warn, href) { return '<' + (href ? 'a href="' + href + '" style="text-decoration:none;color:inherit"' : 'div') + ' class="tile' + (warn ? ' warn' : '') + '"><b>' + n + '</b><span>' + label + '</span></' + (href ? 'a' : 'div') + '>'; };
+    view.innerHTML = '<h1 style="margin-bottom:12px">Огляд</h1>' +
+      (s.pending ? '<a class="note warn" href="#/admin/sto" style="display:block;margin-bottom:12px;text-decoration:none;color:inherit"><b>' + s.pending + ' СТО чекають перевірки.</b> Відкрити й активувати →</a>' : '') +
+      (!s.aiReady ? '<div class="note err" style="margin-bottom:12px">AI-помічник не налаштований: немає GEMINI_API_KEY у властивостях скрипту.</div>' : '') +
+      '<div class="tiles">' + tile(s.drivers, 'водіїв') + tile(s.cars, 'авто в гаражах') + tile(s.partners, 'СТО-партнерів', false, '#/admin/sto') + tile(s.pending, 'СТО на перевірці', s.pending > 0, '#/admin/sto') +
+      tile(s.requests, 'заявок усього', false, '#/admin/req') + tile(s.requestsWeek, 'заявок за 7 днів') + tile(s.newUsersWeek, 'нових акаунтів за 7 днів', false, '#/admin/users') + tile(s.reviews, 'відгуків') + '</div>' +
+      '<div class="card"><h2 style="margin-bottom:10px">Заявки за статусом</h2><dl class="kv">' + Object.keys(r.statuses).map(function (k) { return '<dt>' + esc(r.statuses[k]) + '</dt><dd>' + (s.byStatus[k] || 0) + '</dd>'; }).join('') + '</dl></div>' +
+      '<div class="card"><h2 style="margin-bottom:6px">Довідник сервісів</h2><p class="small muted" style="margin:0 0 10px">' + s.listed + ' сервісів з відкритих каталогів показуються водіям для дзвінка. Без координат: ' + s.noCoords + '.</p>' +
+      '<a class="btn sm ghost" href="#/admin/sto">Керувати СТО</a></div>';
+  }).catch(fail);
+}
+
+function adminStoCard(s) {
+  return '<div class="card" data-sid="' + esc(s.id) + '"><div class="between"><div><b>' + esc(s.name) + '</b><div class="mini">' + esc([s.district || 'район не вказано', s.address].filter(Boolean).join(' · ')) + '</div></div>' +
+    (s.owner ? (s.active ? '<span class="badge b-done">Партнер</span>' : '<span class="badge b-new">На перевірці</span>') : (s.active ? '<span class="badge b-declined">Довідник</span>' : '<span class="badge b-cancelled">Приховано</span>')) + '</div>' +
+    '<div class="small" style="margin-top:6px">' + (s.phone ? '<a href="' + esc(telHref(s.phone)) + '">' + esc(fmtPhone(s.phone)) + '</a>' : '<span class="muted">без телефону</span>') +
+    (s.owner ? ' · власник: ' + esc(s.owner.name) + (s.owner.phone && s.owner.phone !== s.phone ? ', <a href="' + esc(telHref(s.owner.phone)) + '">' + esc(fmtPhone(s.owner.phone)) + '</a>' : '') : '') + '</div>' +
+    (s.services.length ? '<div class="mini" style="margin-top:2px">' + esc(s.services.join(', ')) + '</div>' : '') +
+    (s.about ? '<div class="mini">' + esc(s.about) + '</div>' : '') +
+    '<div class="mini">' + (s.geo === 'ok' ? '📍 є на карті' : s.geo === 'not_found' ? '📍 адресу не знайдено на карті' : '📍 координати ще не визначені') + (s.created ? ' · додано ' + esc(dt(s.created)) : '') + '</div>' +
+    '<div class="row" style="margin-top:10px;flex-wrap:wrap;gap:8px">' +
+      (s.active ? '<button class="btn sm ghost" data-act="off">' + (s.owner ? 'Зняти з каталогу' : 'Приховати') + '</button>' : '<button class="btn sm" data-act="on">' + (s.owner ? 'Активувати' : 'Показати') + '</button>') +
+      '<button class="btn sm ghost" data-act="edit">Редагувати</button><a class="btn sm ghost" target="_blank" rel="noopener" href="' + esc(mapsLink(s)) + '">Google Maps</a></div></div>';
+}
+
+function renderAdminSto() {
+  loading();
+  Promise.all([meta(), api('admin.stos')]).then(function (res) {
+    var M = res[0], all = res[1].stos, tab = store('ah_admin_sto_tab') || 'pending', q = '';
+    var groups = { pending: function (s) { return s.owner && !s.active; }, partners: function (s) { return s.owner && s.active; }, listed: function (s) { return !s.owner; }, map: function () { return true; } };
+    var noGeo = all.filter(function (s) { return !s.geo && s.address; }).length;
+    view.innerHTML = '<div class="between" style="margin-bottom:12px"><h1>СТО</h1><span class="mini">' + all.length + ' усього</span></div>' +
+      '<div class="seg" id="aTabs" style="margin-bottom:12px">' + [['pending', 'Перевірка'], ['partners', 'Партнери'], ['listed', 'Довідник'], ['map', 'Карта']].map(function (t) {
+        return '<button type="button" data-v="' + t[0] + '" class="' + (tab === t[0] ? 'on' : '') + '">' + t[1] + '<small data-n="' + t[0] + '"></small></button>'; }).join('') + '</div>' +
+      (noGeo ? '<div class="card"><div class="small" style="margin-bottom:8px">Без координат: <b id="geoLeft">' + noGeo + '</b>. Координати й район визначаються за адресою через OpenStreetMap (близько 1 сервісу за секунду).</div><button class="btn sm dark" id="geoBtn">Визначити координати</button><div id="geoOut" class="mini" style="margin-top:6px"></div></div>' : '') +
+      '<input class="i search" id="aQ" placeholder="Пошук за назвою, адресою, телефоном" type="search">' +
+      '<div id="aList"></div>';
+    function draw() {
+      $$('#aTabs button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === tab); });
+      $$('#aTabs [data-n]').forEach(function (n) { n.textContent = n.dataset.n === 'map' ? 'усі' : all.filter(groups[n.dataset.n]).length; });
+      var ql = q.toLowerCase();
+      var list = all.filter(groups[tab]).filter(function (s) { return !ql || (s.name + ' ' + s.address + ' ' + s.phone + ' ' + s.district).toLowerCase().indexOf(ql) !== -1; });
+      var box = $('#aList');
+      if (tab === 'map') {
+        box.innerHTML = '<div class="legend"><span><i style="background:#FFC629;border:2px solid #0E2433"></i>Партнери</span><span><i style="background:#8A99A6"></i>Довідник</span></div><div class="map tall" id="aMap"></div><div class="mini">' + list.filter(function (s) { return s.lat; }).length + ' з ' + list.length + ' мають координати.</div>';
+        stoMap($('#aMap'), list, null, null, { partner: function (s) { return !!s.owner; }, extra: function (s) { return '<div class="mini">' + (s.owner ? (s.active ? 'Партнер' : 'На перевірці') : 'Довідник') + '</div>'; } });
+        return;
+      }
+      if (!list.length) { box.innerHTML = '<div class="card empty"><b>' + (tab === 'pending' ? 'Нових заявок від СТО немає' : 'Нічого не знайдено') + '</b>' + (tab === 'pending' ? 'Коли сервіс зареєструється, він з\'явиться тут, а на пошту прийде лист.' : '') + '</div>'; return; }
+      var shown = list.slice(0, 60);
+      box.innerHTML = shown.map(adminStoCard).join('') + (list.length > 60 ? '<div class="mini" style="text-align:center">Показано 60 з ' + list.length + '. Уточніть пошук.</div>' : '');
+    }
+    function replace(sto) {
+      for (var i = 0; i < all.length; i++) if (all[i].id === sto.id) { sto.owner = all[i].owner; sto.created = all[i].created; all[i] = sto; }
+      draw();
+    }
+    $('#aTabs').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; tab = b.dataset.v; store('ah_admin_sto_tab', tab); draw(); };
+    $('#aQ').oninput = function () { q = this.value.trim(); draw(); };
+    $('#aList').onclick = function (e) {
+      var b = e.target.closest('[data-act]'); if (!b) return;
+      var card = b.closest('[data-sid]'), s = all.filter(function (x) { return x.id === card.dataset.sid; })[0];
+      if (b.dataset.act === 'edit') return adminStoDialog(M, s, replace);
+      busy(b, true);
+      api('admin.sto.set', { id: s.id, active: b.dataset.act === 'on' }).then(function (r) { toast(b.dataset.act === 'on' ? 'Показано в каталозі' : 'Знято з каталогу'); replace(r.sto); })
+        .catch(function (e2) { busy(b, false); fail(e2); });
+    };
+    if ($('#geoBtn')) $('#geoBtn').onclick = function () {
+      var btn = this, out = $('#geoOut'), total = 0, miss = 0; busy(btn, true);
+      (function step() {
+        out.textContent = 'Шукаю адреси на карті… знайдено ' + total + (miss ? ', не знайдено ' + miss : '');
+        api('admin.geocode', { limit: 25 }).then(function (r) {
+          total += r.done; miss += r.notFound; $('#geoLeft').textContent = r.left;
+          if (r.left && view.contains(btn)) return step();
+          busy(btn, false); out.textContent = 'Готово: знайдено ' + total + ', не знайдено ' + miss + '. Для ненайдених можна вписати координати вручну в «Редагувати».';
+          api('admin.stos').then(function (x) { all = x.stos; draw(); });
+        }).catch(function (e) { busy(btn, false); out.textContent = e.message; });
+      })();
+    };
+    draw();
+  }).catch(fail);
+}
+
+function adminStoDialog(M, s, done) {
+  openDialog('<h2 style="margin-bottom:12px">' + esc(s.name) + '</h2><form id="aeF" class="stack" novalidate>' +
+    '<div><label class="f" for="aeN">Назва</label><input class="i" id="aeN" value="' + esc(s.name) + '"></div>' +
+    '<div><label class="f" for="aeD">Район</label><select class="i" id="aeD"><option value="">Не вказано</option>' + M.districts.map(function (d) { return '<option' + (d === s.district ? ' selected' : '') + '>' + esc(d) + '</option>'; }).join('') + '</select></div>' +
+    '<div><label class="f" for="aeA">Адреса</label><input class="i" id="aeA" value="' + esc(s.address) + '"></div>' +
+    '<div><label class="f" for="aeP">Телефон</label><input class="i" id="aeP" inputmode="tel" value="' + esc(s.phone ? fmtPhone(s.phone) : '') + '"></div>' +
+    '<div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Послуги</span><div class="chips" id="aeS">' + M.categories.map(function (c) { var on = s.services.indexOf(c) !== -1; return '<span class="chip' + (on ? ' on' : '') + '" role="checkbox" tabindex="0" aria-checked="' + on + '" data-v="' + esc(c) + '">' + esc(c) + '</span>'; }).join('') + '</div></div>' +
+    '<div><label class="f" for="aeH">Графік</label><input class="i" id="aeH" value="' + esc(s.hours) + '"></div>' +
+    '<div><label class="f" for="aeB">Про сервіс</label><textarea class="i" id="aeB">' + esc(s.about) + '</textarea></div>' +
+    '<div><label class="f">Координати <span>з Google Maps: правий клік по точці → скопіювати числа</span></label><div class="grid2"><input class="i" id="aeLa" placeholder="47.91" inputmode="decimal" value="' + esc(s.lat || '') + '"><input class="i" id="aeLn" placeholder="33.39" inputmode="decimal" value="' + esc(s.lng || '') + '"></div></div>' +
+    '<div id="aeE"></div><div class="row"><button class="btn" id="aeSave" style="flex:1">Зберегти</button><button class="btn ghost" data-close>Скасувати</button></div></form>');
+  bindChips($('#aeS'));
+  $('#aeLa').oninput = function () { var m = this.value.match(/(-?\d+[.,]\d+)\s*[,; ]\s*(-?\d+[.,]\d+)/); if (m) { this.value = m[1].replace(',', '.'); $('#aeLn').value = m[2].replace(',', '.'); } };
+  $('#aeF').onsubmit = function (e) {
+    e.preventDefault();
+    var btn = $('#aeSave'); busy(btn, true);
+    var addrChanged = $('#aeA').value.trim() !== s.address;
+    var fields = { name: $('#aeN').value, district: $('#aeD').value, address: $('#aeA').value, phone: $('#aeP').value,
+      services: $$('#aeS .chip.on').map(function (c) { return c.dataset.v; }), hours: $('#aeH').value, about: $('#aeB').value };
+    var la = $('#aeLa').value.trim().replace(',', '.'), ln = $('#aeLn').value.trim().replace(',', '.');
+    if (!(addrChanged && la === String(s.lat || '') && ln === String(s.lng || ''))) { fields.lat = la; fields.lng = ln; }
+    api('admin.sto.set', { id: s.id, fields: fields }).then(function (r) { closeDialog(); toast('Збережено'); done(r.sto); })
+      .catch(function (e2) { busy(btn, false); $('#aeE').innerHTML = '<div class="note err">' + esc(e2.message) + '</div>'; });
+  };
+}
+
+function renderAdminReq() {
+  loading();
+  api('admin.requests').then(function (r) {
+    var f = '';
+    view.innerHTML = '<div class="between" style="margin-bottom:12px"><h1>Заявки</h1><span class="mini">' + r.total + ' усього</span></div>' +
+      '<select class="i" id="arF" style="margin-bottom:12px"><option value="">Усі статуси</option>' + ['new', 'accepted', 'in_work', 'done', 'declined', 'cancelled'].map(function (k) { return '<option value="' + k + '">' + esc({ new: 'Нова', accepted: 'Прийнята', in_work: 'У роботі', done: 'Виконана', declined: 'Відхилена', cancelled: 'Скасована' }[k]) + '</option>'; }).join('') + '</select><div id="arL"></div>';
+    function draw() {
+      var list = r.requests.filter(function (q) { return !f || q.status === f; });
+      $('#arL').innerHTML = list.length ? list.map(function (q) {
+        return '<div class="card"><div class="between"><b>' + esc(q.category) + ' · ' + esc(q.car) + '</b><span class="badge b-' + esc(q.status) + '">' + esc(q.status_label) + '</span></div>' +
+          '<p class="small" style="margin:6px 0">' + esc(q.description) + '</p>' +
+          '<dl class="kv"><dt>Водій</dt><dd>' + (q.driver ? esc(q.driver.name) + ', <a href="' + esc(telHref(q.driver.phone)) + '">' + esc(fmtPhone(q.driver.phone)) + '</a>' : '—') + '</dd>' +
+          '<dt>СТО</dt><dd>' + (q.sto ? esc(q.sto.name) + (q.sto.phone ? ', <a href="' + esc(telHref(q.sto.phone)) + '">' + esc(fmtPhone(q.sto.phone)) + '</a>' : '') : '—') + '</dd>' +
+          '<dt>Створено</dt><dd>' + esc(dt(q.created)) + '</dd>' + (q.updated && q.updated !== q.created ? '<dt>Оновлено</dt><dd>' + esc(dt(q.updated)) + '</dd>' : '') +
+          (q.preferred ? '<dt>Бажаний час</dt><dd>' + esc(q.preferred) + '</dd>' : '') + (q.visit ? '<dt>Запрошення</dt><dd>' + esc(q.visit) + '</dd>' : '') +
+          (q.price ? '<dt>Ціна</dt><dd>' + esc(q.price) + ' грн</dd>' : '') + (q.sto_comment ? '<dt>Коментар СТО</dt><dd>' + esc(q.sto_comment) + '</dd>' : '') +
+          (q.work_done ? '<dt>Виконано</dt><dd>' + esc(q.work_done) + '</dd>' : '') + (q.review ? '<dt>Відгук</dt><dd>' + stars(q.review.rating) + ' ' + esc(q.review.text || '') + '</dd>' : '') + '</dl></div>';
+      }).join('') : '<div class="card empty"><b>Заявок немає</b>Коли водії почнуть надсилати заявки, вони з\'являться тут.</div>';
+    }
+    $('#arF').onchange = function () { f = this.value; draw(); };
+    draw();
+  }).catch(fail);
+}
+
+function renderAdminUsers() {
+  loading();
+  api('admin.users').then(function (r) {
+    var role = '', q = '';
+    view.innerHTML = '<div class="between" style="margin-bottom:12px"><h1>Люди</h1><span class="mini">' + r.users.length + ' акаунтів</span></div>' +
+      '<div class="seg" id="auT" style="margin-bottom:10px"><button type="button" data-v="" class="on">Усі</button><button type="button" data-v="driver">Водії</button><button type="button" data-v="sto">Сервіси</button><button type="button" data-v="admin">Адміни</button></div>' +
+      '<input class="i search" id="auQ" type="search" placeholder="Пошук за ім\'ям або телефоном"><div id="auL"></div>' +
+      '<div class="card small muted">Щоб дати комусь права адміністратора, змініть «Роль» на admin на листі «Користувачі» в таблиці. PIN-коди зберігаються лише у вигляді хешу, їх ніхто не бачить.</div>';
+    function draw() {
+      var ql = q.toLowerCase();
+      var list = r.users.filter(function (u) { return (!role || u.role === role) && (!ql || (u.name + ' ' + u.phone).toLowerCase().indexOf(ql) !== -1); });
+      $('#auL').innerHTML = list.length ? list.map(function (u) {
+        return '<div class="card"><div class="between"><b>' + esc(u.name) + '</b><span class="badge ' + (u.role === 'admin' ? 'b-new' : u.role === 'sto' ? 'b-accepted' : 'b-declined') + '">' + esc({ driver: 'Водій', sto: 'Сервіс', admin: 'Адмін' }[u.role] || u.role) + '</span></div>' +
+          '<div class="small"><a href="' + esc(telHref(u.phone)) + '">' + esc(fmtPhone(u.phone)) + '</a>' + (u.sto ? ' · ' + esc(u.sto) : '') + '</div>' +
+          '<div class="mini">' + (u.role === 'driver' ? 'авто: ' + u.cars + ' · ' : '') + 'заявок: ' + u.requests + ' · з ' + esc(dt(u.created)) + '</div></div>';
+      }).join('') : '<div class="card empty"><b>Нікого не знайдено</b></div>';
+    }
+    $('#auT').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; role = b.dataset.v; $$('#auT button').forEach(function (o) { o.classList.toggle('on', o === b); }); draw(); };
+    $('#auQ').oninput = function () { q = this.value.trim(); draw(); };
+    draw();
+  }).catch(fail);
+}
+
 /* ---------- профіль ---------- */
 function renderProfile() {
   var u = state.user;
-  view.innerHTML = '<h1 style="margin-bottom:12px">Профіль</h1><div class="card"><dl class="kv"><dt>Ім\'я</dt><dd>' + esc(u.name) + '</dd><dt>Телефон</dt><dd>' + esc(fmtPhone(u.phone)) + '</dd><dt>Тип</dt><dd>' + (u.role === 'sto' ? 'Сервіс' : 'Водій') + '</dd></dl></div>' +
+  view.innerHTML = '<h1 style="margin-bottom:12px">Профіль</h1><div class="card"><dl class="kv"><dt>Ім\'я</dt><dd>' + esc(u.name) + '</dd><dt>Телефон</dt><dd>' + esc(fmtPhone(u.phone)) + '</dd><dt>Тип</dt><dd>' + ({ sto: 'Сервіс', admin: 'Адміністратор' }[u.role] || 'Водій') + '</dd></dl></div>' +
     '<div class="card small"><b>Пілотна версія.</b> Ми запускаємо АвтоХаб разом із першими водіями й сервісами Кривого Рогу. Ідеї та проблеми пишіть на <a href="mailto:info@autohubkr.com">info@autohubkr.com</a>.</div>' +
     '<button class="btn wide ghost" id="out">Вийти</button>';
   $('#out').onclick = function () { api('logout').catch(function () {}).then(function () { logoutLocal(); go('/login'); }); };
