@@ -92,6 +92,16 @@ input.i:focus,select.i:focus,textarea.i:focus{outline:none;border-color:var(--pe
 dialog{border:0;border-radius:18px;padding:0;width:min(520px,94vw);max-height:90vh}
 dialog::backdrop{background:rgba(14,36,51,.45)}
 dialog .dlg{padding:18px}
+.ai{border:1.5px solid #CFE0EE;background:#F3F8FC;border-radius:14px;padding:14px}
+.ai h3{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.ai ul{margin:4px 0 8px;padding-left:20px;font-size:14px}
+.ai .lbl{font-size:13px;font-weight:600;color:var(--soft);margin-top:8px}
+.urg{display:inline-block;font-size:12px;font-weight:700;border-radius:99px;padding:3px 10px}
+.urg.u0{background:var(--okbg);color:var(--ok)}.urg.u1{background:var(--warnbg);color:#6B4E00}.urg.u2{background:var(--errbg);color:var(--err)}
+.btn.ai-btn{background:#fff;border:1.5px solid var(--petrol);color:var(--petrol)}
+.sto-ref{border:1.5px dashed var(--line);border-radius:12px;padding:12px 14px;background:#fff}
+.sto-ref+.sto-ref{margin-top:8px}
+.sto-ref .acts{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 </style>
 </head>
@@ -369,9 +379,12 @@ function renderNew() {
     view.innerHTML = '<h1 style="margin-bottom:12px">Нова заявка</h1><form id="nForm" novalidate>' +
       '<div class="card stack"><div><label class="f" for="nCar">Авто</label><select class="i" id="nCar"><option value="">Оберіть авто</option>' +
         cars.map(function (c) { return '<option value="' + esc(c.id) + '"' + (c.id === sel.car ? ' selected' : '') + '>' + esc(c.make + ' ' + c.model + (c.year ? ' ' + c.year : '') + (c.plate ? ' · ' + c.plate : '')) + '</option>'; }).join('') + '</select></div>' +
+      '<div><label class="f" for="nDesc">Опишіть проблему</label><textarea class="i" id="nDesc" placeholder="Що відбувається, коли з\'явилося, чи горять лампочки на панелі"></textarea>' +
+        '<button type="button" class="btn sm ai-btn" id="nAi" style="margin-top:8px">✨ Підказка AI: що це може бути</button>' +
+        '<div class="small muted" style="margin-top:6px">AI підкаже ймовірні причини, терміновість і потрібну категорію. Опис передається в Google Gemini, тож не пишіть туди телефон чи інші особисті дані.</div>' +
+        '<div id="nAiOut" aria-live="polite"></div></div>' +
       '<div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Що потрібно</span><div class="chips" id="nCat">' +
         M.categories.map(function (c) { return '<span class="chip" role="radio" tabindex="0" aria-checked="false" data-v="' + esc(c) + '">' + esc(c) + '</span>'; }).join('') + '</div></div>' +
-      '<div><label class="f" for="nDesc">Опишіть проблему</label><textarea class="i" id="nDesc" placeholder="Що відбувається, коли з\'явилося, чи горять лампочки на панелі"></textarea></div>' +
       '<div><label class="f" for="nWhen">Коли зручно <span>необов\'язково</span></label><input class="i" id="nWhen" placeholder="Будні після 17:00, або субота зранку"></div></div>' +
       '<div class="card"><div class="between" style="margin-bottom:10px"><h2>Оберіть сервіс</h2><select class="i" id="nDistrict" style="width:auto;min-height:40px;padding:6px 10px;font-size:14px"><option value="">Усі райони</option>' +
         M.districts.map(function (d) { return '<option>' + esc(d) + '</option>'; }).join('') + '</select></div><div id="stoList"><div class="muted small">Спершу оберіть, що потрібно зробити.</div></div></div>' +
@@ -379,20 +392,65 @@ function renderNew() {
     bindChips($('#nCat'), true);
     $('#nCat').onchipchange = function () { var on = $('#nCat .chip.on'); sel.category = on ? on.dataset.v : ''; sel.sto = ''; loadStos(); };
     $('#nDistrict').onchange = function () { sel.district = this.value; sel.sto = ''; loadStos(); };
+    function setCategory(cat) {
+      $$('#nCat .chip').forEach(function (c) { var on = c.dataset.v === cat; c.classList.toggle('on', on); c.setAttribute('aria-checked', String(on)); });
+      sel.category = cat; sel.sto = ''; loadStos();
+    }
+    $('#nAi').onclick = function () {
+      var desc = $('#nDesc').value.trim(), out = $('#nAiOut'), btn = this;
+      if (desc.length < 10) { out.innerHTML = '<div class="note err" style="margin-top:8px">Спершу опишіть проблему хоча б одним реченням.</div>'; $('#nDesc').focus(); return; }
+      busy(btn, true); out.innerHTML = '<div class="muted small" style="margin-top:8px">AI аналізує опис…</div>';
+      api('ai.diagnose', { description: desc, car_id: $('#nCar').value }).then(function (r) {
+        busy(btn, false);
+        var a = r.ai, ui = M.urgency ? M.urgency.indexOf(a.urgency) : ['Можна планувати', 'Варто не відкладати', 'Небезпечно їхати'].indexOf(a.urgency);
+        var li = function (arr) { return '<ul>' + arr.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>'; };
+        out.innerHTML = '<div class="ai" style="margin-top:10px"><h3>✨ Попередня оцінка AI</h3>' +
+          '<div class="row" style="flex-wrap:wrap;gap:6px"><span class="urg u' + Math.max(0, ui) + '">' + esc(a.urgency) + '</span><span class="badge b-accepted">' + esc(a.category) + '</span></div>' +
+          (a.summary ? '<p class="small" style="margin:8px 0 0">' + esc(a.summary) + '</p>' : '') +
+          (a.causes.length ? '<div class="lbl">Ймовірні причини</div>' + li(a.causes) : '') +
+          (a.checks.length ? '<div class="lbl">Що можна перевірити самому</div>' + li(a.checks) : '') +
+          (a.ask_sto.length ? '<div class="lbl">Що спитати в майстра</div>' + li(a.ask_sto) : '') +
+          (ui === 2 ? '<div class="note err" style="margin:6px 0 8px">Краще не їхати своїм ходом: зателефонуйте в сервіс або викличте евакуатор.</div>' : '') +
+          '<div class="row" style="flex-wrap:wrap;gap:8px;margin-top:6px"><button type="button" class="btn sm dark" id="aiApply">Обрати «' + esc(a.category) + '»</button>' +
+          (a.request_text ? '<button type="button" class="btn sm ghost" id="aiText">Взяти опис для СТО</button>' : '') + '</div>' +
+          '<div class="small muted" style="margin-top:8px">Це підказка AI, а не діагноз. Точну причину визначить майстер.</div></div>';
+        $('#aiApply').onclick = function () { setCategory(a.category); toast('Категорію обрано. Нижче сервіси для неї.'); $('#stoList').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+        if ($('#aiText')) $('#aiText').onclick = function () { $('#nDesc').value = a.request_text; toast('Опис оновлено. Можете його відредагувати.'); };
+      }).catch(function (e) { busy(btn, false); out.innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+    };
     function loadStos() {
       var box = $('#stoList');
       if (!sel.category) { box.innerHTML = '<div class="muted small">Спершу оберіть, що потрібно зробити.</div>'; return; }
       box.innerHTML = '<div class="muted small">Шукаю сервіси…</div>';
       api('sto.catalog', { category: sel.category, district: sel.district }).then(function (r) {
-        if (!r.stos.length) { box.innerHTML = '<div class="note info">Поки немає перевірених сервісів для «' + esc(sel.category) + '»' + (sel.district ? ' у цьому районі' : '') + '. Ми підключаємо нових партнерів щотижня.</div>'; return; }
-        box.innerHTML = r.stos.map(function (s) {
+        var partners = r.stos.filter(function (s) { return !s.listed; }), refs = r.stos.filter(function (s) { return s.listed; });
+        if (!r.stos.length) { box.innerHTML = '<div class="note info">Поки немає сервісів для «' + esc(sel.category) + '»' + (sel.district ? ' у цьому районі' : '') + '. Ми підключаємо нових партнерів щотижня.</div>'; return; }
+        var refHtml = function (list) { return list.map(function (s) {
+          var q = encodeURIComponent(s.name + ', ' + (s.address ? s.address + ', ' : '') + 'Кривий Ріг');
+          return '<div class="sto-ref"><b>' + esc(s.name) + '</b>' +
+            '<div class="small muted">' + esc([s.district, s.address].filter(Boolean).join(' · ') || 'Кривий Ріг') + '</div>' +
+            (s.about ? '<div class="small" style="margin-top:2px">' + esc(s.about) + '</div>' : '') +
+            '<div class="acts">' + (s.phone ? '<a class="btn sm ghost" href="' + esc(telHref(s.phone)) + '">Подзвонити</a>' : '') +
+            '<a class="btn sm ghost" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' + q + '">На карті</a></div></div>';
+        }).join(''); };
+        var REF_STEP = 10;
+        box.innerHTML = (partners.length ? '' : '<div class="note info" style="margin-bottom:10px">Партнерів АвтоХабу для «' + esc(sel.category) + '» поки немає. Нижче інші сервіси міста: зв\'яжіться з ними напряму.</div>') +
+          partners.map(function (s) {
           return '<div class="sto-pick" role="radio" tabindex="0" aria-checked="false" data-id="' + esc(s.id) + '"><div class="between"><b>' + esc(s.name) + '</b>' +
             (s.rating ? '<span class="small">' + stars(s.rating) + ' ' + esc(s.rating) + ' <span class="muted">(' + s.reviews + ')</span></span>' : '<span class="small muted">новий партнер</span>') + '</div>' +
             '<div class="small muted">' + esc([s.district, s.address].filter(Boolean).join(' · ')) + '</div>' +
             (s.hours ? '<div class="small muted">' + esc(s.hours) + '</div>' : '') +
             (s.about ? '<div class="small" style="margin-top:4px">' + esc(s.about) + '</div>' : '') +
             (s.lastReviews && s.lastReviews.length ? '<button type="button" class="link" data-rv="' + esc(s.id) + '" style="margin-top:6px">Відгуки</button>' : '') + '</div>';
-        }).join('');
+        }).join('') +
+          (refs.length ? '<h3 style="margin:18px 0 4px">Інші сервіси міста</h3><div class="small muted" style="margin-bottom:10px">Ще не в АвтоХабі: заявку їм надіслати не можна, але можна зателефонувати. Дані з відкритих каталогів.</div>' +
+            '<div id="refList">' + refHtml(refs.slice(0, REF_STEP)) + '</div>' +
+            (refs.length > REF_STEP ? '<button type="button" class="btn sm ghost wide" id="refMore" style="margin-top:10px">Показати ще (' + (refs.length - REF_STEP) + ')</button>' : '') : '');
+        var shown = REF_STEP;
+        if ($('#refMore')) $('#refMore').onclick = function () {
+          $('#refList').insertAdjacentHTML('beforeend', refHtml(refs.slice(shown, shown + REF_STEP))); shown += REF_STEP;
+          if (shown >= refs.length) this.remove(); else this.textContent = 'Показати ще (' + (refs.length - shown) + ')';
+        };
         $$('.sto-pick', box).forEach(function (p) {
           var pickIt = function () { $$('.sto-pick', box).forEach(function (o) { o.classList.remove('on'); o.setAttribute('aria-checked', 'false'); }); p.classList.add('on'); p.setAttribute('aria-checked', 'true'); sel.sto = p.dataset.id; };
           p.onclick = function (e) { if (e.target.dataset.rv) return; pickIt(); };
@@ -415,7 +473,7 @@ function renderNew() {
       if (!sel.car) problem = 'Оберіть авто';
       else if (!sel.category) problem = 'Оберіть, що потрібно зробити';
       else if (desc.length < 10) problem = 'Опишіть проблему трохи детальніше';
-      else if (!sel.sto) problem = 'Оберіть сервіс';
+      else if (!sel.sto) problem = $('.sto-pick') ? 'Оберіть сервіс' : 'Для цієї категорії поки немає партнерів, які приймають заявки. Зателефонуйте сервісу зі списку напряму.';
       if (problem) { $('#nErr').innerHTML = '<div class="note err" style="margin-bottom:12px">' + esc(problem) + '</div>'; return; }
       $('#nErr').innerHTML = '';
       var btn = $('#nSend'); busy(btn, true);
