@@ -1,8 +1,8 @@
 /**
- * @OnlyCurrentDoc
- *
  * АвтоХаб MVP: серверна частина застосунку autohubkr.com/app/.
- * Дані зберігаються в цій Google Таблиці (листи створюються автоматично).
+ * Дані зберігаються в Google Таблиці SHEET_ID (листи створюються автоматично).
+ * Окремий скрипт (не прив'язаний до таблиці): так його можна створити в акаунті vaaanik8@gmail.com,
+ * коли в браузері відкрито кілька акаунтів Google.
  *
  * Розгортання: «Розгорнути» → «Нове розгортання» → «Веб-застосунок»,
  * виконувати від імені «Я», доступ «Усі». Адресу /exec вписати в assets/config.js → appEndpoint.
@@ -12,6 +12,7 @@
  */
 
 var ADMIN_EMAIL = 'vaaanik8@gmail.com';
+var SHEET_ID = '1q05aDr-xorCI6q8YmOO4aVuPQpg1foL0RqP1YGD2PSc'; // «АвтоХаб MVP: дані застосунку»
 var SESSION_DAYS = 60;
 var MAX_LEN = 1500;
 
@@ -334,7 +335,7 @@ var _cache = {};
 function table_(key) {
   if (_cache[key]) return _cache[key];
   var def = T[key];
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = book_();
   var sh = ss.getSheetByName(def.name);
   if (!sh) {
     sh = ss.insertSheet(def.name);
@@ -389,6 +390,7 @@ function table_(key) {
 
 /* ---------- дрібниці ---------- */
 
+function book_() { return SpreadsheetApp.openById(SHEET_ID); }
 function out_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 function fail_(msg) { var e = new Error(msg); e.userMessage = msg; throw e; }
 function s_(v) { return v === null || v === undefined ? '' : String(v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim().slice(0, MAX_LEN); }
@@ -413,7 +415,7 @@ function now_() { return Utilities.formatDate(new Date(), 'Europe/Kiev', 'yyyy-M
 function today_() { return Utilities.formatDate(new Date(), 'Europe/Kiev', 'yyyy-MM-dd'); }
 function pick_(o, keys) { var r = {}; keys.forEach(function (k) { r[k] = o[k]; }); return r; }
 function notify_(subject, body) {
-  try { if (ADMIN_EMAIL) MailApp.sendEmail(ADMIN_EMAIL, '[АвтоХаб] ' + subject, body + '\n\nТаблиця: ' + SpreadsheetApp.getActiveSpreadsheet().getUrl()); }
+  try { if (ADMIN_EMAIL) MailApp.sendEmail(ADMIN_EMAIL, '[АвтоХаб] ' + subject, body + '\n\nТаблиця: ' + book_().getUrl()); }
   catch (e) { console.error(e); }
 }
 
