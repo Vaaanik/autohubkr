@@ -9,6 +9,12 @@
  *
  * Модерація: новий СТО з'являється в каталозі лише після того, як на листі «СТО»
  * у колонці «Активний» поставити TRUE (приходить лист-сповіщення).
+ *
+ * Довідкові СТО: рядки з порожнім «ID власника» (джерело «каталог») показуються водіям
+ * з кнопками «Подзвонити» і «На карті», але заявки в них не надсилаються.
+ *
+ * AI-помічник (Google Gemini): «Налаштування проєкту» → «Властивості скрипту» →
+ * GEMINI_API_KEY = ключ з aistudio.google.com. Необов'язково: GEMINI_MODEL.
  */
 
 var ADMIN_EMAIL = 'vaaanik8@gmail.com';
@@ -23,8 +29,8 @@ var T = {
               heads: ['Токен', 'ID користувача', 'Діє до'] },
   cars:     { name: 'Авто', cols: ['id', 'user_id', 'make', 'model', 'year', 'plate', 'vin', 'mileage', 'created', 'deleted'],
               heads: ['ID', 'ID власника', 'Марка', 'Модель', 'Рік', 'Номер', 'VIN', 'Пробіг, км', 'Створено', 'Видалено'] },
-  stos:     { name: 'СТО', cols: ['id', 'owner_id', 'name', 'district', 'address', 'phone', 'services', 'hours', 'about', 'active', 'created'],
-              heads: ['ID', 'ID власника', 'Назва', 'Район', 'Адреса', 'Телефон', 'Послуги', 'Графік', 'Про сервіс', 'Активний', 'Створено'] },
+  stos:     { name: 'СТО', cols: ['id', 'owner_id', 'name', 'district', 'address', 'phone', 'services', 'hours', 'about', 'active', 'created', 'source'],
+              heads: ['ID', 'ID власника', 'Назва', 'Район', 'Адреса', 'Телефон', 'Послуги', 'Графік', 'Про сервіс', 'Активний', 'Створено', 'Джерело'] },
   requests: { name: 'Заявки', cols: ['id', 'driver_id', 'car_id', 'sto_id', 'category', 'description', 'preferred', 'status',
                                      'sto_comment', 'price', 'visit', 'work_done', 'mileage', 'created', 'updated'],
               heads: ['ID', 'ID водія', 'ID авто', 'ID СТО', 'Категорія', 'Опис проблеми', 'Бажаний час', 'Статус',
@@ -38,6 +44,10 @@ var T = {
 var CATEGORIES = ['Діагностика', 'Двигун', 'Ходова', 'Гальма', 'Електрика', 'ТО і мастило', 'Шини', 'Кузов і фарбування',
                   'Кондиціонер', 'ГБО', 'Скло', 'Інше'];
 var DISTRICTS = ['Центрально-Міський', 'Металургійний', 'Саксаганський', 'Довгинцівський', 'Покровський', 'Тернівський', 'Інгулецький'];
+var URGENCY = ['Можна планувати', 'Варто не відкладати', 'Небезпечно їхати'];
+var GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash'];
+var AI_LIMIT = 15; // запитів до AI на одного водія за 6 годин
+var NO_LOCK = { 'ai.diagnose': true, 'meta': true };
 var STATUS = { new: 'Нова', accepted: 'Прийнята', declined: 'Відхилена', in_work: 'У роботі', done: 'Виконана', cancelled: 'Скасована' };
 
 /* ---------- вхід ---------- */
@@ -50,7 +60,7 @@ function doPost(e) {
     var req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     var fn = ACTIONS[req.action];
     if (!fn) return out_({ ok: false, error: 'Невідома дія' });
-    lock.waitLock(20000);
+    if (!NO_LOCK[req.action]) lock.waitLock(20000);
     var res = fn(req);
     res.ok = res.ok !== false;
     return out_(res);
@@ -64,7 +74,7 @@ function doPost(e) {
 }
 
 var ACTIONS = {
-  'meta': function () { return { categories: CATEGORIES, districts: DISTRICTS, statuses: STATUS }; },
+  'meta': function () { return { categories: CATEGORIES, districts: DISTRICTS, statuses: STATUS, urgency: URGENCY }; },
   'register': register_,
   'login': login_,
   'logout': function (r) { var s = table_('sessions').find('token', r.token); if (s) table_('sessions').remove(s); return {}; },
@@ -85,6 +95,8 @@ var ACTIONS = {
   'req.update': reqUpdate_,
 
   'review.add': reviewAdd_,
+
+  'ai.diagnose': aiDiagnose_,
 
   'history.list': function (r) {
     var u = auth_(r, 'driver'); var c = ownCar_(u, r.car_id);
@@ -119,7 +131,7 @@ function register_(r) {
     var sto = table_('stos').insert({ id: id_(), owner_id: user.id, name: need_(st.name, 'Вкажіть назву сервісу'),
       district: oneOf_(st.district, DISTRICTS), address: need_(st.address, 'Вкажіть адресу'),
       phone: phone_(st.phone || phone), services: list_(st.services, CATEGORIES).join(', '),
-      hours: s_(st.hours), about: s_(st.about), active: false, created: now_() });
+      hours: s_(st.hours), about: s_(st.about), active: false, created: now_(), source: 'реєстрація' });
     users.update(user, { sto_id: sto.id });
     notify_('Новий СТО чекає перевірки: ' + sto.name,
       'Сервіс: ' + sto.name + '\nРайон: ' + sto.district + '\nАдреса: ' + sto.address + '\nТелефон: ' + sto.phone +
@@ -190,7 +202,7 @@ function bumpMileage_(car, km) {
 
 function catalog_(r) {
   var reviews = table_('reviews').all();
-  var list = table_('stos').all().filter(function (s) { return s.active === true || String(s.active).toUpperCase() === 'TRUE'; });
+  var list = table_('stos').all().filter(isActive_);
   if (r.category) list = list.filter(function (s) { return String(s.services).indexOf(r.category) !== -1; });
   if (r.district) list = list.filter(function (s) { return s.district === r.district; });
   var res = list.map(function (s) {
@@ -201,7 +213,8 @@ function catalog_(r) {
     p.lastReviews = own.slice(-3).reverse().map(function (v) { return { rating: v.rating, text: v.text, date: String(v.created).slice(0, 10) }; });
     return p;
   });
-  res.sort(function (a, b) { return (b.rating || 0) - (a.rating || 0) || b.reviews - a.reviews; });
+  // Спершу партнери (приймають заявки), далі довідкові сервіси.
+  res.sort(function (a, b) { return (a.listed ? 1 : 0) - (b.listed ? 1 : 0) || (b.rating || 0) - (a.rating || 0) || b.reviews - a.reviews; });
   return { stos: res };
 }
 
@@ -228,7 +241,8 @@ function reqCreate_(r) {
   var u = auth_(r, 'driver');
   var car = ownCar_(u, r.car_id);
   var sto = table_('stos').find('id', String(r.sto_id || ''));
-  if (!sto || !(sto.active === true || String(sto.active).toUpperCase() === 'TRUE')) fail_('Сервіс недоступний');
+  if (!sto || !isActive_(sto)) fail_('Сервіс недоступний');
+  if (!sto.owner_id) fail_('Цей сервіс ще не підключений до АвтоХабу. Зателефонуйте йому напряму.');
   var open = table_('requests').all().filter(function (q) { return q.driver_id === u.id && (q.status === 'new'); });
   if (open.length >= 5) fail_('У вас уже 5 нових заявок. Дочекайтеся відповіді сервісів.');
   var q = table_('requests').insert({ id: id_(), driver_id: u.id, car_id: car.id, sto_id: sto.id,
@@ -312,6 +326,68 @@ function reviewAdd_(r) {
   return {};
 }
 
+/* ---------- AI-помічник (Google Gemini) ---------- */
+
+function aiDiagnose_(r) {
+  var u = auth_(r, 'driver');
+  var text = need_(r.description, 'Опишіть проблему');
+  if (text.length < 10) fail_('Опишіть проблему трохи детальніше');
+  var props = PropertiesService.getScriptProperties();
+  var key = props.getProperty('GEMINI_API_KEY');
+  if (!key) fail_('AI-помічник ще не налаштований');
+  var cache = CacheService.getScriptCache();
+  var ck = 'ai_' + u.id;
+  var used = Number(cache.get(ck) || 0);
+  if (used >= AI_LIMIT) fail_('Ліміт AI-підказок вичерпано. Спробуйте за кілька годин.');
+  cache.put(ck, String(used + 1), 21600);
+
+  var carInfo = '';
+  if (r.car_id) {
+    var c = table_('cars').find('id', String(r.car_id));
+    if (c && c.user_id === u.id && !c.deleted) carInfo = [c.make, c.model, c.year].filter(String).join(' ') + (c.mileage ? ', пробіг ' + c.mileage + ' км' : '');
+  }
+  var system = [
+    'Ти помічник застосунку АвтоХаб (Кривий Ріг, Україна). Водій описує проблему з авто, а ти даєш попередню оцінку перед візитом на СТО.',
+    'Відповідай лише українською, коротко і зрозуміло людині без технічної освіти.',
+    'category: одна категорія з переліку. urgency: «Небезпечно їхати», якщо є ознаки проблем з гальмами, кермом, підвіскою на ходу, запах палива, дим, перегрів, червоні лампи на панелі; інакше оціни реально.',
+    'causes: 2–4 ймовірні причини, від найімовірнішої, кожна одним реченням. checks: 1–3 безпечні перевірки, які водій може зробити сам без інструментів (або порожньо).',
+    'ask_sto: 1–3 питання, які варто поставити майстру. request_text: чіткий опис для заявки в СТО від першої особи, 1–3 речення, лише факти з опису водія, нічого не вигадуй.',
+    'summary: одне речення-висновок. Не стверджуй діагноз упевнено і не давай інструкцій з ремонту.',
+    'Якщо текст не про авто, category «Інше», а в summary попроси описати проблему з авто.'
+  ].join('\n');
+  var prompt = (carInfo ? 'Авто: ' + carInfo + '\n' : '') + 'Опис водія: ' + text;
+  var schema = { type: 'OBJECT', properties: {
+    category: { type: 'STRING', enum: CATEGORIES }, urgency: { type: 'STRING', enum: URGENCY },
+    summary: { type: 'STRING' }, causes: { type: 'ARRAY', items: { type: 'STRING' } },
+    checks: { type: 'ARRAY', items: { type: 'STRING' } }, ask_sto: { type: 'ARRAY', items: { type: 'STRING' } },
+    request_text: { type: 'STRING' } }, required: ['category', 'urgency', 'summary', 'causes', 'request_text'] };
+  var body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.3, maxOutputTokens: 4096 } });
+  var custom = props.getProperty('GEMINI_MODEL');
+  var models = custom ? [custom] : GEMINI_MODELS;
+  var lastCode = 0;
+  for (var i = 0; i < models.length; i++) {
+    var resp = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + models[i] + ':generateContent', {
+      method: 'post', contentType: 'application/json', headers: { 'x-goog-api-key': key }, payload: body, muteHttpExceptions: true });
+    lastCode = resp.getResponseCode();
+    if (lastCode === 200) {
+      var data = JSON.parse(resp.getContentText());
+      var parts = (((data.candidates || [])[0] || {}).content || {}).parts || [];
+      var raw = parts.map(function (p) { return p.thought ? '' : (p.text || ''); }).join('');
+      var a;
+      try { a = JSON.parse(raw); } catch (e) { console.error('AI JSON', raw); fail_('AI не зміг відповісти. Спробуйте переформулювати.'); }
+      var arr = function (v, n) { return (Array.isArray(v) ? v : []).map(s_).filter(String).slice(0, n); };
+      return { ai: { category: CATEGORIES.indexOf(a.category) !== -1 ? a.category : 'Інше',
+        urgency: URGENCY.indexOf(a.urgency) !== -1 ? a.urgency : URGENCY[1], summary: s_(a.summary),
+        causes: arr(a.causes, 4), checks: arr(a.checks, 3), ask_sto: arr(a.ask_sto, 3), request_text: s_(a.request_text), model: models[i] } };
+    }
+    console.error('Gemini ' + models[i] + ' → ' + lastCode + ': ' + resp.getContentText().slice(0, 300));
+    if ([404, 429, 500, 503].indexOf(lastCode) === -1) break; // інші помилки (ключ тощо) не лікуються іншою моделлю
+  }
+  cache.put(ck, String(used), 21600); // невдалий запит не рахуємо
+  fail_(lastCode === 429 ? 'AI зараз перевантажений. Спробуйте за хвилину.' : 'AI тимчасово недоступний. Спробуйте пізніше.');
+}
+
 /* ---------- публічні подання ---------- */
 
 function pubUser_(u) { return { id: u.id, role: u.role, name: u.name, phone: u.phone }; }
@@ -319,7 +395,8 @@ function pubCar_(c) { return pick_(c, ['id', 'make', 'model', 'year', 'plate', '
 function pubSto_(s, own) {
   var p = pick_(s, ['id', 'name', 'district', 'address', 'phone', 'hours', 'about']);
   p.services = String(s.services || '').split(', ').filter(String);
-  if (own) p.active = s.active === true || String(s.active).toUpperCase() === 'TRUE';
+  p.listed = !s.owner_id;
+  if (own) p.active = isActive_(s);
   return p;
 }
 function pubReq_(q) {
@@ -390,6 +467,7 @@ function table_(key) {
 
 /* ---------- дрібниці ---------- */
 
+function isActive_(s) { return s.active === true || String(s.active).toUpperCase() === 'TRUE'; }
 function book_() { return SpreadsheetApp.openById(SHEET_ID); }
 function out_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 function fail_(msg) { var e = new Error(msg); e.userMessage = msg; throw e; }
@@ -420,4 +498,10 @@ function notify_(subject, body) {
 }
 
 /** Запустіть один раз у редакторі: створить усі листи з заголовками. */
-function setup() { Object.keys(T).forEach(function (k) { table_(k); }); }
+function setup() {
+  Object.keys(T).forEach(function (k) {
+    table_(k);
+    var sh = book_().getSheetByName(T[k].name);
+    sh.getRange(1, 1, 1, T[k].heads.length).setValues([T[k].heads]).setFontWeight('bold'); // нові колонки отримують заголовки
+  });
+}
