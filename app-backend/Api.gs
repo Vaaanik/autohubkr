@@ -531,7 +531,8 @@ function aiDiagnose_(r) {
   var body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.3, maxOutputTokens: 4096 } });
   var custom = props.getProperty('GEMINI_MODEL');
-  var models = custom ? [custom] : GEMINI_MODELS;
+  // Моделі, що нещодавно не відповіли, тимчасово пропускаємо: так відповідь приходить швидше.
+  var models = custom ? [custom] : GEMINI_MODELS.filter(function (m, i) { return i === GEMINI_MODELS.length - 1 || !cache.get('ai_skip_' + m); });
   var lastCode = 0;
   for (var i = 0; i < models.length; i++) {
     var resp = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + models[i] + ':generateContent', {
@@ -549,6 +550,7 @@ function aiDiagnose_(r) {
         causes: arr(a.causes, 4), checks: arr(a.checks, 3), ask_sto: arr(a.ask_sto, 3), request_text: s_(a.request_text), model: models[i] } };
     }
     console.error('Gemini ' + models[i] + ' → ' + lastCode + ': ' + resp.getContentText().slice(0, 300));
+    if (!custom && i < models.length - 1) cache.put('ai_skip_' + models[i], '1', lastCode === 404 ? 21600 : 600);
     if ([404, 429, 500, 503].indexOf(lastCode) === -1) break; // інші помилки (ключ тощо) не лікуються іншою моделлю
   }
   cache.put(ck, String(used), 21600); // невдалий запит не рахуємо
