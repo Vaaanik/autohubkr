@@ -13,6 +13,9 @@
  * Довідкові СТО: рядки з порожнім «ID власника» (джерело «каталог») показуються водіям
  * з кнопками «Подзвонити» і «На карті», але заявки в них не надсилаються.
  *
+ * Адміністратор: на листі «Користувачі» змінити «Роль» потрібного акаунта на admin.
+ * Координати СТО для карти: OpenStreetMap (Nominatim), кнопка в адмін-панелі або функція geocodeAll().
+ *
  * AI-помічник (Google Gemini): «Налаштування проєкту» → «Властивості скрипту» →
  * GEMINI_API_KEY = ключ з aistudio.google.com. Необов'язково: GEMINI_MODEL.
  */
@@ -29,8 +32,8 @@ var T = {
               heads: ['Токен', 'ID користувача', 'Діє до'] },
   cars:     { name: 'Авто', cols: ['id', 'user_id', 'make', 'model', 'year', 'plate', 'vin', 'mileage', 'created', 'deleted'],
               heads: ['ID', 'ID власника', 'Марка', 'Модель', 'Рік', 'Номер', 'VIN', 'Пробіг, км', 'Створено', 'Видалено'] },
-  stos:     { name: 'СТО', cols: ['id', 'owner_id', 'name', 'district', 'address', 'phone', 'services', 'hours', 'about', 'active', 'created', 'source'],
-              heads: ['ID', 'ID власника', 'Назва', 'Район', 'Адреса', 'Телефон', 'Послуги', 'Графік', 'Про сервіс', 'Активний', 'Створено', 'Джерело'] },
+  stos:     { name: 'СТО', cols: ['id', 'owner_id', 'name', 'district', 'address', 'phone', 'services', 'hours', 'about', 'active', 'created', 'source', 'lat', 'lng'],
+              heads: ['ID', 'ID власника', 'Назва', 'Район', 'Адреса', 'Телефон', 'Послуги', 'Графік', 'Про сервіс', 'Активний', 'Створено', 'Джерело', 'Широта', 'Довгота'] },
   requests: { name: 'Заявки', cols: ['id', 'driver_id', 'car_id', 'sto_id', 'category', 'description', 'preferred', 'status',
                                      'sto_comment', 'price', 'visit', 'work_done', 'mileage', 'created', 'updated'],
               heads: ['ID', 'ID водія', 'ID авто', 'ID СТО', 'Категорія', 'Опис проблеми', 'Бажаний час', 'Статус',
@@ -47,7 +50,9 @@ var DISTRICTS = ['Центрально-Міський', 'Металургійн�
 var URGENCY = ['Можна планувати', 'Варто не відкладати', 'Небезпечно їхати'];
 var GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash'];
 var AI_LIMIT = 15; // запитів до AI на одного водія за 6 годин
-var NO_LOCK = { 'ai.diagnose': true, 'meta': true };
+var NO_LOCK = { 'ai.diagnose': true, 'meta': true, 'admin.geocode': true };
+var DISTRICT_HINTS = [['Центрально-Міськ', 0], ['Центрально-Городск', 0], ['Металург', 1], ['Металлург', 1], ['Жовтнев', 1], ['Октябрьск', 1],
+  ['Саксаган', 2], ['Довгинц', 3], ['Долгинц', 3], ['Покровськ', 4], ['Покровск', 4], ['Дзержин', 4], ['Тернів', 5], ['Терновск', 5], ['Інгулец', 6], ['Ингулец', 6]];
 var STATUS = { new: 'Нова', accepted: 'Прийнята', declined: 'Відхилена', in_work: 'У роботі', done: 'Виконана', cancelled: 'Скасована' };
 
 /* ---------- вхід ---------- */
@@ -97,6 +102,13 @@ var ACTIONS = {
   'review.add': reviewAdd_,
 
   'ai.diagnose': aiDiagnose_,
+
+  'admin.stats': adminStats_,
+  'admin.stos': adminStos_,
+  'admin.sto.set': adminStoSet_,
+  'admin.requests': adminRequests_,
+  'admin.users': adminUsers_,
+  'admin.geocode': function (r) { auth_(r, 'admin'); return geocodeBatch_(Math.min(Number(r.limit) || 25, 40)); },
 
   'history.list': function (r) {
     var u = auth_(r, 'driver'); var c = ownCar_(u, r.car_id);
@@ -326,6 +338,152 @@ function reviewAdd_(r) {
   return {};
 }
 
+/* ---------- адміністратор ---------- */
+
+function adminStats_(r) {
+  auth_(r, 'admin');
+  var users = table_('users').all(), stos = table_('stos').all(), reqs = table_('requests').all(), cars = table_('cars').all();
+  var byStatus = {}; Object.keys(STATUS).forEach(function (k) { byStatus[k] = 0; });
+  reqs.forEach(function (q) { byStatus[q.status] = (byStatus[q.status] || 0) + 1; });
+  var week = Utilities.formatDate(new Date(Date.now() - 7 * 864e5), 'Europe/Kiev', 'yyyy-MM-dd');
+  return { stats: {
+    drivers: users.filter(function (u) { return u.role === 'driver'; }).length,
+    stoUsers: users.filter(function (u) { return u.role === 'sto'; }).length,
+    newUsersWeek: users.filter(function (u) { return String(u.created) >= week; }).length,
+    cars: cars.filter(function (c) { return !c.deleted; }).length,
+    partners: stos.filter(function (s) { return s.owner_id && isActive_(s); }).length,
+    pending: stos.filter(function (s) { return s.owner_id && !isActive_(s); }).length,
+    listed: stos.filter(function (s) { return !s.owner_id; }).length,
+    noCoords: stos.filter(function (s) { return !Number(s.lat); }).length,
+    requests: reqs.length, requestsWeek: reqs.filter(function (q) { return String(q.created) >= week; }).length,
+    byStatus: byStatus, reviews: table_('reviews').all().length,
+    aiReady: !!PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY')
+  }, statuses: STATUS };
+}
+
+function adminStos_(r) {
+  auth_(r, 'admin');
+  var users = table_('users').all();
+  var list = table_('stos').all().map(function (s) {
+    var p = pubSto_(s, true);
+    p.owner = null;
+    if (s.owner_id) { var o = users.filter(function (u) { return u.id === s.owner_id; })[0]; p.owner = o ? { name: o.name, phone: o.phone } : { name: '—', phone: '' }; }
+    p.source = s.source; p.created = s.created; p.geo = s.lat === 'x' ? 'not_found' : (Number(s.lat) ? 'ok' : '');
+    return p;
+  });
+  var rank = function (s) { return s.owner && !s.active ? 0 : s.owner ? 1 : 2; };
+  list.sort(function (a, b) { return rank(a) - rank(b) || (a.created < b.created ? 1 : -1); });
+  return { stos: list };
+}
+
+function adminStoSet_(r) {
+  auth_(r, 'admin');
+  var sto = table_('stos').find('id', String(r.id || ''));
+  if (!sto) fail_('Сервіс не знайдено');
+  var f = r.fields || {}, patch = {};
+  if (r.active !== undefined) patch.active = r.active === true;
+  if (f.name !== undefined) patch.name = need_(f.name, 'Вкажіть назву');
+  if (f.district !== undefined) patch.district = f.district ? oneOf_(f.district, DISTRICTS) : '';
+  if (f.address !== undefined) { patch.address = s_(f.address); if (patch.address !== sto.address) { patch.lat = ''; patch.lng = ''; } }
+  if (f.phone !== undefined) patch.phone = f.phone ? phone_(f.phone) : '';
+  if (f.services !== undefined) patch.services = list_(f.services, CATEGORIES).join(', ');
+  if (f.hours !== undefined) patch.hours = s_(f.hours);
+  if (f.about !== undefined) patch.about = s_(f.about);
+  if (f.lat !== undefined || f.lng !== undefined) {
+    var la = Number(f.lat), ln = Number(f.lng);
+    if (f.lat === '' && f.lng === '') { patch.lat = ''; patch.lng = ''; }
+    else if (la > 47 && la < 49 && ln > 32 && ln < 35) { patch.lat = la; patch.lng = ln; }
+    else fail_('Координати мають бути в районі Кривого Рогу');
+  }
+  table_('stos').update(sto, patch);
+  // Під час активації одразу шукаємо сервіс на карті, якщо координат ще немає.
+  if (patch.active === true && !Number(sto.lat) && sto.address) {
+    try { var g = geocodeOne_(sto.address);
+      if (g && !g.notFound) table_('stos').update(sto, { lat: g.lat, lng: g.lng, district: sto.district || g.district });
+    } catch (e) { console.error(e); }
+  }
+  var p = pubSto_(sto, true); p.source = sto.source; p.geo = sto.lat === 'x' ? 'not_found' : (Number(sto.lat) ? 'ok' : '');
+  return { sto: p };
+}
+
+function adminRequests_(r) {
+  auth_(r, 'admin');
+  var cars = table_('cars').all(), stos = table_('stos').all(), users = table_('users').all(), reviews = table_('reviews').all();
+  var by = function (arr, id) { for (var i = 0; i < arr.length; i++) if (arr[i].id === id) return arr[i]; return null; };
+  var all = table_('requests').all();
+  all.sort(function (a, b) { return a.created < b.created ? 1 : -1; });
+  return { requests: all.slice(0, 300).map(function (q) {
+    var p = pubReq_(q), car = by(cars, q.car_id), sto = by(stos, q.sto_id), d = by(users, q.driver_id), rv = reviews.filter(function (v) { return v.request_id === q.id; })[0];
+    p.car = car ? carTitle_(car) : ''; p.sto = sto ? { name: sto.name, phone: sto.phone } : null;
+    p.driver = d ? { name: d.name, phone: d.phone } : null; p.review = rv ? { rating: rv.rating, text: rv.text } : null;
+    return p;
+  }), total: all.length };
+}
+
+function adminUsers_(r) {
+  auth_(r, 'admin');
+  var cars = table_('cars').all(), reqs = table_('requests').all(), stos = table_('stos').all();
+  var list = table_('users').all().map(function (u) {
+    var st = u.sto_id ? stos.filter(function (s) { return s.id === u.sto_id; })[0] : null;
+    return { id: u.id, role: u.role, name: u.name, phone: u.phone, created: u.created, sto: st ? st.name : '',
+      cars: cars.filter(function (c) { return c.user_id === u.id && !c.deleted; }).length,
+      requests: reqs.filter(function (q) { return q.driver_id === u.id || (u.sto_id && q.sto_id === u.sto_id); }).length };
+  });
+  list.sort(function (a, b) { return a.created < b.created ? 1 : -1; });
+  return { users: list };
+}
+
+/* ---------- координати (OpenStreetMap Nominatim) ---------- */
+
+function geocodeOne_(address) {
+  var base = String(address || '').trim();
+  if (!base) return null;
+  var plain = base.replace(/^(вул\.|вулиця|ул\.|улица|пр-т|просп\.|проспект|пров\.|провулок|пер\.|бул\.|бульвар)\s*/i, '');
+  var tries = [base + ', Кривий Ріг', plain + ', Кривий Ріг'];
+  for (var i = 0; i < tries.length; i++) {
+    if (i && tries[i] === tries[0]) continue;
+    var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=ua&accept-language=uk' +
+      '&viewbox=33.05,48.15,33.65,47.62&bounded=1&q=' + encodeURIComponent(tries[i]);
+    var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { 'User-Agent': 'AutoHubKR/1.0 (info@autohubkr.com)' } });
+    Utilities.sleep(1100); // правила Nominatim: не частіше 1 запиту на секунду
+    if (resp.getResponseCode() !== 200) continue;
+    var arr = JSON.parse(resp.getContentText() || '[]');
+    if (arr.length) {
+      var a = arr[0].address || {}, txt = [a.city_district, a.borough, a.suburb, a.district].filter(String).join(' '), dist = '';
+      for (var k = 0; k < DISTRICT_HINTS.length; k++) if (txt.indexOf(DISTRICT_HINTS[k][0]) !== -1) { dist = DISTRICTS[DISTRICT_HINTS[k][1]]; break; }
+      return { lat: Math.round(Number(arr[0].lat) * 1e6) / 1e6, lng: Math.round(Number(arr[0].lon) * 1e6) / 1e6, district: dist };
+    }
+  }
+  return { notFound: true };
+}
+
+/** Визначає координати й район для СТО без координат. Мережеві запити йдуть без блокування, запис — під блокуванням. */
+function geocodeBatch_(limit) {
+  var todo = table_('stos').all().filter(function (s) { return !Number(s.lat) && s.lat !== 'x' && s.address; }).slice(0, limit);
+  var found = [];
+  todo.forEach(function (s) { var g = geocodeOne_(s.address); if (g) found.push([s.id, g]); });
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    _cache = {};
+    var ok = 0, miss = 0;
+    found.forEach(function (x) {
+      var s = table_('stos').find('id', x[0]); if (!s) return;
+      if (x[1].notFound) { table_('stos').update(s, { lat: 'x', lng: '' }); miss++; return; }
+      var patch = { lat: x[1].lat, lng: x[1].lng };
+      if (!s.district && x[1].district) patch.district = x[1].district;
+      table_('stos').update(s, patch); ok++;
+    });
+    var left = table_('stos').all().filter(function (s) { return !Number(s.lat) && s.lat !== 'x' && s.address; }).length;
+    return { done: ok, notFound: miss, left: left };
+  } finally { lock.releaseLock(); }
+}
+
+/** Запустіть у редакторі, щоб визначити координати всіх СТО (до ~5 хвилин). */
+function geocodeAll() {
+  var t0 = Date.now(), res;
+  do { res = geocodeBatch_(20); console.log(JSON.stringify(res)); } while (res.left && Date.now() - t0 < 270000);
+}
+
 /* ---------- AI-помічник (Google Gemini) ---------- */
 
 function aiDiagnose_(r) {
@@ -394,6 +552,8 @@ function pubUser_(u) { return { id: u.id, role: u.role, name: u.name, phone: u.p
 function pubCar_(c) { return pick_(c, ['id', 'make', 'model', 'year', 'plate', 'vin', 'mileage']); }
 function pubSto_(s, own) {
   var p = pick_(s, ['id', 'name', 'district', 'address', 'phone', 'hours', 'about']);
+  var la = Number(s.lat), ln = Number(s.lng);
+  if (la && ln) { p.lat = la; p.lng = ln; }
   p.services = String(s.services || '').split(', ').filter(String);
   p.listed = !s.owner_id;
   if (own) p.active = isActive_(s);
