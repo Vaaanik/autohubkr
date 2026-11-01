@@ -328,6 +328,7 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
 .set-key code,.set-link code{font-size:12px;background:var(--paper,#F3F6FA);padding:2px 6px;border-radius:6px;word-break:break-all}
 .set-link{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0}.vtag.off{opacity:.45}
 .tg-btn{background:#229ED9;color:#fff;border-color:#229ED9}
+.del-btn{color:#C62828;border-color:#F3C1C1}
 .km-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .km-row:first-of-type{border-top:0}.km-row small{display:block;color:var(--soft);font-size:12px}
 </style>
@@ -686,6 +687,7 @@ function renderAdminSettings() {
         '<div class="lbl" style="margin-top:14px">Групи спільноти</div><p class="mini" style="margin:2px 0 6px">Бот надсилає посилання на групу кожному одразу після реєстрації чи підключення (один раз). Порожньо: не надсилати.</p>' +
         '<label class="f" for="gD" style="margin-top:4px">Група водіїв</label><input class="i set-txt" id="gD" data-k="group_drivers" value="' + esc(S.group_drivers || '') + '" placeholder="https://t.me/+AbCdEf...">' +
         '<label class="f" for="gS" style="margin-top:8px">Група сервісів-партнерів</label><input class="i set-txt" id="gS" data-k="group_services" value="' + esc(S.group_services || '') + '" placeholder="https://t.me/+XyZ...">' +
+        '<button type="button" class="btn sm ghost" id="grpSend" style="margin-top:10px">Надіслати тим, хто вже зареєструвався</button><div id="grpR"></div>' +
         (T.bot ? '<div class="lbl" style="margin-top:14px">Посилання для реклами</div><p class="mini" style="margin:2px 0 8px">Додайте до посилання <b>_джерело</b> (наприклад _insta), щоб бачити його у воронці.</p>' +
           [['driver', 'Для водіїв'], ['sto', 'Для сервісів']].map(function (x) { return '<div class="set-link"><span class="small">' + x[1] + '</span><code>' + esc(link(x[0])) + '</code><button type="button" class="link" data-copy="' + esc(link(x[0])) + '">Копіювати</button></div>'; }).join('') : '') +
       '</div>' +
@@ -722,6 +724,11 @@ function renderAdminSettings() {
     };
     $$('.set-sw').forEach(function (el) { el.onchange = function () { var p = {}; p[el.dataset.k] = el.checked; save(p, el); }; });
     $$('.set-num').forEach(function (el) { el.onchange = function () { var p = {}; p[el.dataset.k] = el.value; save(p, el); }; });
+    $('#grpSend').onclick = function () {
+      var b = this; busy(b, true);
+      api('admin.groups.send', {}, { admin: true }).then(function (x) { busy(b, false); $('#grpR').innerHTML = '<div class="note ok" style="margin-top:8px">Надіслано: ' + x.sent + '. Уже мали посилання: ' + x.had + '.</div>'; })
+        .catch(function (e) { busy(b, false); $('#grpR').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+    };
     $$('.set-txt').forEach(function (el) { el.onchange = function () { var p = {}; p[el.dataset.k] = el.value.trim(); save(p, el); }; });
     $$('[data-copy]').forEach(function (b) { b.onclick = function () { try { navigator.clipboard.writeText(b.dataset.copy); toast('Скопійовано'); } catch (e) { toast(b.dataset.copy); } }; });
     $('#tgSetup').onclick = function () {
@@ -2007,7 +2014,7 @@ function adminStoCard(s) {
       (s.active ? '<button class="btn sm ghost" data-act="off">' + (s.owner ? 'Зняти з каталогу' : 'Приховати') + '</button>' : '<button class="btn sm" data-act="on">' + (s.owner ? 'Активувати' : 'Показати') + '</button>') +
       (!s.owner && s.active ? (s.partner ? '<button class="btn sm ghost" data-act="unpartner">Зняти партнерство</button><button class="btn sm ghost" data-act="cabinet">Кабінет сервісу</button>' : '<button class="btn sm dark" data-act="partner">Зробити партнером</button>') : '') +
       (!s.owner && !s.active && s.source === 'анкета' ? '<button class="btn sm dark" data-act="partner">Показати як партнера</button>' : '') +
-      '<button class="btn sm ghost" data-act="edit">Редагувати</button><a class="btn sm ghost" target="_blank" rel="noopener" href="' + esc(mapsLink(s)) + '">Google Maps</a></div></div>';
+      '<button class="btn sm ghost" data-act="edit">Редагувати</button><a class="btn sm ghost" target="_blank" rel="noopener" href="' + esc(mapsLink(s)) + '">Google Maps</a><button class="btn sm ghost del-btn" data-act="delete">Видалити</button></div></div>';
 }
 
 function renderAdminSto() {
@@ -2049,6 +2056,7 @@ function renderAdminSto() {
       var b = e.target.closest('[data-act]'); if (!b) return;
       var card = b.closest('[data-sid]'), s = all.filter(function (x) { return x.id === card.dataset.sid; })[0];
       if (b.dataset.act === 'edit') return adminStoDialog(M, s, replace);
+      if (b.dataset.act === 'delete') return stoDeleteDialog(s, function () { all = all.filter(function (x) { return x.id !== s.id; }); draw(); });
       if (b.dataset.act === 'cabinet') return setView('sto', s.id);
       if (b.dataset.act === 'partner' || b.dataset.act === 'unpartner') {
         var on = b.dataset.act === 'partner';
@@ -2082,6 +2090,33 @@ function renderAdminSto() {
   }).catch(fail);
 }
 
+// Видалення сервісу: крок 1 — що зачепить, крок 2 — ввести назву
+function stoDeleteDialog(s, done) {
+  openDialog('<h2 style="margin-bottom:6px">Видалити «' + esc(s.name) + '»?</h2><div id="sdBody" class="small muted">Перевіряю, що пов\'язано із сервісом…</div>');
+  api('admin.sto.delete', { id: s.id, dry: true }, { admin: true }).then(function (r) {
+    var I = r.info, li = [];
+    if (I.owner) li.push('Власник <b>' + esc(I.owner) + '</b> втратить кабінет сервісу, але залишиться з акаунтом водія.');
+    if (I.open) li.push('<b>' + I.open + '</b> відкритих заявок буде закрито, водії побачать, що сервіс більше не працює.');
+    if (I.requests || I.jobs || I.reviews) li.push('Історію (' + [I.requests ? I.requests + ' заявок' : '', I.jobs ? I.jobs + ' записів журналу' : '', I.reviews ? I.reviews + ' відгуків' : ''].filter(Boolean).join(', ') + ') збережемо в архіві, щоб у водіїв не зникла історія ремонтів.');
+    li.push('Картка зникне з каталогу й адмінки, логотип і фото буде видалено.');
+    $('#sdBody').outerHTML = '<ul class="small" style="margin:6px 0 12px;padding-left:18px">' + li.map(function (x) { return '<li style="margin:4px 0">' + x + '</li>'; }).join('') + '</ul>' +
+      '<div class="note warn" style="margin-bottom:12px">Цю дію не можна скасувати.</div>' +
+      '<div class="row"><button class="btn ghost" data-close style="flex:1">Скасувати</button><button class="btn danger" id="sdNext" style="flex:1">Так, видалити</button></div>';
+    $$('[data-close]').forEach(function (b) { b.onclick = function (e) { e.preventDefault(); closeDialog(); }; });
+    $('#sdNext').onclick = function () {
+      openDialog('<h2 style="margin-bottom:6px">Підтвердіть видалення</h2><p class="small" style="margin:0 0 10px">Щоб точно не видалити не той сервіс, введіть його назву:<br><b>' + esc(s.name) + '</b></p>' +
+        '<input class="i" id="sdName" autocomplete="off" placeholder="Назва сервісу"><div id="sdErr"></div>' +
+        '<div class="row" style="margin-top:12px"><button class="btn ghost" data-close style="flex:1">Скасувати</button><button class="btn danger" id="sdGo" style="flex:1" disabled>Видалити назавжди</button></div>');
+      var norm = function (x) { return String(x || '').trim().toLowerCase(); };
+      $('#sdName').oninput = function () { $('#sdGo').disabled = norm(this.value) !== norm(s.name); };
+      $('#sdGo').onclick = function () {
+        var b = this; busy(b, true);
+        api('admin.sto.delete', { id: s.id, confirm: $('#sdName').value }, { admin: true }).then(function (x) { closeDialog(); toast('Сервіс «' + s.name + '» видалено' + (x.archived ? ', історію збережено' : '')); done(); })
+          .catch(function (e) { busy(b, false); $('#sdErr').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+      };
+    };
+  }).catch(function (e) { $('#sdBody').innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
+}
 function adminStoDialog(M, s, done) {
   openDialog('<h2 style="margin-bottom:12px">' + esc(s.name) + '</h2><form id="aeF" class="stack" novalidate>' +
     '<div><label class="f" for="aeN">Назва</label><input class="i" id="aeN" value="' + esc(s.name) + '"></div>' +
