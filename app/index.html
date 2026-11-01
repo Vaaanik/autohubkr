@@ -222,6 +222,52 @@ a.tile:hover{border-color:var(--volt)}
 dialog{border:0;border-radius:22px;padding:0;width:min(520px,94vw);max-height:90vh;box-shadow:0 30px 80px rgba(6,17,31,.4)}
 dialog::backdrop{background:rgba(6,17,31,.55);backdrop-filter:blur(2px)}
 dialog .dlg{padding:20px}
+.cb{position:relative}
+.cb-list{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 34px rgba(6,17,31,.18);max-height:264px;overflow:auto;z-index:30;padding:4px}
+.cb-opt{padding:10px 12px;border-radius:9px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.cb-opt small{color:var(--faint);font-size:12px;white-space:nowrap}
+.cb-opt:hover,.cb-opt.on{background:var(--volt-bg)}
+.cb-custom{color:var(--volt-d);font-weight:600;border-top:1px solid var(--line2);border-radius:0 0 9px 9px}
+.cb-empty{padding:10px 12px;color:var(--soft);font-size:14px}
+input.i:disabled{background:#F2F5F8;color:var(--faint)}
+input.i.bad{border-color:var(--stop)}
+fieldset.mod{border:1px solid var(--line2);border-radius:14px;padding:10px 12px 12px;margin:0;display:grid;gap:10px}
+fieldset.mod legend{font-weight:700;font-size:15px;padding:0 6px}
+fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
+.photo-pick{display:flex;align-items:center;gap:12px;border:1.5px dashed var(--line);border-radius:12px;padding:12px;cursor:pointer;color:var(--volt-d);font-weight:600;font-size:14px;min-height:56px}
+.photo-pick:hover{border-color:var(--volt)}
+.photo-pick img{width:96px;height:64px;object-fit:cover;border-radius:8px}
+.dash .spec{color:var(--chrome);font-size:13px;margin-top:4px;position:relative}
+.dash.has-photo{padding-top:0}
+.dash-photo{margin:0 -16px 12px;height:170px;overflow:hidden;position:relative}
+.dash-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.dash-photo::after{content:"";position:absolute;inset:auto 0 0 0;height:60%;background:linear-gradient(transparent,var(--night2))}
+.dash.has-photo h3,.dash.has-photo h1{margin-top:-34px;position:relative;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+.dash.has-photo .go{top:auto;bottom:auto;margin-top:-30px;right:14px}
+.dash label.btn{position:relative;overflow:hidden}
+.dash label.btn.busy{opacity:.6;pointer-events:none}
+.plan-row{display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line2);padding:10px 2px;cursor:pointer;font:inherit;color:inherit}
+.plan-row:first-of-type{border-top:0}
+.plan-row:hover b{color:var(--volt-d)}
+.plan-dot{width:10px;height:10px;border-radius:50%;margin-top:6px;flex:none;background:var(--faint)}
+.plan-t{flex:1;min-width:0}.plan-t b{display:block;font-weight:600;font-size:15px}.plan-t small{display:block;color:var(--soft);font-size:13px}
+.plan-st{font-size:12px;font-weight:700;white-space:nowrap;margin-top:3px}
+.st-over .plan-dot{background:var(--stop)}.st-over .plan-st{color:var(--stop)}
+.st-soon .plan-dot{background:#E0A800}.st-soon .plan-st{color:var(--amber)}
+.st-nodata .plan-st{color:var(--soft)}
+.plan-compact{display:grid}
+.pc-row{display:flex;justify-content:space-between;gap:10px;background:none;border:0;border-top:1px solid var(--line2);padding:8px 2px;font:inherit;font-size:14px;color:var(--ink);text-align:left;cursor:pointer}
+.pc-row small{color:var(--faint);font-size:12px;white-space:nowrap}
+.pc-row:hover span{color:var(--volt-d)}
+.plan-more summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--volt-d);padding:8px 0}
+.svc-tags{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}
+.svc-tag{font-size:12px;font-weight:600;background:var(--volt-bg);color:var(--volt-d);border-radius:7px;padding:3px 8px}
+.svc-picked{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.svc-picked:empty{display:none}
+.svc-list{max-height:280px;overflow:auto;margin-top:8px;padding-right:2px}
+.svc-g+.svc-g{margin-top:10px}
+.svc-gh{font-size:13px;font-weight:700;color:var(--soft);margin-bottom:6px}
+.svc-list .chip small{color:var(--faint);font-weight:400}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (max-width:360px){h1{font-size:23px}.odo i{width:17px;font-size:18px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
@@ -437,55 +483,296 @@ function bindChips(root, single) {
 /* ---------- водій: гараж ---------- */
 function loadCars() { return api('cars.list').then(function (r) { state.cars = r.cars; return r.cars; }); }
 
+/* ---------- каталог марок і моделей ---------- */
+// cars.json: [[марка, марка кирилицею, популярна, [[модель, кирилицею, рік від, рік до], …]], …]
+var carsDbP = null;
+function carsDb() {
+  if (!carsDbP) carsDbP = fetch('cars.json').then(function (r) { if (!r.ok) throw new Error('Не вдалося завантажити каталог авто'); return r.json(); })
+    .catch(function (e) { carsDbP = null; throw e; });
+  return carsDbP;
+}
+function norm(s) { return String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/[^0-9a-zа-яіїєґ]/g, ''); }
+
+/* Поле з пошуком і випадним списком (combobox). opts: { items(): [{v, label, sub}], placeholder, custom, onPick(v) } */
+function combo(input, opts) {
+  var list = document.createElement('div');
+  list.className = 'cb-list'; list.id = input.id + 'List'; list.setAttribute('role', 'listbox'); list.hidden = true;
+  input.parentNode.classList.add('cb'); input.parentNode.appendChild(list);
+  input.setAttribute('role', 'combobox'); input.setAttribute('aria-autocomplete', 'list'); input.setAttribute('aria-expanded', 'false');
+  input.setAttribute('aria-controls', list.id); input.setAttribute('autocomplete', 'off');
+  var shown = [], act = -1;
+  function draw() {
+    var q = norm(input.value), all = opts.items();
+    var starts = [], has = [];
+    all.forEach(function (it) {
+      var k = norm(it.label), k2 = norm(it.alt);
+      if (!q || k.indexOf(q) === 0 || (k2 && k2.indexOf(q) === 0)) starts.push(it);
+      else if (k.indexOf(q) !== -1 || (k2 && k2.indexOf(q) !== -1)) has.push(it);
+    });
+    shown = starts.concat(has).slice(0, 60);
+    var exact = shown.some(function (it) { return norm(it.label) === q; });
+    var html = shown.map(function (it, i) {
+      return '<div class="cb-opt' + (i === act ? ' on' : '') + '" role="option" id="' + list.id + i + '" data-i="' + i + '" aria-selected="' + (i === act) + '">' + esc(it.label) + (it.sub ? '<small>' + esc(it.sub) + '</small>' : '') + '</div>';
+    }).join('');
+    if (opts.custom && q && !exact) html += '<div class="cb-opt cb-custom" role="option" data-custom="1">Немає в списку: використати «' + esc(input.value.trim()) + '»</div>';
+    if (!html) html = '<div class="cb-empty">Нічого не знайдено</div>';
+    list.innerHTML = html; list.hidden = false; input.setAttribute('aria-expanded', 'true');
+    input.setAttribute('aria-activedescendant', act >= 0 ? list.id + act : '');
+  }
+  function close() { list.hidden = true; act = -1; input.setAttribute('aria-expanded', 'false'); }
+  function pick(it) { input.value = it.label; close(); opts.onPick(it.v, it); }
+  input.addEventListener('focus', function () { act = -1; draw(); });
+  input.addEventListener('input', function () { act = -1; draw(); opts.onPick(null); });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (list.hidden) draw(); act = Math.min(act + 1, shown.length - 1); draw(); var el = $('#' + list.id + act); if (el) el.scrollIntoView({ block: 'nearest' }); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); act = Math.max(act - 1, 0); draw(); var el2 = $('#' + list.id + act); if (el2) el2.scrollIntoView({ block: 'nearest' }); }
+    else if (e.key === 'Enter' && !list.hidden) { e.preventDefault(); if (act >= 0 && shown[act]) pick(shown[act]); else if (shown.length === 1) pick(shown[0]); }
+    else if (e.key === 'Escape') { close(); }
+  });
+  list.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  list.addEventListener('click', function (e) {
+    var o = e.target.closest('.cb-opt'); if (!o) return;
+    if (o.dataset.custom) { var v = input.value.trim(); close(); opts.onPick(v, { v: v, label: v, custom: true }); return; }
+    pick(shown[+o.dataset.i]);
+  });
+  input.addEventListener('blur', function () { setTimeout(close, 120); });
+  return { refresh: function () { if (!list.hidden) draw(); }, close: close };
+}
+
+/* ---------- фото: стискаємо в браузері до 1280 px JPEG ---------- */
+function shrinkPhoto(file) {
+  return new Promise(function (ok, no) {
+    if (!/^image\//.test(file.type)) return no(new Error('Оберіть фото'));
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function () {
+      var s = Math.min(1, 1280 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      var q = 0.82, out = c.toDataURL('image/jpeg', q);
+      while (out.length > 1900000 && q > 0.45) { q -= 0.12; out = c.toDataURL('image/jpeg', q); }
+      ok(out);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); no(new Error('Не вдалося відкрити фото. Спробуйте JPEG або PNG.')); };
+    img.src = url;
+  });
+}
+
+function carSpec(c) {
+  var bits = [];
+  if (c.engine || c.fuel) bits.push([c.engine ? Number(c.engine).toFixed(1) : '', c.fuel ? c.fuel.toLowerCase() : ''].filter(Boolean).join(' '));
+  if (c.power) bits.push(c.power + ' к.с.');
+  if (c.gearbox) bits.push(c.gearbox.toLowerCase());
+  if (c.drive) bits.push(c.drive.toLowerCase() + ' привід');
+  if (c.body) bits.push(c.body.toLowerCase());
+  return bits.join(' · ');
+}
+
+/* ---------- водій: гараж ---------- */
 function renderGarage() {
   loading();
   (state.cars ? Promise.resolve(state.cars) : loadCars()).then(function (cars) {
     view.innerHTML = '<div class="page-head"><h1>Мій гараж</h1><button class="btn sm ghost" id="addCar">Додати авто</button></div>' +
       (cars.length ? cars.map(function (c) {
-        return '<a class="dash" href="#/car/' + esc(c.id) + '" aria-label="' + esc(c.make + ' ' + c.model) + ': історія і заявки">' +
+        var spec = carSpec(c);
+        return '<a class="dash' + (c.photo ? ' has-photo' : '') + '" href="#/car/' + esc(c.id) + '" aria-label="' + esc(c.make + ' ' + c.model) + ': історія і план ТО">' +
+          (c.photo ? '<div class="dash-photo"><img src="' + esc(c.photo) + '" alt="" loading="lazy"></div>' : '') +
           '<h3>' + esc(c.make + ' ' + c.model) + (c.year ? '<span class="yr">' + esc(c.year) + '</span>' : '') + '</h3><span class="go" aria-hidden="true">›</span>' +
+          (spec ? '<div class="spec">' + esc(spec) + '</div>' : '') +
           '<div class="dash-row"><div>' + plateHtml(c.plate) + '</div><div><div class="odo-l">Пробіг</div>' + odoHtml(c.mileage) + '</div></div></a>';
       }).join('') + '<a class="btn wide" href="#/new" style="margin-top:6px">Нова заявка в СТО</a>'
-      : '<div class="card empty"><b>Додайте своє авто</b>Щоб створювати заявки й вести історію ремонтів.<div style="margin-top:14px"><button class="btn" id="addCar2">Додати авто</button></div></div>');
-    $('#addCar').onclick = carDialog;
-    var b2 = $('#addCar2'); if (b2) b2.onclick = carDialog;
+      : '<div class="card empty"><b>Додайте своє авто</b>Оберіть марку й модель зі списку, і ми складемо план обслуговування за пробігом.<div style="margin-top:14px"><button class="btn" id="addCar2">Додати авто</button></div></div>');
+    $('#addCar').onclick = function () { carDialog(); };
+    var b2 = $('#addCar2'); if (b2) b2.onclick = function () { carDialog(); };
   }).catch(fail);
 }
 
-function carDialog() {
-  openDialog('<h2 style="margin-bottom:12px">Нове авто</h2><form class="stack" id="carForm" novalidate>' +
-    '<div class="grid2"><div><label class="f" for="cMake">Марка</label><input class="i" id="cMake" placeholder="Skoda" required></div><div><label class="f" for="cModel">Модель</label><input class="i" id="cModel" placeholder="Octavia" required></div></div>' +
-    '<div class="grid2"><div><label class="f" for="cYear">Рік</label><input class="i" id="cYear" inputmode="numeric" maxlength="4" placeholder="2016"></div><div><label class="f" for="cKm">Пробіг, км</label><input class="i" id="cKm" inputmode="numeric" placeholder="180000"></div></div>' +
-    '<div class="grid2"><div><label class="f" for="cPlate">Номер <span>необов\'язково</span></label><input class="i" id="cPlate" placeholder="AE1234KP"></div><div><label class="f" for="cVin">VIN <span>необов\'язково</span></label><input class="i" id="cVin" maxlength="17"></div></div>' +
-    '<div id="carErr"></div><div class="row"><button type="button" class="btn ghost" data-close>Скасувати</button><button class="btn" style="flex:1" id="carSave">Зберегти</button></div></form>');
-  $('#carForm').onsubmit = function (e) {
-    e.preventDefault();
-    if (!$('#cMake').value.trim() || !$('#cModel').value.trim()) { $('#carErr').innerHTML = '<div class="note err">Вкажіть марку й модель</div>'; return; }
-    var btn = $('#carSave'); busy(btn, true);
-    api('cars.add', { make: $('#cMake').value, model: $('#cModel').value, year: $('#cYear').value, mileage: $('#cKm').value, plate: $('#cPlate').value, vin: $('#cVin').value })
-      .then(function () { closeDialog(); toast('Авто додано'); state.cars = null; route(); })
-      .catch(function (e2) { busy(btn, false); $('#carErr').innerHTML = '<div class="note err">' + esc(e2.message) + '</div>'; });
-  };
+/* Додавання й редагування авто: марка → модель → рік → модифікація */
+function carDialog(car) {
+  var edit = !!car; car = car || {};
+  Promise.all([meta(), carsDb()]).then(function (res) {
+    var M = res[0], DB = res[1], CO = M.car;
+    var sel = { make: car.make || '', model: car.model || '', y0: 1950, y1: new Date().getFullYear() + 1, photo: null };
+    var opt = function (list, cur, empty) { return '<option value="">' + (empty || '—') + '</option>' + list.map(function (x) { return '<option' + (String(x) === String(cur) ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join(''); };
+    var engines = []; for (var v = 6; v <= 70; v++) engines.push((v / 10).toFixed(1));
+    openDialog('<h2 style="margin-bottom:4px">' + (edit ? 'Редагувати авто' : 'Нове авто') + '</h2><p class="mini" style="margin:0 0 12px">Почніть вводити марку: шукає й латиницею, й кирилицею.</p>' +
+      '<form class="stack" id="carForm" novalidate>' +
+      '<div><label class="f" for="cMake">Марка</label><input class="i" id="cMake" placeholder="Skoda, Toyota, ЗАЗ…" value="' + esc(car.make || '') + '"></div>' +
+      '<div><label class="f" for="cModel">Модель</label><input class="i" id="cModel" placeholder="Спершу оберіть марку" value="' + esc(car.model || '') + '"' + (car.make ? '' : ' disabled') + '></div>' +
+      '<div class="grid2"><div><label class="f" for="cYear">Рік випуску</label><select class="i" id="cYear"></select></div><div><label class="f" for="cKm">Пробіг, км</label><input class="i" id="cKm" inputmode="numeric" placeholder="148000" value="' + esc(car.mileage || '') + '"></div></div>' +
+      '<fieldset class="mod"><legend>Модифікація <span>необов\'язково, але план ТО буде точнішим</span></legend>' +
+        '<div class="grid2"><div><label class="f" for="cEng">Об\'єм, л</label><select class="i" id="cEng">' + opt(engines, car.engine ? Number(car.engine).toFixed(1) : '') + '</select></div>' +
+        '<div><label class="f" for="cFuel">Паливо</label><select class="i" id="cFuel">' + opt(CO.fuels, car.fuel) + '</select></div></div>' +
+        '<div class="grid2"><div><label class="f" for="cPow">Потужність, к.с.</label><input class="i" id="cPow" inputmode="numeric" placeholder="110" value="' + esc(car.power || '') + '"></div>' +
+        '<div><label class="f" for="cBox">Коробка</label><select class="i" id="cBox">' + opt(CO.gearboxes, car.gearbox) + '</select></div></div>' +
+        '<div class="grid2"><div><label class="f" for="cDrive">Привід</label><select class="i" id="cDrive">' + opt(CO.drives, car.drive) + '</select></div>' +
+        '<div><label class="f" for="cBody">Кузов</label><select class="i" id="cBody">' + opt(CO.bodies, car.body) + '</select></div></div></fieldset>' +
+      '<div class="grid2"><div><label class="f" for="cPlate">Номер <span>необов\'язково</span></label><input class="i" id="cPlate" placeholder="AE1234KP" value="' + esc(car.plate || '') + '"></div><div><label class="f" for="cVin">VIN <span>необов\'язково</span></label><input class="i" id="cVin" maxlength="17" value="' + esc(car.vin || '') + '"></div></div>' +
+      (edit ? '' : '<div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Фото <span class="muted" style="font-weight:400">необов\'язково</span></span><label class="photo-pick" id="cPhotoL"><input type="file" accept="image/*" id="cPhoto" class="sr"><span id="cPhotoT">Додати фото авто</span></label></div>') +
+      '<div id="carErr"></div><div class="row"><button type="button" class="btn ghost" data-close>Скасувати</button><button class="btn" style="flex:1" id="carSave">' + (edit ? 'Зберегти' : 'Додати в гараж') + '</button></div></form>');
+    var makeRow = function () { return DB.filter(function (m) { return m[0] === sel.make; })[0]; };
+    function years() {
+      var cur = $('#cYear').value || car.year || '', out = '<option value="">—</option>';
+      for (var y = sel.y1; y >= sel.y0; y--) out += '<option' + (String(y) === String(cur) ? ' selected' : '') + '>' + y + '</option>';
+      $('#cYear').innerHTML = out;
+    }
+    function setModelRange(name) {
+      var m = makeRow(), md = m && m[3].filter(function (x) { return x[0] === name; })[0];
+      var now = new Date().getFullYear() + 1;
+      sel.y0 = md && md[2] ? md[2] : 1950; sel.y1 = md && md[3] ? Math.min(md[3] >= now - 1 ? now : md[3], now) : now;
+      years();
+    }
+    combo($('#cMake'), {
+      custom: true,
+      items: function () {
+        return DB.map(function (m) { return { v: m[0], label: m[0], alt: m[1], sub: m[2] ? '' : '', pop: m[2] }; })
+          .sort(function (a, b) { return norm($('#cMake').value) ? 0 : (b.pop - a.pop); });
+      },
+      onPick: function (v) {
+        if (v === null) { sel.make = ''; $('#cModel').disabled = true; return; }
+        sel.make = v; $('#cModel').disabled = false; $('#cModel').placeholder = 'Почніть вводити модель';
+        if (sel.model && !(makeRow() && makeRow()[3].some(function (x) { return x[0] === sel.model; }))) { sel.model = ''; $('#cModel').value = ''; }
+        setTimeout(function () { $('#cModel').focus(); }, 30);
+      }
+    });
+    combo($('#cModel'), {
+      custom: true,
+      items: function () {
+        var m = makeRow(); if (!m) return [];
+        return m[3].map(function (x) { return { v: x[0], label: x[0], alt: x[1], sub: x[2] ? x[2] + '–' + (x[3] >= new Date().getFullYear() ? 'тепер' : x[3]) : '' }; });
+      },
+      onPick: function (v) { sel.model = v || ''; if (v) { setModelRange(v); setTimeout(function () { $('#cYear').focus(); }, 30); } }
+    });
+    if (car.model) setModelRange(car.model); else years();
+    function onPhoto() {
+      var f = this.files[0]; if (!f) return;
+      $('#cPhotoL').querySelector('span').textContent = 'Обробляю фото…';
+      shrinkPhoto(f).then(function (d) {
+        sel.photo = d;
+        $('#cPhotoL').innerHTML = '<img src="' + d + '" alt="Фото авто"><span>Фото додано. Натисніть, щоб замінити.</span><input type="file" accept="image/*" id="cPhoto" class="sr">';
+        $('#cPhoto').onchange = onPhoto;
+      }).catch(function (e) { $('#cPhotoL').querySelector('span').textContent = e.message; });
+    }
+    if ($('#cPhoto')) $('#cPhoto').onchange = onPhoto;
+    $('#carForm').onsubmit = function (e) {
+      e.preventDefault();
+      var make = sel.make || $('#cMake').value.trim(), model = sel.model || $('#cModel').value.trim();
+      var err = !make ? 'Оберіть марку зі списку' : !model ? 'Оберіть модель' : '';
+      $$('#cMake,#cModel').forEach(function (i) { i.classList.toggle('bad', (i.id === 'cMake' && !make) || (i.id === 'cModel' && make && !model)); });
+      if (err) { $('#carErr').innerHTML = '<div class="note err">' + esc(err) + '</div>'; return; }
+      var data = { make: make, model: model, year: $('#cYear').value, mileage: $('#cKm').value, engine: $('#cEng').value, fuel: $('#cFuel').value, power: $('#cPow').value,
+        gearbox: $('#cBox').value, drive: $('#cDrive').value, body: $('#cBody').value, plate: $('#cPlate').value, vin: $('#cVin').value };
+      if (edit) data.id = car.id;
+      var btn = $('#carSave'); busy(btn, true);
+      api(edit ? 'cars.update' : 'cars.add', data).then(function (r) {
+        if (!sel.photo) return r;
+        btn.textContent = 'Завантажую фото…';
+        return api('cars.photo', { id: r.car.id, image: sel.photo }).catch(function () { toast('Авто додано, але фото не завантажилось. Спробуйте ще раз на сторінці авто.', true); });
+      }).then(function () { closeDialog(); toast(edit ? 'Зміни збережено' : 'Авто додано в гараж'); state.cars = null; route(); })
+        .catch(function (e2) { busy(btn, false); $('#carErr').innerHTML = '<div class="note err">' + esc(e2.message) + '</div>'; });
+    };
+  }).catch(fail);
+}
+
+/* ---------- план обслуговування ---------- */
+// Які роботи стосуються цього авто (за паливом, коробкою, приводом).
+function svcApplies(s, car) {
+  var code = s[0], only = s[5], fuel = car.fuel || '';
+  if (only === 'petrol' && /Дизель|Електро/.test(fuel)) return false;
+  if (only === 'diesel' && fuel !== 'Дизель') return false;
+  if (only === 'lpg' && fuel !== 'Газ/бензин') return false;
+  if (fuel === 'Електро' && /^(oil|air_filter|fuel_filter|spark_plugs|glow_plugs|timing_belt|timing_chain|water_pump|aux_belt|valves|injectors|throttle|egr_dpf|lambda|turbo|mt_oil|clutch|flywheel|gas_service)$/.test(code)) return false;
+  if (code === 'at_oil' && car.gearbox && car.gearbox === 'Механіка') return false;
+  if ((code === 'mt_oil' || code === 'clutch' || code === 'flywheel') && car.gearbox && /Автомат|Варіатор/.test(car.gearbox)) return false;
+  if ((code === 'diff_oil' || code === 'driveshaft') && car.drive === 'Передній') return false;
+  return true;
+}
+function maintenancePlan(car, hist, M) {
+  var cur = Number(car.mileage) || 0, today = new Date(), out = [];
+  M.services.forEach(function (s) {
+    var kmI = s[3], moI = s[4];
+    if ((!kmI && !moI) || s[0] === 'timing_chain' || !svcApplies(s, car)) return;
+    var last = null;
+    hist.forEach(function (h) { if ((h.services || []).indexOf(s[0]) !== -1 && (!last || h.date > last.date)) last = h; });
+    var leftKm = null, leftMo = null;
+    if (last) {
+      if (kmI && last.mileage) leftKm = Number(last.mileage) + kmI - cur;
+      if (moI) { var d = new Date(last.date); d.setMonth(d.getMonth() + moI); leftMo = Math.round((d - today) / (30.4 * 864e5)); }
+    }
+    var st, note;
+    if (!last) {
+      if (kmI && cur < kmI * 0.85) return; // ще рано, нічого не показуємо
+      st = 'nodata'; note = kmI ? 'кожні ' + (kmI / 1000) + ' тис. км' : 'раз на ' + moI + ' міс.';
+    } else {
+      var over = (leftKm !== null && leftKm <= 0) || (leftMo !== null && leftMo <= 0);
+      var soon = (leftKm !== null && leftKm <= Math.max(1500, kmI * 0.15)) || (leftMo !== null && leftMo <= 1);
+      if (!over && !soon) { out.push({ s: s, st: 'ok', last: last, leftKm: leftKm, leftMo: leftMo }); return; }
+      st = over ? 'over' : 'soon';
+      var parts = [];
+      if (leftKm !== null) parts.push(leftKm <= 0 ? 'прострочено на ' + Math.abs(leftKm).toLocaleString('uk-UA') + ' км' : 'через ' + leftKm.toLocaleString('uk-UA') + ' км');
+      if (leftMo !== null) parts.push(leftMo <= 0 ? 'минув термін' : 'за ' + leftMo + ' міс.');
+      note = parts.join(', ') + ' · востаннє ' + dt(last.date) + (last.mileage ? ', ' + km(last.mileage) : '');
+    }
+    out.push({ s: s, st: st, note: note, last: last });
+  });
+  var rank = { over: 0, soon: 1, nodata: 2, ok: 3 };
+  // спершу прострочене, далі «скоро»; серед робіт без записів — найчастіші (олива, фільтри) першими
+  out.sort(function (a, b) { return rank[a.st] - rank[b.st] || (a.st === 'nodata' ? ((a.s[3] || a.s[4] * 2500) - (b.s[3] || b.s[4] * 2500)) : (b.s[3] || 0) - (a.s[3] || 0)); });
+  return out;
 }
 
 function renderCar(id) {
   loading();
-  Promise.all([state.cars ? Promise.resolve(state.cars) : loadCars(), api('history.list', { car_id: id })]).then(function (res) {
+  Promise.all([state.cars ? Promise.resolve(state.cars) : loadCars(), api('history.list', { car_id: id }), meta()]).then(function (res) {
     var car = res[0].filter(function (c) { return c.id === id; })[0];
     if (!car) return go('/garage');
-    var hist = res[1].history;
+    var hist = res[1].history, M = res[2];
+    var SN = {}; M.services.forEach(function (s) { SN[s[0]] = s[1]; });
+    var spec = carSpec(car), plan = maintenancePlan(car, hist, M);
+    var urgent = plan.filter(function (p) { return p.st === 'over' || p.st === 'soon'; }), nodata = plan.filter(function (p) { return p.st === 'nodata'; }), okc = plan.filter(function (p) { return p.st === 'ok'; }).length;
+    var stLbl = { over: 'Прострочено', soon: 'Скоро', nodata: 'Немає даних' };
+    var planRow = function (p) {
+      return '<button type="button" class="plan-row st-' + p.st + '" data-svc="' + esc(p.s[0]) + '"><span class="plan-dot" aria-hidden="true"></span><span class="plan-t"><b>' + esc(p.s[1]) + '</b><small>' + esc(p.note) + '</small></span><span class="plan-st">' + stLbl[p.st] + '</span></button>';
+    };
     view.innerHTML = '<a href="#/garage" class="back">‹ Гараж</a>' +
-      '<div class="dash"><h1 style="color:#fff;font-size:22px">' + esc(car.make + ' ' + car.model) + (car.year ? '<span class="yr" style="font-size:18px">' + esc(car.year) + '</span>' : '') + '</h1>' +
+      '<div class="dash' + (car.photo ? ' has-photo' : '') + '">' + (car.photo ? '<div class="dash-photo"><img src="' + esc(car.photo) + '" alt="Фото ' + esc(car.make + ' ' + car.model) + '"></div>' : '') +
+      '<h1 style="color:#fff;font-size:22px">' + esc(car.make + ' ' + car.model) + (car.year ? '<span class="yr" style="font-size:18px">' + esc(car.year) + '</span>' : '') + '</h1>' +
+      (spec ? '<div class="spec">' + esc(spec) + '</div>' : '') +
       '<div class="dash-row"><div>' + plateHtml(car.plate) + '</div><div><div class="odo-l">Пробіг</div>' + odoHtml(car.mileage) + '</div></div>' +
       (car.vin ? '<div class="vin">VIN ' + esc(car.vin) + '</div>' : '') +
-      '<div class="acts"><a class="btn sm" href="#/new?car=' + esc(car.id) + '">Заявка в СТО</a><button class="btn sm ghost" id="addHist">Додати запис</button></div></div>' +
+      '<div class="acts"><a class="btn sm" href="#/new?car=' + esc(car.id) + '">Заявка в СТО</a><button class="btn sm ghost" id="addHist">Додати запис</button><button class="btn sm ghost" id="editCar">Редагувати</button>' +
+      '<label class="btn sm ghost" id="photoBtn">' + (car.photo ? 'Змінити фото' : 'Додати фото') + '<input type="file" accept="image/*" id="carPhoto" class="sr"></label></div></div>' +
+      '<div class="card"><div class="between" style="margin-bottom:6px"><h2>План обслуговування</h2>' + (car.mileage ? '' : '<span class="mini">вкажіть пробіг</span>') + '</div>' +
+        (urgent.length ? urgent.map(planRow).join('') : (car.mileage ? '<p class="small" style="margin:4px 0 8px">Термінових робіт немає' + (okc ? ': ' + okc + ' позицій за графіком.' : '.') + '</p>' : '<p class="small muted" style="margin:4px 0">Додайте пробіг у «Редагувати», і план порахується автоматично.</p>')) +
+        (nodata.length ? '<details class="plan-more"><summary>Немає даних про ' + nodata.length + ' ' + (nodata.length === 1 ? 'роботу' : nodata.length < 5 ? 'роботи' : 'робіт') + ' для такого пробігу</summary>' +
+          '<p class="mini" style="margin:0 0 6px">Натисніть на роботу й вкажіть, коли її робили. Тоді план підкаже, коли наступна.</p><div class="plan-compact">' +
+          nodata.map(function (p) { return '<button type="button" class="pc-row" data-svc="' + esc(p.s[0]) + '"><span>' + esc(p.s[1]) + '</span><small>' + esc(p.note) + '</small></button>'; }).join('') + '</div></details>' : '') +
+        '<p class="mini" style="margin:8px 0 0">Інтервали орієнтовні. Точні дивіться в сервісній книжці вашого авто. Натисніть на роботу, щоб записати, коли її робили.</p></div>' +
       '<h2 style="margin:18px 0 10px">Історія обслуговування</h2>' +
       (hist.length ? '<div class="card">' + hist.map(function (h) {
+        var tags = (h.services || []).map(function (c) { return '<span class="svc-tag">' + esc(SN[c] || c) + '</span>'; }).join('');
         return '<div class="hist"><div class="between"><b>' + esc(dt(h.date)) + '</b><span class="small muted">' + esc([km(h.mileage), money(h.price)].filter(Boolean).join(' · ')) + '</span></div>' +
-          '<div>' + esc(h.work) + '</div>' + (h.place ? '<div class="small muted">' + esc(h.place) + (h.request_id ? ' · через АвтоХаб' : '') + '</div>' : '') + '</div>';
-      }).join('') + '</div>' : '<div class="card empty"><b>Поки порожньо</b>Тут з\'являться ремонти, виконані через АвтоХаб, і записи, які ви додасте самі.</div>') +
+          (tags ? '<div class="svc-tags">' + tags + '</div>' : '') + (h.work ? '<div>' + esc(h.work) + '</div>' : '') +
+          '<div class="between"><span class="small muted">' + esc(h.place || '') + (h.request_id ? (h.place ? ' · ' : '') + 'через АвтоХаб' : '') + '</span>' +
+          (h.request_id ? '' : '<button type="button" class="link" data-del="' + esc(h.id) + '" style="color:var(--soft)">Видалити</button>') + '</div></div>';
+      }).join('') + '</div>' : '<div class="card empty"><b>Поки порожньо</b>Додайте ремонти й ТО, які вже робили: план обслуговування стане точнішим.<div style="margin-top:12px"><button class="btn sm" id="addHist2">Додати перший запис</button></div></div>') +
       '<button class="btn sm danger" id="delCar" style="margin-top:18px">Видалити авто з гаража</button>';
-    $('#addHist').onclick = function () { histDialog(car); };
+    $('#addHist').onclick = function () { histDialog(car, M); };
+    if ($('#addHist2')) $('#addHist2').onclick = function () { histDialog(car, M); };
+    $('#editCar').onclick = function () { carDialog(car); };
+    $$('[data-svc]').forEach(function (b) { b.onclick = function () { histDialog(car, M, [b.dataset.svc]); }; });
+    $$('[data-del]').forEach(function (b) {
+      b.onclick = function () {
+        openDialog('<h2>Видалити запис?</h2><p class="muted">Запис зникне з історії, а план обслуговування перерахується.</p><div class="row"><button class="btn ghost" data-close style="flex:1">Ні</button><button class="btn danger" id="yesDelH" style="flex:1">Видалити</button></div>');
+        $('#yesDelH').onclick = function () { api('history.delete', { id: b.dataset.del }).then(function () { closeDialog(); toast('Запис видалено'); route(); }).catch(fail); };
+      };
+    });
+    $('#carPhoto').onchange = function () {
+      var f = this.files[0]; if (!f) return;
+      var lbl = $('#photoBtn'); lbl.classList.add('busy'); lbl.firstChild.textContent = 'Завантажую…';
+      shrinkPhoto(f).then(function (d) { return api('cars.photo', { id: car.id, image: d }); })
+        .then(function () { state.cars = null; toast('Фото оновлено'); route(); })
+        .catch(function (e) { lbl.classList.remove('busy'); lbl.firstChild.textContent = car.photo ? 'Змінити фото' : 'Додати фото'; fail(e); });
+    };
     $('#delCar').onclick = function () {
       openDialog('<h2>Видалити ' + esc(car.make + ' ' + car.model) + '?</h2><p class="muted">Авто зникне з гаража. Історія заявок у сервісів збережеться.</p><div class="row"><button class="btn ghost" data-close style="flex:1">Ні</button><button class="btn danger" id="yesDel" style="flex:1">Видалити</button></div>');
       $('#yesDel').onclick = function () { api('cars.delete', { id: car.id }).then(function () { closeDialog(); state.cars = null; toast('Авто видалено'); go('/garage'); }).catch(fail); };
@@ -493,18 +780,41 @@ function renderCar(id) {
   }).catch(fail);
 }
 
-function histDialog(car) {
-  var today = new Date().toISOString().slice(0, 10);
+/* Запис в історію: дата, пробіг, роботи з довідника (з пошуком), примітка, де, ціна */
+function histDialog(car, M, preset) {
+  var today = new Date().toISOString().slice(0, 10), picked = (preset || []).slice();
+  var applies = M.services.filter(function (s) { return svcApplies(s, car); });
   openDialog('<h2 style="margin-bottom:12px">Запис в історію</h2><form class="stack" id="hForm" novalidate>' +
     '<div class="grid2"><div><label class="f" for="hDate">Дата</label><input class="i" id="hDate" type="date" value="' + today + '" max="' + today + '"></div><div><label class="f" for="hKm">Пробіг, км</label><input class="i" id="hKm" inputmode="numeric" value="' + esc(car.mileage || '') + '"></div></div>' +
-    '<div><label class="f" for="hWork">Що робили</label><textarea class="i" id="hWork" placeholder="Заміна мастила й фільтрів" required></textarea></div>' +
-    '<div class="grid2"><div><label class="f" for="hPlace">Де <span>необов\'язково</span></label><input class="i" id="hPlace"></div><div><label class="f" for="hPrice">Ціна, грн</label><input class="i" id="hPrice" inputmode="numeric"></div></div>' +
+    '<div><label class="f" for="hQ">Що робили <span>можна кілька</span></label><div id="hPicked" class="svc-picked" aria-live="polite"></div>' +
+      '<input class="i" id="hQ" type="search" placeholder="Пошук: олива, колодки, ГРМ…" autocomplete="off"><div id="hList" class="svc-list"></div></div>' +
+    '<div><label class="f" for="hWork">Примітка <span>необов\'язково</span></label><textarea class="i" id="hWork" placeholder="Олива 5W-30 Shell, фільтр Mann" style="min-height:70px"></textarea></div>' +
+    '<div class="grid2"><div><label class="f" for="hPlace">Де робили</label><input class="i" id="hPlace" placeholder="СТО або «сам»"></div><div><label class="f" for="hPrice">Ціна, грн</label><input class="i" id="hPrice" inputmode="numeric"></div></div>' +
     '<div id="hErr"></div><div class="row"><button type="button" class="btn ghost" data-close>Скасувати</button><button class="btn" style="flex:1" id="hSave">Зберегти</button></div></form>');
+  var name = function (c) { var s = M.services.filter(function (x) { return x[0] === c; })[0]; return s ? s[1] : c; };
+  function drawPicked() {
+    $('#hPicked').innerHTML = picked.map(function (c) { return '<button type="button" class="chip on" data-un="' + esc(c) + '" aria-label="Прибрати: ' + esc(name(c)) + '">' + esc(name(c)) + ' ×</button>'; }).join('');
+  }
+  function drawList() {
+    var q = norm($('#hQ').value);
+    var html = M.serviceGroups.map(function (g, gi) {
+      var items = applies.filter(function (s) { return s[2] === gi && picked.indexOf(s[0]) === -1 && (!q || norm(s[1]).indexOf(q) !== -1); });
+      if (!items.length) return '';
+      return '<div class="svc-g"><div class="svc-gh">' + esc(g) + '</div><div class="chips">' + items.map(function (s) {
+        return '<button type="button" class="chip" data-add="' + esc(s[0]) + '">' + esc(s[1]) + (s[3] ? '<small> · ' + (s[3] / 1000) + ' тис. км</small>' : s[4] ? '<small> · ' + s[4] + ' міс.</small>' : '') + '</button>';
+      }).join('') + '</div></div>';
+    }).join('');
+    $('#hList').innerHTML = html || '<div class="mini">Нічого не знайдено. Опишіть роботу в примітці.</div>';
+  }
+  $('#hPicked').onclick = function (e) { var b = e.target.closest('[data-un]'); if (!b) return; picked = picked.filter(function (c) { return c !== b.dataset.un; }); drawPicked(); drawList(); };
+  $('#hList').onclick = function (e) { var b = e.target.closest('[data-add]'); if (!b) return; picked.push(b.dataset.add); drawPicked(); drawList(); };
+  $('#hQ').oninput = drawList;
+  drawPicked(); drawList();
   $('#hForm').onsubmit = function (e) {
     e.preventDefault();
-    if (!$('#hWork').value.trim()) { $('#hErr').innerHTML = '<div class="note err">Опишіть роботи</div>'; return; }
+    if (!picked.length && !$('#hWork').value.trim()) { $('#hErr').innerHTML = '<div class="note err">Оберіть роботи зі списку або опишіть їх у примітці</div>'; return; }
     var btn = $('#hSave'); busy(btn, true);
-    api('history.add', { car_id: car.id, date: $('#hDate').value, mileage: $('#hKm').value, work: $('#hWork').value, place: $('#hPlace').value, price: $('#hPrice').value })
+    api('history.add', { car_id: car.id, date: $('#hDate').value, mileage: $('#hKm').value, services: picked, work: $('#hWork').value, place: $('#hPlace').value, price: $('#hPrice').value })
       .then(function () { closeDialog(); state.cars = null; toast('Запис додано'); route(); })
       .catch(function (e2) { busy(btn, false); $('#hErr').innerHTML = '<div class="note err">' + esc(e2.message) + '</div>'; });
   };
