@@ -2,7 +2,6 @@
 insert into storage.buckets (id, name, public, file_size_limit)
 values ('vin-registry', 'vin-registry', false, 5242880)
 on conflict (id) do nothing;
-drop table if exists vin_registry;   -- стара таблиця не потрібна: реєстр зберігається файлами
 select id, public from storage.buckets where id = 'vin-registry';
 
 -- фото проблеми в заявці; модифікація, комплектація й ринкова ціна авто (AUTO.RIA)
