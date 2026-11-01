@@ -250,7 +250,7 @@ function makeApi(db, deps) {
   /* --- адміністратор --- */
   async function adminStats(r) {
     await auth(r, 'admin');
-    const [users, stos, reqs, cars, reviews] = await Promise.all(['users', 'stos', 'requests', 'cars', 'reviews'].map((t) => db.all(t)));
+    const [users, stos, reqs, cars, reviews, leads] = await Promise.all(['users', 'stos', 'requests', 'cars', 'reviews', 'leads'].map((t) => db.all(t)));
     const byStatus = {}; Object.keys(STATUS).forEach((k) => { byStatus[k] = 0; });
     reqs.forEach((q) => { byStatus[q.status] = (byStatus[q.status] || 0) + 1; });
     const week = fmt(new Date(Date.now() - 7 * 864e5)).slice(0, 10);
@@ -260,6 +260,8 @@ function makeApi(db, deps) {
       partners: stos.filter((s) => s.owner_id && isActive(s)).length, pending: stos.filter((s) => s.owner_id && !isActive(s)).length,
       listed: stos.filter((s) => !s.owner_id).length, noCoords: stos.filter((s) => !s.lat).length,
       requests: reqs.length, requestsWeek: reqs.filter((q) => String(q.created) >= week).length, byStatus, reviews: reviews.length,
+      leadsDrivers: leads.filter((l) => l.kind === 'driver').length, leadsServices: leads.filter((l) => l.kind === 'service').length,
+      leadsNew: leads.filter((l) => l.status === 'new').length,
       aiReady: !!env.GEMINI_API_KEY
     }, statuses: STATUS };
   }
@@ -441,6 +443,79 @@ function makeApi(db, deps) {
     fail(lastCode === 429 ? 'AI зараз перевантажений. Спробуйте за хвилину.' : 'AI тимчасово недоступний. Спробуйте пізніше.');
   }
 
+  /* --- анкети з лендингів і перегляди сторінок --- */
+  const LEAD_KEYS = {
+    driver: ['name', 'telegram', 'car', 'vin', 'plate', 'services', 'services_other', 'search_now', 'top_feature', 'fleet_size', 'wishes', 'utm', 'referrer'],
+    service: ['biz', 'name', 'telegram', 'social', 'district', 'services', 'services_other', 'posts', 'booking', 'capacity', 'ready', 'pay', 'crm_interest', 'crm_features', 'tools_now', 'wishes', 'utm', 'referrer']
+  };
+  const LEAD_LABELS = { name: "Ім'я", telegram: 'Telegram або телефон', car: 'Авто', vin: 'VIN', plate: 'Номер авто', services: 'Послуги', services_other: 'Інші послуги',
+    search_now: 'Як шукає сервіс зараз', top_feature: 'Найважливіше', fleet_size: 'Скільки авто', wishes: 'Побажання до функцій', utm: 'Джерело (UTM)', referrer: 'Звідки прийшов',
+    biz: 'Назва сервісу', social: 'Instagram або сайт', district: 'Район', posts: 'Постів або майстрів', booking: 'Як приймає записи', capacity: 'Вільна завантаженість',
+    ready: 'Готовий приймати заявки', pay: 'Модель оплати', crm_interest: 'Потрібна єдина система', crm_features: 'Що найкорисніше в системі', tools_now: 'Чим веде облік зараз' };
+  const clip = (v, n) => { if (v === null || v === undefined) return ''; const x = Array.isArray(v) ? v.join('; ') : String(v); return x.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim().slice(0, n || 2000); };
+
+  async function rate(key, limit, sec) {
+    const n = Number(await kvGet(key) || 0);
+    if (n >= limit) return false;
+    await kvPut(key, n + 1, sec);
+    return true;
+  }
+
+  async function leadAdd(r, meta) {
+    const kind = r.type;
+    if (!(await rate('lead_' + (meta.ip || '-'), 20, 3600))) fail('Забагато заявок. Спробуйте пізніше.');
+    const data = {};
+    LEAD_KEYS[kind].forEach((k) => { const v = clip(r[k]); if (v) data[k] = v; });
+    const name = kind === 'service' ? clip(r.biz, 200) : clip(r.name, 200);
+    const contact = clip(r.telegram, 200);
+    if (!name || !contact) fail('Заповніть назву або ім\'я й контакт');
+    const row = { id: id(), kind, created: now(), name, contact, data, status: 'new' };
+    await db.insert('leads', row);
+    const lines = LEAD_KEYS[kind].filter((k) => data[k]).map((k) => LEAD_LABELS[k] + ': ' + data[k]);
+    notify('Нова анкета (' + (kind === 'driver' ? 'водій' : 'сервіс') + '): ' + name + (kind === 'service' && data.name ? ' (' + data.name + ')' : ''),
+      lines.join('\n') + '\n\nУсі анкети: autohubkr.com/app/ → Анкети');
+    return {};
+  }
+
+  async function visitAdd(r, meta) {
+    if (!(await rate('visit_' + (meta.ip || '-'), 300, 3600))) return {};
+    await db.insert('visits', { created: fmt(deps.now ? deps.now() : new Date()) + ':' + String(new Date().getSeconds()).padStart(2, '0'),
+      page: clip(r.page, 200), source: clip(r.source, 200), device: clip(r.device, 40), new_visitor: r.new_visitor === 'так' || r.new_visitor === true,
+      visitor: clip(r.visitor, 40), utm: clip(r.utm, 500), referrer: clip(r.referrer, 500) });
+    return {};
+  }
+
+  async function adminLeads(r) {
+    await auth(r, 'admin');
+    const [leads, visits] = await Promise.all([db.all('leads'), db.all('visits')]);
+    leads.sort((a, b) => a.created < b.created ? 1 : -1);
+    const days = {}, sources = {}, pages = {}, uniq = new Set();
+    const since = fmt(new Date(Date.now() - 13 * 864e5)).slice(0, 10);
+    visits.forEach((v) => {
+      const d = String(v.created).slice(0, 10);
+      if (d >= since) days[d] = (days[d] || 0) + 1;
+      sources[v.source || '—'] = (sources[v.source || '—'] || 0) + 1;
+      pages[v.page || '/'] = (pages[v.page || '/'] || 0) + 1;
+      if (v.visitor) uniq.add(v.visitor);
+    });
+    const top = (o) => Object.keys(o).map((k) => [k, o[k]]).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const week = fmt(new Date(Date.now() - 7 * 864e5)).slice(0, 10);
+    return { leads: leads.map((l) => ({ id: l.id, kind: l.kind, created: l.created, name: l.name, contact: l.contact, status: l.status,
+        fields: LEAD_KEYS[l.kind].filter((k) => l.data && l.data[k]).map((k) => [LEAD_LABELS[k], l.data[k]]) })),
+      visits: { total: visits.length, unique: uniq.size, week: visits.filter((v) => String(v.created) >= week).length,
+        days: Array.from({ length: 14 }, (_, i) => { const d = fmt(new Date(Date.now() - (13 - i) * 864e5)).slice(0, 10); return [d, days[d] || 0]; }),
+        sources: top(sources), pages: top(pages) } };
+  }
+
+  async function adminLeadSet(r) {
+    await auth(r, 'admin');
+    const l = await db.find('leads', 'id', String(r.id || ''));
+    if (!l) fail('Анкету не знайдено');
+    const st = oneOf(r.status, ['new', 'contacted', 'joined', 'rejected']);
+    await db.update('leads', l.id, { status: st });
+    return {};
+  }
+
   const ACTIONS = {
     meta: async () => ({ categories: CATEGORIES, districts: DISTRICTS, statuses: STATUS, urgency: URGENCY }),
     register, login,
@@ -484,11 +559,16 @@ function makeApi(db, deps) {
     },
     'ai.diagnose': aiDiagnose,
     'admin.stats': adminStats, 'admin.stos': adminStos, 'admin.sto.set': adminStoSet, 'admin.requests': adminRequests, 'admin.users': adminUsers,
+    'admin.leads': adminLeads, 'admin.lead.set': adminLeadSet,
     'admin.geocode': async (r) => { await auth(r, 'admin'); return geocodeBatch(Math.min(Number(r.limit) || 25, 40), r.retry === true); }
   };
 
-  return async function handle(req) {
+  return async function handle(req, meta) {
+    meta = meta || {};
     try {
+      // форми лендингів і лічильник переходів надсилають { type: driver | service | visit }
+      if (req && !req.action && (req.type === 'driver' || req.type === 'service')) { const r0 = await leadAdd(req, meta); r0.ok = true; return r0; }
+      if (req && !req.action && req.type === 'visit') { await visitAdd(req, meta); return { ok: true }; }
       const fn = ACTIONS[req && req.action];
       if (!fn) return { ok: false, error: 'Невідома дія' };
       const res = (await fn(req)) || {};
@@ -553,6 +633,7 @@ Deno.serve(async (req) => {
   let body = {};
   if (req.method === 'POST') { try { body = JSON.parse(await req.text() || '{}'); } catch (_) { body = {}; } }
   else body = { action: 'meta' };
-  const res = await api(body);
+  const ip = (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || req.headers.get('cf-connecting-ip') || '';
+  const res = await api(body, { ip });
   return new Response(JSON.stringify(res), { headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8' } });
 });
