@@ -1529,10 +1529,27 @@ function renderAdminLeads() {
         return '<div class="card" data-lid="' + esc(l.id) + '"><div class="between"><div><h3>' + esc(l.name) + '</h3><div class="mini">' + esc(dt(l.created)) + '</div></div>' +
           '<select class="i" data-st style="width:auto;min-height:36px;padding:4px 8px;font-size:13px">' + Object.keys(LEAD_ST).map(function (k) { return '<option value="' + k + '"' + (k === l.status ? ' selected' : '') + '>' + LEAD_ST[k] + '</option>'; }).join('') + '</select></div>' +
           '<div class="small" style="margin:6px 0 8px">' + (href ? '<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(l.contact) + '</a>' : esc(l.contact)) + '</div>' +
+          (l.kind === 'service' && l.sto_id !== undefined ? '<div style="margin:0 0 10px">' + (l.sto_id ? '<span class="vtag">Уже в каталозі</span> <button type="button" class="link" data-tosto="' + esc(l.id) + '">Відкрити картку</button>'
+            : '<button type="button" class="btn sm" data-tosto="' + esc(l.id) + '">Додати в каталог СТО</button>') + '</div>' : '') +
           '<dl class="kv">' + l.fields.filter(function (f) { return ["Ім'я", 'Назва сервісу', 'Telegram або телефон', 'Звідки прийшов'].indexOf(f[0]) === -1 && !(f[0] === 'Джерело (UTM)' && f[1] === '{}'); }).map(function (f) { return '<dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd>'; }).join('') + '</dl></div>';
       }).join('') : '<div class="card empty"><b>Анкет поки немає</b>Поділіться посиланням на лендинг, і нові анкети з\'являться тут, а на пошту прийде лист.</div>';
     }
     $('#alT').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; tab = b.dataset.v; store('ah_admin_leads_tab', tab); draw(); };
+    $('#alL').onclick = function (e) {
+      var b = e.target.closest('[data-tosto]'); if (!b) return;
+      busy(b, true);
+      Promise.all([meta(), api('admin.lead.tosto', { id: b.dataset.tosto }, { admin: true })]).then(function (res) {
+        var M = res[0], x = res[1];
+        return (x.sto ? Promise.resolve(x.sto) : api('admin.stos', {}, { admin: true }).then(function (rr) { return rr.stos.filter(function (s) { return s.id === x.sto_id; })[0]; })).then(function (sto) {
+          busy(b, false);
+          r.leads.forEach(function (l) { if (l.id === b.dataset.tosto) { l.sto_id = x.sto_id; if (l.status === 'new') l.status = 'contacted'; } });
+          draw();
+          if (!sto) return toast('Картку створено');
+          if (!x.existed) toast('Картку створено й показано водіям. Допишіть адресу й графік.');
+          adminStoDialog(M, sto, function () { toast('Картку оновлено'); });
+        });
+      }).catch(function (e2) { busy(b, false); fail(e2); });
+    };
     $('#alL').onchange = function (e) {
       if (!e.target.matches('[data-st]')) return;
       var id = e.target.closest('[data-lid]').dataset.lid, st = e.target.value;
