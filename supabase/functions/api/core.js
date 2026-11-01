@@ -140,6 +140,8 @@ export function makeApi(db, deps) {
   const tgOn = () => !!(deps.tg && env.TG_ON);
   const tgSend = (chat, m, buttons) => tgOn() && chat ? bg(deps.tg('sendMessage', { chat_id: chat, text: tgHtml(m), parse_mode: 'HTML', link_preview_options: { is_disabled: true },
     reply_markup: buttons ? { inline_keyboard: buttons.map((b) => [b.url.indexOf(APP_URL) === 0 ? { text: b.text, web_app: { url: b.url } } : { text: b.text, url: b.url }]) } : undefined })) : null;
+  const tgKeyboard = (chat, text) => tgOn() && chat ? bg(deps.tg('sendMessage', { chat_id: chat, text, parse_mode: 'HTML',
+    reply_markup: { keyboard: [[{ text: '🚗 Відкрити АвтоХаб', web_app: { url: APP_URL } }]], resize_keyboard: true, is_persistent: true, input_field_placeholder: 'АвтоХаб' } })) : null;
   const mailSend = (to, m) => deps.mail && to ? bg(deps.mail(to, '[АвтоХаб] ' + m.title, mailHtml(m), mailText(m))) : null;
   const adminTg = (m, buttons) => tgOn() ? bg(db.where('users', 'role', 'admin').then((list) => Promise.all(list.filter((a) => a.tg_chat).map((a) => tgSend(a.tg_chat, m, buttons))))) : null;
   // Лист адміністратору (як і раніше) + те саме в Telegram адміністраторам, які підключили бота.
@@ -952,7 +954,8 @@ export function makeApi(db, deps) {
       (await db.where('users', 'tg_chat', chat)).forEach((o) => { if (o.id !== uid) db.update('users', o.id, { tg_chat: '' }); });
       const u = await db.update('users', uid, { tg_chat: chat });
       const what = u.role === 'sto' ? 'нові заявки від водіїв' : u.role === 'admin' ? 'нові заявки, анкети, сервіси на перевірці й спори' : 'відповіді сервісів на ваші заявки';
-      await tgSend(chat, { emoji: '🎉', title: 'Telegram підключено, ' + u.name, intro: 'Тепер сюди приходитимуть ' + what + '. Вимкнути: команда /stop або кнопка в застосунку.' }, [{ text: 'Відкрити АвтоХаб', url: APP_URL }]);
+      await tgSend(chat, { emoji: '🎉', title: 'Telegram підключено, ' + u.name, intro: 'Тепер сюди приходитимуть ' + what + '. Вимкнути: команда /stop або кнопка в застосунку.' });
+      await tgKeyboard(chat, 'Застосунок завжди під рукою: кнопка <b>«Відкрити АвтоХаб»</b> внизу чату.');
       return {};
     }
     if (/^\/stop/.test(text)) {
@@ -960,7 +963,7 @@ export function makeApi(db, deps) {
       await tgSend(chat, { emoji: '👋', title: 'Сповіщення вимкнено', intro: 'Підключити знову можна в застосунку, розділ «Профіль».' });
       return {};
     }
-    await tgSend(chat, { emoji: '🚗', title: 'АвтоХаб — автосервіси Кривого Рогу', intro: 'Гараж вашого авто, заявки в перевірені СТО й відповіді сервісів — прямо тут, у Telegram. Натисніть кнопку нижче. Увійдіть один раз, і бот підключиться сам.' }, [{ text: '🚗 Відкрити АвтоХаб', url: APP_URL }]);
+    await tgKeyboard(chat, tgHtml({ emoji: '🚗', title: 'АвтоХаб — автосервіси Кривого Рогу', intro: 'Гараж вашого авто, заявки в перевірені СТО й відповіді сервісів — прямо тут, у Telegram. Натисніть «Відкрити АвтоХаб» внизу. Увійдіть один раз, і бот підключиться сам.' }));
     return {};
   }
   async function adminTgSetup(r) {
