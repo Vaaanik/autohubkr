@@ -317,6 +317,7 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
 .info-ai{border-top:1px solid var(--line2);padding-top:10px}
 .info-specs{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin:6px 0 8px}.info-specs small{display:block;color:var(--soft);font-size:12px}.info-specs b{font-size:14px}
 .info-ul{margin:6px 0 4px;padding-left:18px;font-size:14px}.info-ul li{margin:3px 0}
+.fn-t{width:100%;border-collapse:collapse;font-size:14px}.fn-t th{text-align:left;color:var(--soft);font-weight:600;padding:4px 0}.fn-t td{padding:5px 0;border-top:1px solid var(--line2)}
 .km-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .km-row:first-of-type{border-top:0}.km-row small{display:block;color:var(--soft);font-size:12px}
 </style>
@@ -1832,6 +1833,15 @@ function renderAdmin() {
       tile(s.requests, 'заявок усього', false, '#/admin/req') + tile(s.requestsWeek, 'заявок за 7 днів') + tile(s.newUsersWeek, 'нових акаунтів за 7 днів', false, '#/admin/users') + tile(s.reviews, 'відгуків') +
       tile(s.leadsDrivers, 'анкет водіїв', false, '#/admin/leads') + tile(s.leadsServices, 'анкет сервісів', false, '#/admin/leads') + '</div>' +
       (s.leadsNew ? '<a class="note info" href="#/admin/leads" style="display:block;margin-bottom:12px;text-decoration:none"><b>' + s.leadsNew + ' нових анкет</b> з лендингів ще не опрацьовано.</a>' : '') +
+      (function (f) {
+        if (!f) return '';
+        var st = ['start', 'role', 'contact', 'reg', 'sto_card'], L = { start: 'Відкрили бота', role: 'Обрали роль', contact: 'Поділилися номером', reg: 'Створили акаунт', sto_card: 'Заповнили картку' };
+        var tot = function (k) { return (f[k + '_driver'] || 0) + (f[k + '_sto'] || 0) + (k === 'start' ? f.start_x || 0 : 0); };
+        if (!tot('start')) return '';
+        return '<div class="card"><h2 style="margin-bottom:10px">Воронка Telegram-бота</h2><table class="fn-t"><tr><th></th><th>Усього</th><th>Водії</th><th>Сервіси</th></tr>' +
+          st.map(function (k) { return '<tr><td>' + L[k] + '</td><td><b>' + tot(k) + '</b></td><td>' + (k === 'sto_card' ? '—' : f[k + '_driver'] || 0) + '</td><td>' + (f[k + '_sto'] || 0) + '</td></tr>'; }).join('') +
+          '</table><p class="mini" style="margin:8px 0 0">«Відкрили бота» без ролі: ' + (f.start_x || 0) + ' (роль ще не обрали).</p></div>';
+      })(r.funnel) +
       '<div class="card"><h2 style="margin-bottom:10px">Заявки за статусом</h2><dl class="kv">' + Object.keys(r.statuses).map(function (k) { return '<dt>' + esc(r.statuses[k]) + '</dt><dd>' + (s.byStatus[k] || 0) + '</dd>'; }).join('') + '</dl></div>' +
       '<div class="card"><h2 style="margin-bottom:6px">Довідник сервісів</h2><p class="small muted" style="margin:0 0 10px">' + s.listed + ' сервісів з відкритих каталогів показуються водіям для дзвінка. Без координат: ' + s.noCoords + '.</p>' +
       '<a class="btn sm ghost" href="#/admin/sto">Керувати СТО</a></div>';
@@ -2169,6 +2179,10 @@ function boot() {
     store('ah_user', JSON.stringify(r.user));
     // у міні-застосунку Telegram: тихо прив'язуємо акаунт, щоб наступного разу вхід був автоматичним і йшли сповіщення
     if (TG && !r.user.tg) api('tg.bind', { initData: TG.initData }).then(function () { state.user.tg = true; store('ah_user', JSON.stringify(state.user)); }).catch(function () {});
+    if (/[?&]addsto=1/.test(location.search)) {
+      try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+      if (r.user.role === 'driver' && !r.user.dual) { location.hash = '#/profile'; setTimeout(function () { if ($('#addSto')) $('#addSto').click(); }, 400); return; }
+    }
     route();
   });
 }

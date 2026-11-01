@@ -386,6 +386,7 @@ function makeApi(db, deps) {
     const tries = Number(await kvGet(key) || 0);
     if (tries >= 5) fail('Забагато спроб. Зачекайте 10 хвилин.');
     const u = await db.find('users', 'phone', phone);
+    if (u && !u.pin_hash) fail('Ви зареєструвалися через Telegram: відкрийте АвтоХаб у боті або задайте PIN кнопкою «Забули PIN?».');
     if (!u || (await hash(String(r.pin || ''), u.salt)) !== u.pin_hash) {
       await kvPut(key, tries + 1, 600);
       fail('Невірний телефон або PIN');
@@ -433,6 +434,7 @@ function makeApi(db, deps) {
 
   async function stoAdd(r) {
     const u = await auth(r, 'driver');
+    if (String(u.source || '').indexOf('tg:sto') === 0) bg(fnHit('sto_card', 'sto'));
     const real = await db.find('users', 'id', u.id);
     if (real.sto_id) fail('До цього номера вже прив\'язано сервіс');
     const st = r.sto || {};
@@ -847,7 +849,7 @@ function makeApi(db, deps) {
       leadsDrivers: leads.filter((l) => l.kind === 'driver').length, leadsServices: leads.filter((l) => l.kind === 'service').length,
       leadsNew: leads.filter((l) => l.status === 'new').length,
       aiReady: !!env.GEMINI_API_KEY
-    }, statuses: STATUS };
+    }, funnel: await (async () => { const o = {}; for (const st of FUNNEL) for (const rl of ['driver', 'sto']) o[st + '_' + rl] = Number(await kvGet('fn_' + st + '_' + rl) || 0); o.start_x = Number(await kvGet('fn_start_x') || 0); return o; })(), statuses: STATUS };
   }
 
   async function adminStos(r) {
@@ -1250,8 +1252,69 @@ function makeApi(db, deps) {
     if (real && real.tg_chat) { await db.update('users', u.id, { tg_chat: '' }); tgSend(real.tg_chat, { emoji: '👋', title: 'Сповіщення вимкнено', intro: 'Підключити знову можна в застосунку, розділ «Профіль».' }); }
     return {};
   }
+  /* --- воронка в Telegram-боті: роль → «Поділитися номером» → акаунт створено → міні-застосунок --- */
+  const FUNNEL = ['start', 'role', 'contact', 'reg', 'sto_card'];
+  const fnHit = async (stage, role) => { for (const k of ['fn_' + stage, 'fn_' + stage + '_' + (role || 'x')]) { const n = Number(await kvGet(k) || 0); await kvPut(k, n + 1, 10 * 365 * 86400); } };
+  const ROLE_ASK = { emoji: '👋', title: 'Вітаємо в АвтоХабі', intro: 'Сервіс для водіїв і автосервісів Кривого Рогу: гараж з історією, заявки в перевірені СТО, відповіді й нагадування прямо в Telegram.\n\nХто ви?' };
+  async function tgAskRole(chat) {
+    await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml(ROLE_ASK),
+      reply_markup: { inline_keyboard: [[{ text: '🚗 Я водій', callback_data: 'role:driver' }], [{ text: '🔧 У мене автосервіс', callback_data: 'role:sto' }]] } });
+  }
+  async function tgAskContact(chat, role) {
+    const intro = role === 'sto'
+      ? 'Сервіси-партнери отримують заявки від водіїв з описом проблеми, фото й даними авто, а відповідають і пропонують час прямо в застосунку.\n\nЩоб створити акаунт, натисніть «Поділитися номером» внизу.'
+      : 'Додасте авто, і АвтоХаб нагадає про ТО й страховку, підкаже ймовірну причину несправності й надішле заявку в сервіс.\n\nЩоб створити акаунт, натисніть «Поділитися номером» внизу.';
+    await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml({ emoji: role === 'sto' ? '🔧' : '🚗', title: role === 'sto' ? 'Для автосервісів' : 'Для водіїв', intro }),
+      reply_markup: { keyboard: [[{ text: '📱 Поділитися номером', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true } });
+  }
+  async function tgFunnelStart(chat, payload) {
+    const linked = (await db.where('users', 'tg_chat', chat))[0];
+    if (linked) {
+      await tgKeyboard(chat, tgHtml({ emoji: '🚗', title: 'З поверненням, ' + linked.name, intro: 'Натисніть «Відкрити АвтоХаб» внизу.' }));
+      return;
+    }
+    const m = String(payload || '').match(/^(driver|sto)(?:_([a-z0-9_-]{1,40}))?$/i);
+    const st = { role: m ? m[1].toLowerCase() : '', src: m && m[2] ? m[2].toLowerCase() : (payload && !m ? String(payload).slice(0, 40).toLowerCase().replace(/[^a-z0-9_-]/g, '') : '') };
+    await kvPut('tgreg_' + chat, JSON.stringify(st), 7 * 86400);
+    await fnHit('start', st.role);
+    if (st.role) { await fnHit('role', st.role); await tgAskContact(chat, st.role); } else await tgAskRole(chat);
+  }
+  async function tgCallback(cq) {
+    const chat = String(cq.message && cq.message.chat ? cq.message.chat.id : cq.from.id), data = String(cq.data || '');
+    await deps.tg('answerCallbackQuery', { callback_query_id: cq.id });
+    const m = data.match(/^role:(driver|sto)$/); if (!m) return;
+    const st = JSON.parse(await kvGet('tgreg_' + chat) || '{}'); st.role = m[1];
+    await kvPut('tgreg_' + chat, JSON.stringify(st), 7 * 86400);
+    await fnHit('role', st.role);
+    await tgAskContact(chat, st.role);
+  }
+  async function tgFunnelContact(chat, from, contact) {
+    const st = JSON.parse(await kvGet('tgreg_' + chat) || 'null');
+    if (!st || !st.role) { await tgAskRole(chat); return; }
+    if (!from || String(contact.user_id) !== String(from.id)) { await tgSend(chat, { emoji: '⚠️', title: 'Це чужий контакт', intro: 'Натисніть саме кнопку «Поділитися номером».' }); return; }
+    let phone = ''; try { phone = phone_(contact.phone_number); } catch (e) { phone = ''; }
+    if (!phone) { await tgSend(chat, { emoji: '⚠️', title: 'Потрібен український номер', intro: 'Поки АвтоХаб працює лише з номерами +380. Зареєструйтеся на autohubkr.com/app/ з українським номером.' }); return; }
+    await fnHit('contact', st.role);
+    for (const o of await db.where('users', 'tg_chat', chat)) if (o.phone !== phone) await db.update('users', o.id, { tg_chat: '' });
+    let u = await db.find('users', 'phone', phone), fresh = false;
+    if (u) u = await db.update('users', u.id, { tg_chat: chat, phone_ok: true });
+    else {
+      const name = [from.first_name, from.last_name].filter(Boolean).join(' ').slice(0, 60) || s_(contact.first_name) || 'Водій';
+      u = { id: id(), role: 'driver', name, phone, pin_hash: '', salt: '', sto_id: '', created: now(), phone_ok: true, tg_chat: chat, source: ('tg:' + st.role + (st.src ? ':' + st.src : '')).slice(0, 60) };
+      await db.insert('users', u); fresh = true;
+      await fnHit('reg', st.role);
+      notify((st.role === 'sto' ? 'Сервіс' : 'Водій') + ' зареєструвався через Telegram: ' + name, 'Телефон: ' + phone + (st.src ? '\nДжерело: ' + st.src : '') + (st.role === 'sto' ? '\nКартку сервісу ще треба заповнити в застосунку.' : ''));
+    }
+    await kvDel('tgreg_' + chat);
+    const wantSto = st.role === 'sto' && !u.sto_id;
+    await tgKeyboard(chat, tgHtml({ emoji: '✅', title: fresh ? 'Акаунт створено, ' + u.name : 'Ви вже в АвтоХабі, ' + u.name,
+      intro: wantSto ? 'Залишився один крок: заповніть картку сервісу (назва, адреса, послуги, фото). Після перевірки водії бачитимуть вас у каталозі.' : 'Застосунок відкривається без пароля прямо тут. Сюди ж приходитимуть відповіді сервісів і нагадування.' }));
+    await tgSend(chat, { emoji: wantSto ? '🔧' : '🚗', title: wantSto ? 'Картка сервісу' : 'Почніть з гаража', intro: wantSto ? 'Займе 2 хвилини.' : 'Додайте авто: VIN або марку й рік, решту заповнимо самі.' },
+      [{ text: wantSto ? 'Заповнити картку сервісу' : 'Додати авто', url: APP_URL + (wantSto ? '?addsto=1' : '#/garage') }]);
+  }
   async function tgUpdate(upd, meta) {
     if (!tgOn() || !env.TG_SECRET || meta.tgSecret !== env.TG_SECRET) return {};
+    if (upd.callback_query) { await tgCallback(upd.callback_query); return {}; }
     const msg = upd.message; if (!msg || !msg.chat) return {};
     const chat = String(msg.chat.id), text = String(msg.text || '').trim();
     const ver = text.match(/^\/start\s+v_([a-f0-9]{20})$/);
@@ -1259,13 +1322,13 @@ function makeApi(db, deps) {
       const b = JSON.parse(await kvGet('otpb_' + ver[1]) || 'null');
       if (!b) { await tgSend(chat, { emoji: '⌛', title: 'Посилання застаріло', intro: 'Поверніться в застосунок і почніть підтвердження ще раз.' }); return {}; }
       await kvPut('otpbchat_' + chat, ver[1], 900);
-      await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml({ emoji: '📱', title: 'Підтвердіть номер', intro: 'Натисніть кнопку <b>«Поділитися номером»</b> внизу. Telegram передасть номер, прив\'язаний до вашого акаунта.' }),
+      await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml({ emoji: '📱', title: 'Підтвердіть номер', intro: 'Натисніть кнопку «Поділитися номером» внизу. Telegram передасть номер, прив\'язаний до вашого акаунта.' }),
         reply_markup: { keyboard: [[{ text: '📱 Поділитися номером', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true } });
       return {};
     }
     if (msg.contact) {
       const nonce = await kvGet('otpbchat_' + chat);
-      if (!nonce) { await tgKeyboard(chat, 'Щоб підтвердити номер, почніть у застосунку АвтоХаб.'); return {}; }
+      if (!nonce) { await tgFunnelContact(chat, msg.from, msg.contact); return {}; }
       const k = 'otpb_' + nonce, b = JSON.parse(await kvGet(k) || 'null');
       if (!b) { await tgSend(chat, { emoji: '⌛', title: 'Час минув', intro: 'Почніть підтвердження в застосунку ще раз.' }); return {}; }
       if (!msg.from || String(msg.contact.user_id) !== String(msg.from.id)) { await tgSend(chat, { emoji: '⚠️', title: 'Це чужий контакт', intro: 'Натисніть саме кнопку «Поділитися номером».' }); return {}; }
@@ -1291,11 +1354,14 @@ function makeApi(db, deps) {
       await tgKeyboard(chat, 'Застосунок завжди під рукою: кнопка <b>«Відкрити АвтоХаб»</b> внизу чату.');
       return {};
     }
+    const plain = text.match(/^\/start(?:\s+(\S+))?$/);
+    if (plain && !(plain[1] && /^[a-f0-9]{16}$/.test(plain[1]))) { await tgFunnelStart(chat, plain[1] || ''); return {}; }
     if (/^\/stop/.test(text)) {
       for (const o of await db.where('users', 'tg_chat', chat)) await db.update('users', o.id, { tg_chat: '' });
       await tgSend(chat, { emoji: '👋', title: 'Сповіщення вимкнено', intro: 'Підключити знову можна в застосунку, розділ «Профіль».' });
       return {};
     }
+    if (!(await db.where('users', 'tg_chat', chat)).length) { await tgFunnelStart(chat, ''); return {}; }
     await tgKeyboard(chat, tgHtml({ emoji: '🚗', title: 'АвтоХаб — автосервіси Кривого Рогу', intro: 'Гараж вашого авто, заявки в перевірені СТО й відповіді сервісів — прямо тут, у Telegram. Натисніть «Відкрити АвтоХаб» внизу. Увійдіть один раз, і бот підключиться сам.' }));
     return {};
   }
@@ -1304,12 +1370,13 @@ function makeApi(db, deps) {
     if (!tgOn()) fail('Додайте TELEGRAM_BOT_TOKEN у Secrets Supabase і оновіть функцію');
     await kvDel('tg_bot');
     const bot = await tgBot();
-    const res = await deps.tg('setWebhook', { url: env.API_URL, secret_token: env.TG_SECRET, allowed_updates: ['message'], drop_pending_updates: true });
+    const res = await deps.tg('setWebhook', { url: env.API_URL, secret_token: env.TG_SECRET, allowed_updates: ['message', 'callback_query'], drop_pending_updates: true });
     if (!res || !res.ok) fail('Telegram не прийняв вебхук: ' + ((res && res.description) || 'невідома помилка'));
     await kvPut('tg_hook', 1, 10 * 365 * 86400);
-    await deps.tg('setMyCommands', { commands: [{ command: 'start', description: 'Підключити сповіщення' }, { command: 'app', description: 'Відкрити застосунок' }, { command: 'stop', description: 'Вимкнути сповіщення' }] });
+    await deps.tg('setMyCommands', { commands: [{ command: 'start', description: 'Почати / зареєструватися' }, { command: 'app', description: 'Відкрити застосунок' }, { command: 'stop', description: 'Вимкнути сповіщення' }] });
     await deps.tg('setChatMenuButton', { menu_button: { type: 'web_app', text: 'АвтоХаб', web_app: { url: APP_URL } } });
-    await deps.tg('setMyDescription', { description: 'Сповіщення АвтоХабу: нові заявки для сервісів і відповіді для водіїв. Кривий Ріг.' });
+    await deps.tg('setMyDescription', { description: 'АвтоХаб — автосервіси Кривого Рогу. Водіям: гараж з історією, нагадування про ТО й страховку, заявки в перевірені СТО. Сервісам: заявки від водіїв. Натисніть «Почати».' });
+    await deps.tg('setMyShortDescription', { short_description: 'Автосервіси Кривого Рогу: заявки, гараж, нагадування' });
     return { bot };
   }
   async function adminMailTest(r) {
