@@ -529,12 +529,13 @@ function stoFields(s) {
     '<div><label class="f" for="sPhone">Телефон сервісу <span>для водіїв</span></label><input class="i" id="sPhone" type="tel" inputmode="tel" value="' + esc(s.phone || '') + '" placeholder="Якщо інший, ніж ваш"></div>' +
     '<div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Що ви робите</span><div class="chips" id="sServices">' +
       M.categories.map(function (c) { return '<span class="chip' + (sv.indexOf(c) !== -1 ? ' on' : '') + '" role="checkbox" tabindex="0" aria-checked="' + (sv.indexOf(c) !== -1) + '" data-v="' + esc(c) + '">' + esc(c) + '</span>'; }).join('') + '</div></div>' +
+    '<div><label class="f" for="sEmail">Email для заявок <span>сюди прийдуть листи про нові заявки</span></label><input class="i" id="sEmail" type="email" inputmode="email" autocomplete="email" value="' + esc(s.email || '') + '" placeholder="sto@gmail.com"></div>' +
     '<div><label class="f" for="sHours">Графік <span>необов\'язково</span></label><input class="i" id="sHours" value="' + esc(s.hours || '') + '" placeholder="Пн–Сб 9:00–19:00"></div>' +
     '<div><label class="f" for="sAbout">Коротко про сервіс <span>необов\'язково</span></label><textarea class="i" id="sAbout" placeholder="Спеціалізація, марки, гарантія на роботи">' + esc(s.about || '') + '</textarea></div>';
 }
 function readSto() {
   return { name: $('#sName').value, district: $('#sDistrict').value, address: $('#sAddress').value, phone: $('#sPhone').value,
-    services: $$('#sServices .chip.on').map(function (c) { return c.dataset.v; }), hours: $('#sHours').value, about: $('#sAbout').value };
+    services: $$('#sServices .chip.on').map(function (c) { return c.dataset.v; }), hours: $('#sHours').value, about: $('#sAbout').value, email: $('#sEmail') ? $('#sEmail').value : '' };
 }
 function stoProblem(s) {
   if (!s.name.trim()) return 'Вкажіть назву сервісу';
@@ -1696,9 +1697,50 @@ function renderAdminUsers() {
 function renderProfile() {
   var u = state.user;
   view.innerHTML = '<h1 style="margin-bottom:12px">Профіль</h1><div class="card"><dl class="kv"><dt>Ім\'я</dt><dd>' + esc(u.name) + '</dd><dt>Телефон</dt><dd>' + esc(fmtPhone(u.phone)) + '</dd><dt>Тип</dt><dd>' + ({ sto: 'Сервіс', admin: 'Адміністратор' }[u.role] || 'Водій') + '</dd></dl></div>' +
+    '<div class="card" id="tgCard"></div>' + (u.role === 'admin' || u.isAdmin ? '<div class="card" id="admNotif"></div>' : '') +
     '<div class="card small"><b>Пілотна версія.</b> Ми запускаємо АвтоХаб разом із першими водіями й сервісами Кривого Рогу. Ідеї та проблеми пишіть на <a href="mailto:info@autohubkr.com">info@autohubkr.com</a>.</div>' +
     '<button class="btn wide ghost" id="out">Вийти</button>';
   $('#out').onclick = function () { api('logout').catch(function () {}).then(function () { logoutLocal(); go('/login'); }); };
+  drawTg();
+  if ($('#admNotif')) {
+    $('#admNotif').innerHTML = '<h2 style="margin-bottom:6px">Сповіщення платформи</h2><p class="mini" style="margin:0 0 10px">Один раз після того, як додали токен бота в Supabase: підключити бота до сервера.</p>' +
+      '<button class="btn sm dark" id="tgSetup">Налаштувати Telegram-бота</button><div id="tgSetupR"></div>' +
+      '<label class="f" for="mtTo" style="margin-top:14px">Тестовий лист</label><div class="row"><input class="i" id="mtTo" type="email" placeholder="ваш email"><button class="btn sm ghost" id="mtGo">Надіслати</button></div><div id="mtR"></div>';
+    $('#tgSetup').onclick = function () {
+      var b = this; busy(b, true);
+      api('admin.tg.setup', {}, { admin: true }).then(function (r) { busy(b, false); $('#tgSetupR').innerHTML = '<div class="note ok" style="margin-top:8px">Бот @' + esc(r.bot) + ' підключено. Тепер натисніть «Підключити Telegram» вище.</div>'; drawTg(); })
+        .catch(function (e) { busy(b, false); $('#tgSetupR').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+    };
+    $('#mtGo').onclick = function () {
+      var b = this; busy(b, true);
+      api('admin.mail.test', { to: $('#mtTo').value }, { admin: true }).then(function () { busy(b, false); $('#mtR').innerHTML = '<div class="note ok" style="margin-top:8px">Лист надіслано. Перевірте пошту, зокрема «Спам».</div>'; })
+        .catch(function (e) { busy(b, false); $('#mtR').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+    };
+  }
+}
+
+/* Telegram-сповіщення: підключення з профілю */
+function drawTg() {
+  var box = $('#tgCard'); if (!box) return;
+  var u = state.user, role = u.role === 'admin' ? 'admin' : (state.sto ? 'sto' : u.role);
+  var what = role === 'sto' ? 'нові заявки від водіїв приходитимуть миттєво' : role === 'admin' ? 'нові заявки, анкети, сервіси на перевірці й спори' : 'відповіді сервісів і код візиту приходитимуть одразу';
+  if (u.tg) {
+    box.innerHTML = '<div class="between"><div><h2>Telegram</h2><div class="mini">Підключено: ' + esc(what) + '.</div></div><span class="vtag">✓ увімкнено</span></div>' +
+      '<button class="btn sm ghost" id="tgOff" style="margin-top:10px">Вимкнути</button>';
+    $('#tgOff').onclick = function () { var b = this; busy(b, true); api('tg.unlink').then(function () { u.tg = false; store('ah_user', JSON.stringify(u)); toast('Telegram вимкнено'); drawTg(); }).catch(function (e) { busy(b, false); fail(e); }); };
+    return;
+  }
+  box.innerHTML = '<h2>Сповіщення в Telegram</h2><p class="small" style="margin:6px 0 10px">Підключіть, і ' + esc(what) + '.</p>' +
+    '<button class="btn sm" id="tgOn">Підключити Telegram</button> <button class="btn sm ghost" id="tgChk" hidden>Я підключив</button><div id="tgErr"></div>';
+  $('#tgOn').onclick = function () {
+    var b = this; busy(b, true);
+    api('tg.link').then(function (r) { busy(b, false); window.open(r.url, '_blank'); $('#tgChk').hidden = false; })
+      .catch(function (e) { busy(b, false); $('#tgErr').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+  };
+  $('#tgChk').onclick = function () {
+    var b = this; busy(b, true);
+    api('me').then(function (r) { busy(b, false); if (r.user.tg) { u.tg = true; store('ah_user', JSON.stringify(u)); toast('Telegram підключено'); drawTg(); } else toast('Ще не бачимо підключення. Натисніть «Start» у боті.', true); }).catch(function (e) { busy(b, false); fail(e); });
+  };
 }
 
 /* ---------- діалог ---------- */
