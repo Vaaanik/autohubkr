@@ -189,6 +189,18 @@ export function makeApi(db, deps) {
     try { await db.insert('users', user); } catch (e) { if (String(e.message || e).indexOf('duplicate') !== -1) fail('Цей номер уже зареєстровано. Увійдіть або зверніться до підтримки.'); throw e; }
     if (sto) {
       sto.owner_id = user.id;
+      // Картка з анкети чи довідника з тим самим телефоном: прив'язуємо її, щоб не було дубля.
+      const same = (await db.all('stos')).find((x) => !x.owner_id && x.phone && (x.phone === sto.phone || x.phone === phone));
+      if (same) {
+        const keep = { owner_id: user.id, name: sto.name, district: sto.district, address: sto.address, phone: sto.phone, services: sto.services || same.services,
+          hours: sto.hours || same.hours, about: sto.about || same.about };
+        if (keep.address !== same.address) { keep.lat = null; keep.lng = null; keep.geo = ''; }
+        await db.update('stos', same.id, keep);
+        await db.update('users', user.id, { sto_id: same.id }); user.sto_id = same.id;
+        notify('СТО підтвердив свою картку: ' + sto.name, 'Сервіс зареєструвався в застосунку й отримав наявну картку (' + (same.source || 'довідник') + ').\nКонтакт: ' + name + ', ' + phone +
+          '\nКартка ' + (same.active ? 'вже активна.' : 'чекає перевірки: autohubkr.com/app/ → СТО → Перевірка.'));
+        return session(user);
+      }
       await db.insert('stos', sto);
       notify('Новий СТО чекає перевірки: ' + sto.name,
         'Сервіс: ' + sto.name + '\nРайон: ' + sto.district + '\nАдреса: ' + sto.address + '\nТелефон: ' + sto.phone +
@@ -404,7 +416,7 @@ export function makeApi(db, deps) {
       p.source = s.source; p.created = s.created; p.geo = geoOf(s);
       return p;
     });
-    const rank = (s) => s.owner && !s.active ? 0 : s.owner ? 1 : 2;
+    const rank = (s) => (s.owner && !s.active) || (!s.owner && !s.active && s.source === 'анкета') ? 0 : s.owner ? 1 : 2;
     list.sort((a, b) => rank(a) - rank(b) || (a.created < b.created ? 1 : -1) || (a.name < b.name ? -1 : 1));
     return { stos: list };
   }
@@ -755,9 +767,16 @@ export function makeApi(db, deps) {
     if (!name || !contact) fail('Заповніть назву або ім\'я й контакт');
     const row = { id: id(), kind, created: now(), name, contact, data, status: 'new' };
     await db.insert('leads', row);
+    let stoNote = '';
+    if (kind === 'service') {
+      try {
+        const res = await stoFromLead(row, false);
+        stoNote = res.existed ? '\n\nЦей сервіс уже є в каталозі, анкету прив\'язано до наявної картки.' : '\n\nКартку сервісу створено, вона чекає перевірки: autohubkr.com/app/ → СТО → Перевірка.';
+      } catch (e) { console.error('stoFromLead', e); }
+    }
     const lines = LEAD_KEYS[kind].filter((k) => data[k]).map((k) => LEAD_LABELS[k] + ': ' + data[k]);
     notify('Нова анкета (' + (kind === 'driver' ? 'водій' : 'сервіс') + '): ' + name + (kind === 'service' && data.name ? ' (' + data.name + ')' : ''),
-      lines.join('\n') + '\n\nУсі анкети: autohubkr.com/app/ → Анкети');
+      lines.join('\n') + stoNote + '\n\nУсі анкети: autohubkr.com/app/ → Анкети');
     return {};
   }
 
@@ -784,8 +803,9 @@ export function makeApi(db, deps) {
     });
     const top = (o) => Object.keys(o).map((k) => [k, o[k]]).sort((a, b) => b[1] - a[1]).slice(0, 8);
     const week = fmt(new Date(Date.now() - 7 * 864e5)).slice(0, 10);
+    const stoIdx = {}; (await db.where('stos', 'source', 'анкета')).concat(await db.where('stos', 'active', true)).forEach((x) => { stoIdx[x.id] = x; });
     return { leads: leads.map((l) => ({ id: l.id, kind: l.kind, created: l.created, name: l.name, contact: l.contact, status: l.status,
-        sto_id: (l.data && l.data.sto_id) || '', fields: LEAD_KEYS[l.kind].filter((k) => l.data && l.data[k]).map((k) => [LEAD_LABELS[k], l.data[k]]) })),
+        sto_id: (l.data && l.data.sto_id) || '', sto_active: !!((l.data && l.data.sto_id && stoIdx[l.data.sto_id]) || {}).active, fields: LEAD_KEYS[l.kind].filter((k) => l.data && l.data[k]).map((k) => [LEAD_LABELS[k], l.data[k]]) })),
       visits: { total: visits.length, unique: uniq.size, week: visits.filter((v) => String(v.created) >= week).length,
         days: Array.from({ length: 14 }, (_, i) => { const d = fmt(new Date(Date.now() - (13 - i) * 864e5)).slice(0, 10); return [d, days[d] || 0]; }),
         sources: top(sources), pages: top(pages) } };
@@ -798,18 +818,35 @@ export function makeApi(db, deps) {
     await auth(r, 'admin');
     const l = await db.find('leads', 'id', String(r.id || ''));
     if (!l || l.kind !== 'service') fail('Анкету сервісу не знайдено');
+    const res = await stoFromLead(l, true);
+    // Натиск адміністратора = перевірку пройдено: показуємо картку водіям.
+    let s0 = await db.find('stos', 'id', res.sto_id);
+    if (s0 && !s0.active) s0 = await db.update('stos', s0.id, { active: true });
+    if (l.status === 'new') await db.update('leads', l.id, { status: 'contacted' });
+    if (s0) res.sto = Object.assign(pubSto(s0, true), { source: s0.source, geo: geoOf(s0) });
+    return res;
+  }
+  // Картка СТО з анкети: шукаємо наявну за телефоном або назвою, інакше створюємо. active — чи показувати водіям одразу.
+  async function stoFromLead(l, active) {
     const data = l.data || {};
     if (data.sto_id && await db.find('stos', 'id', data.sto_id)) return { sto_id: data.sto_id, existed: true };
     const svc = [...new Set(String(data.services || '').split(';').map((x) => LEAD_SVC[x.trim()] || (x.trim() ? 'Інше' : '')).filter(Boolean))];
     const digits = String(l.contact || '').replace(/\D/g, '');
     let phone = '';
     if (digits.length >= 9) { try { phone = phone_(l.contact); } catch (e) { phone = ''; } }
+    const key = (x) => String(x || '').toLowerCase().replace(/сто|авто|auto|service|сервіс|сервис|[^0-9a-zа-яіїєґ]/g, '');
+    const all = await db.all('stos');
+    const dup = all.find((x) => (phone && x.phone === phone) || (key(x.name) && key(x.name) === key(l.name)));
+    if (dup) {
+      await db.update('leads', l.id, { data: Object.assign({}, data, { sto_id: dup.id }) });
+      return { sto_id: dup.id, existed: true, sto: Object.assign(pubSto(dup, true), { source: dup.source, geo: geoOf(dup) }) };
+    }
     const st = { id: id(), owner_id: '', name: l.name, district: DISTRICTS.indexOf(data.district) !== -1 ? data.district : '', address: '', phone,
-      services: svc.join(', '), hours: '', about: '', active: true, created: now(), source: 'анкета', geo: '' };
+      services: svc.join(', '), hours: '', about: '', active: !!active, created: now(), source: 'анкета', geo: '' };
     await db.insert('stos', st);
     await db.update('leads', l.id, { data: Object.assign({}, data, { sto_id: st.id }), status: l.status === 'new' ? 'contacted' : l.status });
     const p = pubSto(st, true); p.source = st.source; p.geo = geoOf(st);
-    return { sto: p, sto_id: st.id };
+    return { sto: p, sto_id: st.id, existed: false };
   }
 
   async function adminLeadSet(r) {
