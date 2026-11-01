@@ -55,6 +55,26 @@ const FLOW = { accepted: ['new'], declined: ['new'], in_work: ['accepted'], done
 const DISTRICT_HINTS = [['Центрально-Міськ', 0], ['Центрально-Городск', 0], ['Металург', 1], ['Металлург', 1], ['Жовтнев', 1], ['Октябрьск', 1],
   ['Саксаган', 2], ['Довгинц', 3], ['Долгинц', 3], ['Покровськ', 4], ['Покровск', 4], ['Дзержин', 4], ['Тернів', 5], ['Терновск', 5], ['Інгулец', 6], ['Ингулец', 6]];
 
+// VIN: код виробника (перші 3 символи) → марка, для авто без даних у vPIC (переважно європейський ринок).
+const WMI = { TMB: 'Skoda', TMP: 'Skoda', WVW: 'Volkswagen', WV1: 'Volkswagen', WV2: 'Volkswagen', WVG: 'Volkswagen', '1VW': 'Volkswagen', '3VW': 'Volkswagen',
+  WAU: 'Audi', WA1: 'Audi', TRU: 'Audi', WBA: 'BMW', WBS: 'BMW', WBX: 'BMW', WBY: 'BMW', '5UX': 'BMW', WDB: 'Mercedes-Benz', WDD: 'Mercedes-Benz', WDC: 'Mercedes-Benz',
+  WDF: 'Mercedes-Benz', W1K: 'Mercedes-Benz', W1N: 'Mercedes-Benz', W1V: 'Mercedes-Benz', W0L: 'Opel', W0V: 'Opel', WF0: 'Ford', WF1: 'Ford', '1FA': 'Ford', '1FM': 'Ford', '1FT': 'Ford', '3FA': 'Ford',
+  VF1: 'Renault', VF6: 'Renault', VF3: 'Peugeot', VR3: 'Peugeot', VF7: 'Citroen', VR7: 'Citroen', UU1: 'Dacia', VSS: 'Seat', VSK: 'Nissan', SJN: 'Nissan', JN1: 'Nissan', '1N4': 'Nissan',
+  ZFA: 'Fiat', ZFF: 'Ferrari', ZAR: 'Alfa Romeo', KMH: 'Hyundai', TMA: 'Hyundai', NLH: 'Hyundai', '5NP': 'Hyundai', KNA: 'Kia', KNE: 'Kia', U5Y: 'Kia', U6Y: 'Kia', '5XY': 'Kia',
+  JTD: 'Toyota', JTN: 'Toyota', JTE: 'Toyota', JTM: 'Toyota', JT2: 'Toyota', VNK: 'Toyota', SB1: 'Toyota', NMT: 'Toyota', '4T1': 'Toyota', '2T1': 'Toyota', '5YF': 'Toyota',
+  JTH: 'Lexus', '2T2': 'Lexus', JHM: 'Honda', SHH: 'Honda', '1HG': 'Honda', '2HG': 'Honda', JMZ: 'Mazda', JM1: 'Mazda', JMB: 'Mitsubishi', JA3: 'Mitsubishi', JF1: 'Subaru', JF2: 'Subaru',
+  JS2: 'Suzuki', TSM: 'Suzuki', VSE: 'Suzuki', YV1: 'Volvo', YV4: 'Volvo', SAL: 'Land Rover', SAJ: 'Jaguar', WP0: 'Porsche', WP1: 'Porsche', XTA: 'ВАЗ (Lada)', Y6D: 'ЗАЗ',
+  KL1: 'Chevrolet', XUU: 'Chevrolet', '1G1': 'Chevrolet', '5YJ': 'Tesla', '7SA': 'Tesla', LRW: 'Tesla', LGX: 'BYD', LFV: 'Volkswagen', LSV: 'Volkswagen', '1C4': 'Jeep', '1J4': 'Jeep', '2C3': 'Chrysler' };
+const VIN_YEAR = 'ABCDEFGHJKLMNPRSTVWXY123456789';
+// Рік за 10-м символом: обираємо найпізніший цикл, що не в майбутньому.
+function vinYear(vin) {
+  const i = VIN_YEAR.indexOf(vin[9]);
+  if (i === -1) return null;
+  const max = new Date().getFullYear() + 1;
+  let y = 1980 + i; while (y + 30 <= max) y += 30;
+  return y;
+}
+
 class UserError extends Error { constructor(m, auth) { super(m); this.userMessage = m; this.auth = !!auth; } }
 const fail = (m) => { throw new UserError(m); };
 
@@ -606,6 +626,55 @@ function makeApi(db, deps) {
     return res;
   }
 
+  // Розшифровка VIN: vPIC (NHTSA, безкоштовно) → свій довідник виробників → за потреби Gemini для моделі.
+  async function vinDecode(r) {
+    const u = await auth(r, 'driver');
+    const vin = s_(r.vin).toUpperCase().replace(/\s+/g, '');
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) fail('VIN має містити 17 символів (латиниця й цифри, без I, O, Q)');
+    if (!(await rate('vin_' + u.id, 30, 3600))) fail('Забагато перевірок. Спробуйте за годину.');
+    const out = { vin, make: '', model: '', year: null, engine: null, fuel: '', power: null, gearbox: '', drive: '', body: '', source: [] };
+    try {
+      const resp = await deps.fetch('https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/' + vin + '?format=json');
+      const v = resp.status === 200 ? (((await resp.json()).Results) || [])[0] || {} : {};
+      if (v.Make) {
+        const tc = (x) => String(x).toLowerCase().replace(/(^|[\s-])([a-zа-я])/g, (m0, a, b) => a + b.toUpperCase());
+        out.make = /^(BMW|GMC|MINI|BYD|SEAT)$/i.test(v.Make) ? String(v.Make).toUpperCase() : tc(v.Make);
+        out.model = s_(v.Model).slice(0, 80);
+        const y = int(v.ModelYear); if (y && y > 1950) out.year = y;
+        const e = Number(v.DisplacementL); if (e >= 0.5 && e <= 8.5) out.engine = Math.round(e * 10) / 10;
+        const hp = int(v.EngineHP); if (hp && hp < 1500) out.power = hp;
+        const f1 = String(v.FuelTypePrimary || ''), f2 = String(v.FuelTypeSecondary || '');
+        out.fuel = /electric/i.test(f1) && !f2 ? 'Електро' : /electric/i.test(f2) ? 'Гібрид' : /diesel/i.test(f1) ? 'Дизель' : /(natural gas|petroleum gas|lpg|cng)/i.test(f1 + f2) ? 'Газ/бензин' : /gasoline|petrol/i.test(f1) ? 'Бензин' : '';
+        const b = String(v.BodyClass || '');
+        out.body = /pickup/i.test(b) ? 'Пікап' : /convertible|cabrio/i.test(b) ? 'Кабріолет' : /coupe/i.test(b) ? 'Купе' : /wagon/i.test(b) ? 'Універсал' : /minivan|mpv/i.test(b) ? 'Мінівен' :
+          /van/i.test(b) ? 'Фургон' : /sport utility|suv|crossover/i.test(b) ? 'Кросовер' : /hatchback/i.test(b) ? 'Хетчбек' : /sedan/i.test(b) ? 'Седан' : '';
+        const d = String(v.DriveType || '');
+        out.drive = /awd|4wd|4x4|all.wheel|four.wheel/i.test(d) ? 'Повний' : /fwd|front/i.test(d) ? 'Передній' : /rwd|rear/i.test(d) ? 'Задній' : '';
+        const t = String(v.TransmissionStyle || '');
+        out.gearbox = /cvt|continuously/i.test(t) ? 'Варіатор' : /dual.clutch|dct|automated manual/i.test(t) ? 'Робот' : /automatic/i.test(t) ? 'Автомат' : /manual/i.test(t) ? 'Механіка' : '';
+        out.source.push('vPIC');
+      }
+    } catch (e) { console.error('vPIC', e); }
+    if (!out.make && WMI[vin.slice(0, 3)]) { out.make = WMI[vin.slice(0, 3)]; out.source.push('код виробника'); }
+    // Для європейських авто vPIC часто плутає цикл років (1981 замість 2011): беремо пізніший.
+    const ly = vinYear(vin);
+    if (ly && (!out.year || (out.year + 30 === ly))) out.year = ly;
+    if (!out.make) fail('Не вдалося розпізнати цей VIN. Заповніть дані вручну.');
+    if (!out.model && env.GEMINI_API_KEY) {
+      const ck = 'ai_' + u.id, used = Number(await kvGet(ck) || 0);
+      if (used < AI_LIMIT) {
+        await kvPut(ck, used + 1, 21600);
+        try {
+          const a = await gemini(ck, used, 'Ти експерт з розшифровки VIN. Назви модель авто лише якщо впевнений за кодом VDS (символи 4–8) для цієї марки. ' +
+            'Якщо не впевнений, поверни порожній model і confidence "low". Не вигадуй.', [{ text: 'VIN: ' + vin + '\nМарка: ' + out.make + (out.year ? '\nРік: ' + out.year : '') }],
+            { type: 'OBJECT', properties: { model: { type: 'STRING' }, confidence: { type: 'STRING', enum: ['high', 'low'] } }, required: ['confidence'] });
+          if (a.confidence === 'high' && s_(a.model)) { out.model = s_(a.model).slice(0, 80); out.modelGuess = true; out.source.push('AI'); }
+        } catch (e) { /* модель лишаємо порожньою */ }
+      }
+    }
+    return { car: out };
+  }
+
   /* --- анкети з лендингів і перегляди сторінок --- */
   const LEAD_KEYS = {
     driver: ['name', 'telegram', 'car', 'vin', 'plate', 'services', 'services_other', 'search_now', 'top_feature', 'fleet_size', 'wishes', 'utm', 'referrer'],
@@ -726,7 +795,7 @@ function makeApi(db, deps) {
     'sto.catalog': catalog,
     'sto.update': stoUpdate,
     'req.create': reqCreate, 'req.list': reqList, 'req.update': reqUpdate, 'req.visit': reqVisit, 'req.confirm': reqConfirm,
-    'stats.public': statsPublic, 'ai.receipt': aiReceipt,
+    'stats.public': statsPublic, 'ai.receipt': aiReceipt, 'vin.decode': vinDecode,
     'review.add': reviewAdd,
     'history.list': async (r) => {
       const u = await auth(r, 'driver'); const c = await ownCar(u, r.car_id);

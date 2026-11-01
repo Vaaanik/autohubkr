@@ -715,6 +715,8 @@ function carDialog(car) {
     var engines = []; for (var v = 6; v <= 70; v++) engines.push((v / 10).toFixed(1));
     openDialog('<h2 style="margin-bottom:4px">' + (edit ? 'Редагувати авто' : 'Нове авто') + '</h2><p class="mini" style="margin:0 0 12px">Почніть вводити марку: шукає й латиницею, й кирилицею.</p>' +
       '<form class="stack" id="carForm" novalidate>' +
+      '<div><label class="f" for="cVin">VIN <span>' + (M.carDocs ? 'введіть, і ми заповнимо решту' : 'необов\'язково') + '</span></label><div class="row"><input class="i" id="cVin" maxlength="17" autocomplete="off" autocapitalize="characters" placeholder="17 символів, є в техпаспорті" value="' + esc(car.vin || '') + '" style="flex:1;text-transform:uppercase">' +
+        (M.carDocs ? '<button type="button" class="btn sm dark" id="cVinGo">Заповнити</button>' : '') + '</div><div id="cVinNote"></div></div>' +
       '<div><label class="f" for="cMake">Марка</label><input class="i" id="cMake" placeholder="Skoda, Toyota, ЗАЗ…" value="' + esc(car.make || '') + '"></div>' +
       '<div><label class="f" for="cModel">Модель</label><input class="i" id="cModel" placeholder="Спершу оберіть марку" value="' + esc(car.model || '') + '"' + (car.make ? '' : ' disabled') + '></div>' +
       '<div class="grid2"><div><label class="f" for="cYear">Рік випуску</label><select class="i" id="cYear"></select></div><div><label class="f" for="cKm">Пробіг, км</label><input class="i" id="cKm" inputmode="numeric" placeholder="148000" value="' + esc(car.mileage || '') + '"></div></div>' +
@@ -725,7 +727,7 @@ function carDialog(car) {
         '<div><label class="f" for="cBox">Коробка</label><select class="i" id="cBox">' + opt(CO.gearboxes, car.gearbox) + '</select></div></div>' +
         '<div class="grid2"><div><label class="f" for="cDrive">Привід</label><select class="i" id="cDrive">' + opt(CO.drives, car.drive) + '</select></div>' +
         '<div><label class="f" for="cBody">Кузов</label><select class="i" id="cBody">' + opt(CO.bodies, car.body) + '</select></div></div></fieldset>' +
-      '<div class="grid2"><div><label class="f" for="cPlate">Номер <span>необов\'язково</span></label><input class="i" id="cPlate" placeholder="AE1234KP" value="' + esc(car.plate || '') + '"></div><div><label class="f" for="cVin">VIN <span>необов\'язково</span></label><input class="i" id="cVin" maxlength="17" value="' + esc(car.vin || '') + '"></div></div>' +
+      '<div><label class="f" for="cPlate">Номер <span>необов\'язково</span></label><input class="i" id="cPlate" placeholder="AE1234KP" value="' + esc(car.plate || '') + '"></div>' +
       (edit ? '' : '<div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Фото <span class="muted" style="font-weight:400">необов\'язково</span></span><label class="photo-pick" id="cPhotoL"><input type="file" accept="image/*" id="cPhoto" class="sr"><span id="cPhotoT">Додати фото авто</span></label></div>') +
       '<div id="carErr"></div><div class="row"><button type="button" class="btn ghost" data-close>Скасувати</button><button class="btn" style="flex:1" id="carSave">' + (edit ? 'Зберегти' : 'Додати в гараж') + '</button></div></form>');
     var makeRow = function () { return DB.filter(function (m) { return m[0] === sel.make; })[0]; };
@@ -762,6 +764,36 @@ function carDialog(car) {
       onPick: function (v) { sel.model = v || ''; if (v) { setModelRange(v); setTimeout(function () { $('#cYear').focus(); }, 30); } }
     });
     if (car.model) setModelRange(car.model); else years();
+    // Заповнення за VIN
+    var setSel = function (id, v) { var el = $(id); if (!v || !el) return false; var o = Array.prototype.filter.call(el.options, function (x) { return x.value === String(v) || x.text === String(v); })[0]; if (!o) return false; el.value = o.value; return true; };
+    if ($('#cVinGo')) $('#cVinGo').onclick = function () {
+      var btn = this, vin = $('#cVin').value.trim().toUpperCase().replace(/\s+/g, '');
+      if (vin.length !== 17) { $('#cVinNote').innerHTML = '<div class="note err" style="margin-top:8px">VIN має містити 17 символів. Зараз: ' + vin.length + '.</div>'; return; }
+      busy(btn, true); $('#cVinNote').innerHTML = '<div class="mini" style="margin-top:6px">Шукаємо дані за VIN…</div>';
+      api('vin.decode', { vin: vin }).then(function (r) {
+        busy(btn, false);
+        var c = r.car, got = [];
+        var mk = DB.filter(function (m) { return norm(m[0]) === norm(c.make) || norm(m[1] || '') === norm(c.make); })[0];
+        sel.make = mk ? mk[0] : c.make; $('#cMake').value = sel.make; $('#cModel').disabled = false; $('#cModel').placeholder = 'Почніть вводити модель'; got.push('марку');
+        if (c.model) {
+          var models = mk ? mk[3] : [], q = norm(c.model);
+          var md = models.filter(function (x) { return norm(x[0]) === q; })[0] || models.filter(function (x) { var n = norm(x[0]); return n && (q.indexOf(n) === 0 || n.indexOf(q) === 0); })[0];
+          sel.model = md ? md[0] : c.model; $('#cModel').value = sel.model; got.push('модель');
+          if (md) setModelRange(md[0]);
+        } else { sel.model = ''; $('#cModel').value = ''; }
+        if (c.year) { if (c.year < sel.y0) sel.y0 = c.year; if (c.year > sel.y1) sel.y1 = c.year; years(); if (setSel('#cYear', c.year)) got.push('рік'); }
+        if (c.engine && setSel('#cEng', Number(c.engine).toFixed(1))) got.push('об\'єм');
+        if (setSel('#cFuel', c.fuel)) got.push('паливо');
+        if (c.power) { $('#cPow').value = c.power; got.push('потужність'); }
+        if (setSel('#cBox', c.gearbox)) got.push('коробку');
+        if (setSel('#cDrive', c.drive)) got.push('привід');
+        if (setSel('#cBody', c.body)) got.push('кузов');
+        $('#cVin').value = c.vin;
+        $('#cVinNote').innerHTML = '<div class="note ' + (c.model && !c.modelGuess ? 'ok' : 'warn') + '" style="margin-top:8px">Заповнили: ' + got.join(', ') + '.' +
+          (!c.model ? ' Модель за цим VIN у відкритих базах не знайшли, оберіть її зі списку.' : c.modelGuess ? ' Модель підказав AI, перевірте її.' : '') + ' Перевірте дані перед збереженням.</div>';
+        if (!c.model) setTimeout(function () { $('#cModel').focus(); }, 30);
+      }).catch(function (e) { busy(btn, false); $('#cVinNote').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+    };
     function onPhoto() {
       var f = this.files[0]; if (!f) return;
       $('#cPhotoL').querySelector('span').textContent = 'Обробляю фото…';
