@@ -93,3 +93,4 @@
 - Секрети функції (Edge Functions → Secrets): `GEMINI_API_KEY`, необов'язково `GEMINI_MODEL`.
 - Адміністратор: у SQL Editor `update users set role = 'admin' where phone = '+380…';`
 - Листи адміністратору надсилає старий Google-скрипт (дія `relay.notify`); решту його дій вимкнено (`MIGRATED = true`).
+- Анкети лендингів і перегляди сторінок (з 01.11.2026) теж ідуть у Supabase: таблиці `leads` і `visits` (`supabase/leads.sql`). Перегляд — адмін-панель → «Анкети». Листи про нові анкети приходять на owner@example.com. Стара таблиця «АвтоХаб: заявки» (owner) лишається архівом.
