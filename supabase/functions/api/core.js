@@ -142,7 +142,7 @@ export function makeApi(db, deps) {
   const env = deps.env || {};
 
   /* --- налаштування застосунку з адмінки (kv 'settings'), читаються на початку кожного запиту --- */
-  const SET_DEF = { otp_required: true, lead_to_tg: true, ai_limit: AI_LIMIT, counter_min: 10, notify_tg: true, notify_mail: true };
+  const SET_DEF = { otp_required: true, lead_to_tg: true, ai_limit: AI_LIMIT, counter_min: 10, notify_tg: true, notify_mail: true, group_drivers: '', group_services: '' };
   let SET = Object.assign({}, SET_DEF);
   async function loadSettings() {
     try { const raw = await kvGet('settings'); SET = Object.assign({}, SET_DEF, raw ? JSON.parse(raw) : {}); } catch (e) { SET = Object.assign({}, SET_DEF); }
@@ -832,6 +832,7 @@ export function makeApi(db, deps) {
     const chat = String(tu.id);
     for (const o of await db.where('users', 'tg_chat', chat)) if (o.id !== u.id) await db.update('users', o.id, { tg_chat: '' });
     await db.update('users', u.id, { tg_chat: chat });
+    if (u.role !== 'admin' && !u.isAdmin) await tgGroup(chat, u, u.role === 'sto' ? 'sto' : 'driver');
     return {};
   }
 
@@ -1266,6 +1267,19 @@ export function makeApi(db, deps) {
     if (real && real.tg_chat) { await db.update('users', u.id, { tg_chat: '' }); tgSend(real.tg_chat, { emoji: '👋', title: 'Сповіщення вимкнено', intro: 'Підключити знову можна в застосунку, розділ «Профіль».' }); }
     return {};
   }
+  // Посилання на групу спільноти (водіїв або сервісів) одразу після реєстрації чи підключення бота; кожному лише раз.
+  async function tgGroup(chat, u, role) {
+    const r0 = role || (u.sto_id ? 'sto' : 'driver');
+    const url = r0 === 'sto' ? SET.group_services : SET.group_drivers;
+    if (!url || !chat || !u) return;
+    const k = 'grp_' + r0 + '_' + u.id;
+    if (await kvGet(k)) return;
+    await kvPut(k, 1, 20 * 365 * 86400);
+    await tgSend(chat, r0 === 'sto'
+      ? { emoji: '🤝', title: 'Група партнерів АвтоХабу', intro: 'Новини для сервісів, умови партнерства й зв\'язок з командою. Тут же можна запропонувати функції, яких вам бракує.' }
+      : { emoji: '👥', title: 'Автоспільнота Кривого Рогу', intro: 'Група учасників АвтоХабу: перші новини, нові функції й поради від водіїв міста.' },
+      [{ text: r0 === 'sto' ? 'Приєднатися до групи партнерів' : 'Приєднатися до групи', url }]);
+  }
   /* --- воронка в Telegram-боті: роль → «Поділитися номером» → акаунт створено → міні-застосунок --- */
   const FUNNEL = ['start', 'role', 'contact', 'reg', 'sto_card'];
   const botReady = async () => tgOn() && !!(await kvGet('tg_hook'));
@@ -1393,6 +1407,7 @@ export function makeApi(db, deps) {
       const card = await db.find('stos', 'id', u.sto_id);
       await tgKeyboard(chat, tgHtml({ emoji: '✅', title: (fresh ? 'Акаунт створено, ' : 'Вітаємо, ') + u.name, intro: 'Картку сервісу «' + (card ? card.name : '') + '» прив\'язано до вашого акаунта. Додайте адресу, графік, фото й логотип: так водії швидше вас оберуть.' + (card && !isActive(card) ? ' Після перевірки картка з\'явиться в каталозі.' : '') }));
       await tgSend(chat, { emoji: '🔧', title: 'Кабінет сервісу', intro: 'Тут заявки від водіїв, журнал робіт і картка сервісу.' }, [{ text: 'Відкрити кабінет сервісу', url: APP_URL + '?view=sto' }]);
+      await tgGroup(chat, u, 'sto');
       return;
     }
     const wantSto = st.role === 'sto' && !u.sto_id;
@@ -1400,6 +1415,7 @@ export function makeApi(db, deps) {
       intro: wantSto ? 'Залишився один крок: заповніть картку сервісу (назва, адреса, послуги, фото). Після перевірки водії бачитимуть вас у каталозі.' : 'Застосунок відкривається без пароля прямо тут. Сюди ж приходитимуть відповіді сервісів і нагадування.' }));
     await tgSend(chat, { emoji: wantSto ? '🔧' : '🚗', title: wantSto ? 'Картка сервісу' : 'Почніть з гаража', intro: wantSto ? 'Займе 2 хвилини.' : 'Додайте авто: VIN або марку й рік, решту заповнимо самі.' },
       [{ text: wantSto ? 'Заповнити картку сервісу' : 'Додати авто', url: APP_URL + (wantSto ? '?addsto=1' : '#/garage') }]);
+    await tgGroup(chat, u, st.role);
   }
   async function tgUpdate(upd, meta) {
     if (!tgOn() || !env.TG_SECRET || meta.tgSecret !== env.TG_SECRET) return {};
@@ -1441,6 +1457,7 @@ export function makeApi(db, deps) {
       const what = u.role === 'sto' ? 'нові заявки від водіїв' : u.role === 'admin' ? 'нові заявки, анкети, сервіси на перевірці й спори' : 'відповіді сервісів на ваші заявки';
       await tgSend(chat, { emoji: '🎉', title: 'Telegram підключено, ' + u.name, intro: 'Тепер сюди приходитимуть ' + what + '. Вимкнути: команда /stop або кнопка в застосунку.' });
       await tgKeyboard(chat, 'Застосунок завжди під рукою: кнопка <b>«Відкрити АвтоХаб»</b> внизу чату.');
+      if (u.role !== 'admin') await tgGroup(chat, u);
       return {};
     }
     const login = text.match(/^\/start\s+in_([a-f0-9]{20})$/);
@@ -1721,6 +1738,12 @@ export function makeApi(db, deps) {
     ['otp_required', 'lead_to_tg', 'notify_tg', 'notify_mail'].forEach((k) => { if (p[k] !== undefined) out[k] = p[k] === true; });
     if (p.ai_limit !== undefined) { const n = int(p.ai_limit); if (!(n >= 0 && n <= 200)) fail('Ліміт AI: від 0 до 200'); out.ai_limit = n; }
     if (p.counter_min !== undefined) { const n = int(p.counter_min); if (!(n >= 0 && n <= 1000)) fail('Поріг лічильника: від 0 до 1000'); out.counter_min = n; }
+    ['group_drivers', 'group_services'].forEach((k) => {
+      if (p[k] === undefined) return;
+      let v = s_(p[k]).replace(/^@/, 'https://t.me/');
+      if (v && !/^https:\/\/(t\.me|telegram\.me)\/[A-Za-z0-9_+\-\/]{3,}$/.test(v)) fail('Посилання на групу має бути виду https://t.me/...');
+      out[k] = v;
+    });
     if (!out.notify_tg && !out.notify_mail) fail('Залиште хоча б один канал сповіщень адміністратору');
     await kvPut('settings', JSON.stringify(out), 20 * 365 * 86400);
     await kvDel('stats_public');
