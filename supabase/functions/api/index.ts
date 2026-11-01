@@ -1295,13 +1295,12 @@ function makeApi(db, deps) {
     return {};
   }
   // Посилання на групу спільноти (водіїв або сервісів) одразу після реєстрації чи підключення бота; кожному лише раз.
-  async function tgGroup(chat, u, role) {
+  async function tgGroup(chat, u, role, test) {
     const r0 = role || (u.sto_id ? 'sto' : 'driver');
     const url = r0 === 'sto' ? SET.group_services : SET.group_drivers;
     if (!url || !chat || !u) return false;
     const k = 'grp_' + r0 + '_' + u.id;
-    if (await kvGet(k)) return false;
-    await kvPut(k, 1, 20 * 365 * 86400);
+    if (!test) { if (await kvGet(k)) return false; await kvPut(k, 1, 20 * 365 * 86400); }
     const caption = r0 === 'sto'
       ? '🤝 <b>Запрошення в клуб партнерів АвтоХабу</b>\n\n' +
         'Закрита група автосервісів Кривого Рогу, які першими отримують клієнтів з платформи.\n\n' +
@@ -1323,6 +1322,16 @@ function makeApi(db, deps) {
     return true;
   }
   // Разова розсилка посилань на групи всім, хто вже підключив бота (кому ще не надсилали)
+  // Тест: обидва запрошення адміністратору в його чат (без позначки «надіслано»)
+  async function adminGroupsTest(r) {
+    const u = await auth(r, 'admin');
+    const me = await db.find('users', 'id', u.id);
+    if (!me || !me.tg_chat) fail('Спершу підключіть свій Telegram: «Сповіщення в Telegram» вище');
+    if (!SET.group_drivers && !SET.group_services) fail('Вкажіть посилання хоча б на одну групу');
+    let n = 0;
+    for (const rl of ['driver', 'sto']) if (await tgGroup(me.tg_chat, me, rl, true)) n++;
+    return { sent: n };
+  }
   async function adminGroupsSend(r) {
     await auth(r, 'admin');
     if (!(await botReady())) fail('Спершу налаштуйте Telegram-бота');
@@ -1934,7 +1943,7 @@ function makeApi(db, deps) {
       return { sto: pubSto(st, true) };
     },
     'admin.leads': adminLeads, 'admin.lead.set': adminLeadSet, 'admin.lead.tosto': adminLeadToSto,
-    'admin.settings': adminSettings, 'admin.sto.delete': adminStoDelete, 'admin.groups.send': adminGroupsSend, 'admin.settings.set': adminSettingsSet, 'admin.cache.clear': adminCacheClear,
+    'admin.settings': adminSettings, 'admin.sto.delete': adminStoDelete, 'admin.groups.send': adminGroupsSend, 'admin.groups.test': adminGroupsTest, 'admin.settings.set': adminSettingsSet, 'admin.cache.clear': adminCacheClear,
     'admin.geocode': async (r) => { await auth(r, 'admin'); return geocodeBatch(Math.min(Number(r.limit) || 25, 40), r.retry === true); }
   };
 
