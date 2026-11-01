@@ -200,6 +200,10 @@ a.dash:hover{border-color:#2B5797}
 
 /* вибір сервісу */
 .sto-pick{border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;cursor:pointer;background:#fff;transition:border-color .15s}
+.sto-thumbs{display:flex;gap:6px;margin-top:8px}.sto-thumbs img{width:56px;height:42px;object-fit:cover;border-radius:8px;background:var(--line2)}
+.sto-gal{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;margin:4px -2px 6px;padding:2px}.sto-gal img{height:150px;max-width:85%;border-radius:12px;object-fit:cover;scroll-snap-align:start;cursor:zoom-in;flex:none}
+.rv-row{padding:8px 0;border-top:1px solid var(--line2)}.rv-row:first-of-type{border-top:0}
+.lbl{font-size:13px;font-weight:600;color:var(--soft)}
 .sto-pick:hover{border-color:#9DBDF0}
 .sto-pick+.sto-pick{margin-top:8px}
 .sto-pick.on{border-color:var(--volt);box-shadow:0 0 0 3px rgba(31,123,255,.16)}
@@ -538,6 +542,30 @@ function setView(v, stoId) {
   state.cars = null; state.sto = null; state.meta = state.meta;
   loading();
   boot().then(function () { go({ admin: '/admin', driver: '/garage', sto: '/sto' }[v]); toast({ admin: 'Режим адміністратора', driver: 'Режим водія', sto: 'Режим сервісу' }[v]); }).catch(fail);
+}
+// Картка сервісу: фото, опис, послуги, графік, відгуки, кнопка «Обрати»
+function stoSheet(s, onPick) {
+  var q = encodeURIComponent(s.name + ', ' + (s.address ? s.address + ', ' : '') + 'Кривий Ріг');
+  var map = s.lat ? 'https://www.google.com/maps/search/?api=1&query=' + s.lat + ',' + s.lng : 'https://www.google.com/maps/search/?api=1&query=' + q;
+  var pics = s.photos || [], n = s.reviews || 0;
+  var html = '<div class="sto-sheet">' +
+    '<div class="sto-head" style="gap:12px;margin-bottom:8px">' + (s.logo ? '<img class="sto-logo" style="width:56px;height:56px" src="' + esc(s.logo) + '" alt="">' : '') +
+    '<div><h2 style="margin:0">' + esc(s.name) + '</h2><div class="small">' + (s.rating ? stars(s.rating) + ' ' + esc(s.rating) + ' <span class="muted">· ' + n + ' ' + (n % 10 === 1 && n % 100 !== 11 ? 'відгук' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'відгуки' : 'відгуків') + '</span>' : s.listed ? '<span class="muted">ще не в АвтоХабі</span>' : '<span class="tag">новий партнер</span>') + '</div></div></div>' +
+    (pics.length ? '<div class="sto-gal">' + pics.map(function (u, i) { return '<img src="' + esc(u) + '" alt="Фото сервісу ' + (i + 1) + '" data-big="' + i + '">'; }).join('') + '</div>' : '') +
+    (s.about ? '<p style="margin:10px 0">' + esc(s.about) + '</p>' : '') +
+    '<dl class="kv"><dt>Адреса</dt><dd>' + esc([s.address, s.district].filter(Boolean).join(', ') || 'Кривий Ріг') + ' · <a href="' + esc(map) + '" target="_blank" rel="noopener">на карті</a></dd>' +
+    (s.hours ? '<dt>Графік</dt><dd>' + esc(s.hours) + '</dd>' : '') +
+    (s.phone ? '<dt>Телефон</dt><dd><a href="' + esc(telHref(s.phone)) + '">' + esc(fmtPhone(s.phone)) + '</a></dd>' : '') +
+    (s.done ? '<dt>Через АвтоХаб</dt><dd>' + s.done + ' виконаних заявок</dd>' : '') + '</dl>' +
+    (s.services && s.services.length ? '<div class="lbl" style="margin-top:10px">Послуги</div><div class="svc-tags">' + s.services.map(function (x) { return '<span class="svc-tag">' + esc(x) + '</span>'; }).join('') + '</div>' : '') +
+    (s.lastReviews && s.lastReviews.length ? '<div class="lbl" style="margin-top:12px">Відгуки</div>' + s.lastReviews.map(function (v) {
+      return '<div class="rv-row">' + stars(v.rating) + ' <span class="small muted">' + esc(dt(v.date)) + '</span>' + (v.text ? '<div class="small">' + esc(v.text) + '</div>' : '') + '</div>'; }).join('') : '') +
+    (s.listed ? '<div class="note info" style="margin-top:12px">Цей сервіс ще не приймає заявки онлайн. Зателефонуйте йому напряму.</div>' : '') +
+    '</div><div class="row" style="margin-top:14px;position:sticky;bottom:0;background:#fff;padding-top:8px"><button class="btn ghost" data-close style="flex:1">Закрити</button>' +
+    (onPick ? '<button class="btn" id="ssPick" style="flex:1">Обрати сервіс</button>' : s.phone ? '<a class="btn" style="flex:1" href="' + esc(telHref(s.phone)) + '">Подзвонити</a>' : '') + '</div>';
+  openDialog(html);
+  if (onPick) $('#ssPick').onclick = onPick;
+  $$('[data-big]').forEach(function (im) { im.onclick = function () { window.open(pics[+im.dataset.big], '_blank', 'noopener'); }; });
 }
 function stoPicker() {
   openDialog('<h2 style="margin-bottom:6px">Чий кабінет відкрити?</h2><p class="mini" style="margin:0 0 12px">Сервіси-партнери, які зареєструвались у застосунку. Довідкові СТО без власника сюди не входять.</p><div id="spL"><div class="spin">Завантаження…</div></div>' +
@@ -1246,7 +1274,7 @@ function renderNew() {
           return '<div class="sto-ref"><b>' + esc(s.name) + '</b>' +
             '<div class="small muted">' + esc([s.district, s.address].filter(Boolean).join(' · ') || 'Кривий Ріг') + '</div>' +
             (s.about ? '<div class="small" style="margin-top:2px">' + esc(s.about) + '</div>' : '') +
-            '<div class="acts">' + (s.phone ? '<a class="btn sm ghost" href="' + esc(telHref(s.phone)) + '">Подзвонити</a>' : '') +
+            '<div class="acts"><button type="button" class="btn sm ghost" data-info="' + esc(s.id) + '">Детальніше</button>' + (s.phone ? '<a class="btn sm ghost" href="' + esc(telHref(s.phone)) + '">Подзвонити</a>' : '') +
             '<a class="btn sm ghost" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' + q + '">На карті</a></div></div>';
         }).join(''); };
         var REF_STEP = 10, withGeo = r.stos.filter(function (s) { return s.lat; }).length;
@@ -1260,7 +1288,8 @@ function renderNew() {
             '<div class="small muted">' + esc([s.district, s.address].filter(Boolean).join(' · ')) + '</div>' +
             (s.hours ? '<div class="small muted">' + esc(s.hours) + '</div>' : '') +
             (s.about ? '<div class="small" style="margin-top:4px">' + esc(s.about) + '</div>' : '') +
-            (s.lastReviews && s.lastReviews.length ? '<button type="button" class="link" data-rv="' + esc(s.id) + '" style="margin-top:6px">Відгуки</button>' : '') + '</div>';
+            (s.photos && s.photos.length ? '<div class="sto-thumbs">' + s.photos.slice(0, 4).map(function (u) { return '<img src="' + esc(u) + '" alt="" loading="lazy">'; }).join('') + '</div>' : '') +
+            '<button type="button" class="link" data-info="' + esc(s.id) + '" style="margin-top:6px">Детальніше про сервіс ›</button></div>';
         }).join('') +
           (refs.length ? '<h3 style="margin:18px 0 4px">Інші сервіси міста</h3><div class="small muted" style="margin-bottom:10px">Ще не в АвтоХабі: заявку їм надіслати не можна, але можна зателефонувати. Дані з відкритих каталогів.</div>' +
             '<div id="refList">' + refHtml(refs.slice(0, REF_STEP)) + '</div>' +
@@ -1269,8 +1298,7 @@ function renderNew() {
         var drawMap = function () {
           if (mapDrawn) return; mapDrawn = true;
           stoMap($('#stoMap'), r.stos, function (id) {
-            var el = $('.sto-pick[data-id="' + id + '"]'); if (el) el.click();
-            toast('Сервіс обрано. Можна надсилати заявку.');
+            openSto(id);
           }, sel.sto);
         };
         $$('.seg button', box).forEach(function (b) {
@@ -1289,19 +1317,17 @@ function renderNew() {
         };
         $$('.sto-pick', box).forEach(function (p) {
           var pickIt = function () { $$('.sto-pick', box).forEach(function (o) { o.classList.remove('on'); o.setAttribute('aria-checked', 'false'); }); p.classList.add('on'); p.setAttribute('aria-checked', 'true'); sel.sto = p.dataset.id; };
-          p.onclick = function (e) { if (e.target.dataset.rv) return; pickIt(); };
-          p.onkeydown = function (e) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); pickIt(); } };
+          p._pick = pickIt;
+          p.onclick = function (e) { if (e.target.closest('a')) return; if (e.isTrusted === false) return pickIt(); openSto(p.dataset.id); };
+          p.onkeydown = function (e) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); openSto(p.dataset.id); } };
         });
+        var openSto = function (id) {
+          var s = r.stos.filter(function (x) { return x.id === id; })[0]; if (!s) return;
+          stoSheet(s, s.listed ? null : function () { var el = $('.sto-pick[data-id="' + id + '"]', box); if (el) { el._pick(); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } closeDialog(); toast('Обрано «' + s.name + '». Можна надсилати заявку.'); });
+        };
+        box.addEventListener('click', function (e) { var b = e.target.closest('[data-info]'); if (!b) return; e.stopPropagation(); openSto(b.dataset.info); }, true);
         // перехід зі сторінки сервісу на сайті: одразу обираємо цей сервіс
         if (preSto) { var pe = $('.sto-pick[data-id="' + preSto + '"]', box); if (pe) { pe.click(); pe.scrollIntoView({ block: 'center' }); } preSto = ''; }
-        $$('[data-rv]', box).forEach(function (b) {
-          b.onclick = function () {
-            var s = r.stos.filter(function (x) { return x.id === b.dataset.rv; })[0];
-            openDialog('<h2 style="margin-bottom:10px">' + esc(s.name) + '</h2>' + s.lastReviews.map(function (v) {
-              return '<div class="card" style="background:var(--paper)">' + stars(v.rating) + ' <span class="small muted">' + esc(dt(v.date)) + '</span><div>' + esc(v.text || 'Без коментаря') + '</div></div>';
-            }).join('') + '<button class="btn wide ghost" data-close>Закрити</button>');
-          };
-        });
       }).catch(function (e) { box.innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
     }
     $('#nForm').onsubmit = function (e) {

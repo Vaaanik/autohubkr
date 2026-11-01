@@ -321,7 +321,7 @@ export function makeApi(db, deps) {
 
   /* --- каталог СТО --- */
   async function catalog(r) {
-    const [stos, reviews] = await Promise.all([db.where('stos', 'active', true), db.all('reviews')]);
+    const [stos, reviews, done] = await Promise.all([db.where('stos', 'active', true), db.all('reviews'), db.where('requests', 'status', 'done')]);
     let list = stos;
     if (r.category) list = list.filter((s) => String(s.services).indexOf(r.category) !== -1);
     if (r.district) list = list.filter((s) => s.district === r.district);
@@ -330,7 +330,8 @@ export function makeApi(db, deps) {
       const p = pubSto(s);
       p.reviews = own.length;
       p.rating = own.length ? Math.round(own.reduce((a, v) => a + Number(v.rating), 0) / own.length * 10) / 10 : null;
-      p.lastReviews = own.sort((a, b) => a.created < b.created ? 1 : -1).slice(0, 3).map((v) => ({ rating: v.rating, text: v.text, date: String(v.created).slice(0, 10) }));
+      p.done = done.filter((q) => q.sto_id === s.id).length;
+      p.lastReviews = own.sort((a, b) => a.created < b.created ? 1 : -1).slice(0, 10).map((v) => ({ rating: v.rating, text: v.text, date: String(v.created).slice(0, 10) }));
       return p;
     });
     res.sort((a, b) => (a.listed ? 1 : 0) - (b.listed ? 1 : 0) || (b.rating || 0) - (a.rating || 0) || b.reviews - a.reviews || (a.name < b.name ? -1 : 1));
