@@ -329,6 +329,8 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
 .set-link{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0}.vtag.off{opacity:.45}
 .tg-btn{background:#229ED9;color:#fff;border-color:#229ED9}
 .del-btn{color:#C62828;border-color:#F3C1C1}
+.grp-card{padding:0;overflow:hidden;position:relative}.grp-card img{width:100%;display:block;aspect-ratio:1200/630;object-fit:cover}.grp-b{padding:12px 16px 16px}
+.grp-x{position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;border:0;background:rgba(0,0,0,.45);color:#fff;font-size:20px;line-height:1;cursor:pointer}
 .km-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .km-row:first-of-type{border-top:0}.km-row small{display:block;color:var(--soft);font-size:12px}
 </style>
@@ -731,7 +733,7 @@ function renderAdminSettings() {
     };
     $('#grpSend').onclick = function () {
       var b = this; busy(b, true);
-      api('admin.groups.send', {}, { admin: true }).then(function (x) { busy(b, false); $('#grpR').innerHTML = '<div class="note ok" style="margin-top:8px">Надіслано: ' + x.sent + '. Уже мали посилання: ' + x.had + '.</div>'; })
+      api('admin.groups.send', {}, { admin: true }).then(function (x) { busy(b, false); $('#grpR').innerHTML = '<div class="note ok" style="margin-top:8px">Надіслано ' + x.sent + ' запрошень (' + x.people + ' люд.). Уже отримували раніше: ' + x.had + '.' + (x.noTg ? '<br>Без Telegram-бота: ' + x.noTg + ' з ' + x.total + '. Бот не може написати їм першим, тому вони побачать запрошення в застосунку (у гаражі чи заявках сервісу) й отримають його в Telegram, щойно підключать бота.' : '') + '</div>'; })
         .catch(function (e) { busy(b, false); $('#grpR').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
     };
     $$('.set-txt').forEach(function (el) { el.onchange = function () { var p = {}; p[el.dataset.k] = el.value.trim(); save(p, el); }; });
@@ -1031,10 +1033,23 @@ function expensesHtml(hist, M) {
     list.map(function (g) { return '<div class="exp-bar"><i style="width:' + Math.max(4, Math.round(grp[g] / total * 90)) + 'px"></i><span>' + esc(g) + '</span><b>' + esc(money(Math.round(grp[g]))) + '</b></div>'; }).join('') + '</div>';
 }
 
+// Запрошення в групу всередині застосунку (для тих, хто не підключав бота); можна закрити
+function groupCard() {
+  if (!state.group || store('ah_grp_hide') === state.group) return '';
+  var sto = state.user.role === 'sto' || !!state.sto;
+  return '<div class="card grp-card"><button type="button" class="grp-x" id="grpX" aria-label="Закрити">×</button><img src="../assets/tg-group-' + (sto ? 'services' : 'drivers') + '.jpg" alt="" loading="lazy">' +
+    '<div class="grp-b"><b>' + (sto ? 'Клуб партнерів АвтоХабу' : 'Автоспільнота Кривого Рогу') + '</b><p class="small" style="margin:4px 0 10px">' + (sto ? 'Закрита група сервісів: новини про заявки, поради й вплив на кабінет.' : 'Закрита група водіїв: чесні відгуки про СТО, поради й нові функції першими.') + '</p>' +
+    '<a class="btn sm tg-btn" href="' + esc(state.group) + '" target="_blank" rel="noopener" id="grpGo">' + (sto ? '🤝 Увійти в клуб' : '👥 Приєднатися') + '</a></div></div>';
+}
+function bindGroupCard() {
+  var hide = function () { store('ah_grp_hide', state.group); var c = $('.grp-card'); if (c) c.remove(); };
+  if ($('#grpX')) $('#grpX').onclick = hide;
+  if ($('#grpGo')) $('#grpGo').addEventListener('click', function () { setTimeout(hide, 500); });
+}
 function renderGarage() {
   loading();
   (state.cars ? Promise.resolve(state.cars) : loadCars()).then(function (cars) {
-    view.innerHTML = '<div class="page-head"><h1>Мій гараж</h1><button class="btn sm ghost" id="addCar">Додати авто</button></div>' +
+    view.innerHTML = '<div class="page-head"><h1>Мій гараж</h1><button class="btn sm ghost" id="addCar">Додати авто</button></div>' + groupCard() +
       (cars.length ? cars.map(function (c) {
         var spec = carSpec(c);
         return '<a class="dash' + (c.photo ? ' has-photo' : '') + '" href="#/car/' + esc(c.id) + '" aria-label="' + esc(c.make + ' ' + c.model) + ': історія і план ТО">' +
@@ -1045,6 +1060,7 @@ function renderGarage() {
           (docAlerts(c) ? '<div class="dash-alert">' + docAlerts(c) + '</div>' : '') + '</a>';
       }).join('') + '<a class="btn wide" href="#/new" style="margin-top:6px">Нова заявка в СТО</a>'
       : '<div class="card empty"><b>Додайте своє авто</b>Оберіть марку й модель зі списку, і ми складемо план обслуговування за пробігом.<div style="margin-top:14px"><button class="btn" id="addCar2">Додати авто</button></div></div>');
+    bindGroupCard();
     $('#addCar').onclick = function () { carDialog(); };
     var b2 = $('#addCar2'); if (b2) b2.onclick = function () { carDialog(); };
   }).catch(fail);
@@ -1712,7 +1728,8 @@ function renderStoRequests() {
       '<h1 style="margin-bottom:12px">Заявки</h1><div class="seg" style="margin-bottom:12px">' +
       [['new', 'Нові'], ['active', 'В роботі'], ['archive', 'Архів']].map(function (t) {
         return '<button type="button" data-t="' + t[0] + '" class="' + (stoTab === t[0] ? 'on' : '') + '">' + t[1] + (groups[t[0]].length ? ' · ' + groups[t[0]].length : '') + '</button>';
-      }).join('') + '</div><div id="stoReqs"></div>';
+      }).join('') + '</div>' + groupCard() + '<div id="stoReqs"></div>';
+    bindGroupCard();
     $$('[data-t]').forEach(function (b) { b.onclick = function () { stoTab = b.dataset.t; renderStoRequests(); }; });
     var list = groups[stoTab];
     $('#stoReqs').innerHTML = list.length ? list.map(function (q) {
@@ -2362,7 +2379,7 @@ function boot() {
     if (store('ah_view') && /Оберіть сервіс/.test(e.message)) { store('ah_view', null); store('ah_as_sto', null); return api('boot'); }
     throw e;
   }).then(function (r) {
-    state.user = r.user; state.sto = r.sto; state.meta = r.meta; if (r.user.role === 'driver') state.cars = r.cars;
+    state.user = r.user; state.sto = r.sto; state.meta = r.meta; state.group = r.group || ''; if (r.user.role === 'driver') state.cars = r.cars;
     store('ah_user', JSON.stringify(r.user));
     // у міні-застосунку Telegram: тихо прив'язуємо акаунт, щоб наступного разу вхід був автоматичним і йшли сповіщення
     if (TG && !r.user.tg) api('tg.bind', { initData: TG.initData }).then(function () { state.user.tg = true; store('ah_user', JSON.stringify(state.user)); }).catch(function () {});

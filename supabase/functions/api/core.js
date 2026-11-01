@@ -1292,8 +1292,10 @@ export function makeApi(db, deps) {
     return {};
   }
   // Посилання на групу спільноти (водіїв або сервісів) одразу після реєстрації чи підключення бота; кожному лише раз.
+  // Яку групу кому: сервіс → партнери; зареєстрований у боті як сервіс (картку ще заповнює) → партнери; водій із власним сервісом → обидві
+  const grpRoles = (u) => u.role === 'sto' || (!u.sto_id && String(u.source || '').indexOf('tg:sto') === 0) ? ['sto'] : u.sto_id ? ['driver', 'sto'] : ['driver'];
   async function tgGroup(chat, u, role, test) {
-    const r0 = role || (u.sto_id ? 'sto' : 'driver');
+    const r0 = role || grpRoles(u)[0];
     const url = r0 === 'sto' ? SET.group_services : SET.group_drivers;
     if (!url || !chat || !u) return false;
     const k = 'grp_' + r0 + '_' + u.id;
@@ -1333,12 +1335,14 @@ export function makeApi(db, deps) {
     await auth(r, 'admin');
     if (!(await botReady())) fail('Спершу налаштуйте Telegram-бота');
     if (!SET.group_drivers && !SET.group_services) fail('Вкажіть посилання хоча б на одну групу');
-    let sent = 0, had = 0;
-    for (const u of (await db.all('users')).filter((x) => x.tg_chat && x.role !== 'admin')) {
-      const roles = u.sto_id ? ['sto', 'driver'] : [u.role === 'sto' ? 'sto' : 'driver'];
-      for (const rl of roles) { if (await tgGroup(u.tg_chat, u, rl)) sent++; else had++; }
+    let sent = 0, had = 0, people = 0;
+    const all = (await db.all('users')).filter((x) => x.role !== 'admin');
+    for (const u of all.filter((x) => x.tg_chat)) {
+      let got = false;
+      for (const rl of grpRoles(u)) { if (await tgGroup(u.tg_chat, u, rl)) { sent++; got = true; } else had++; }
+      if (got) people++;
     }
-    return { sent, had };
+    return { sent, had, people, total: all.length, noTg: all.filter((x) => !x.tg_chat).length };
   }
   /* --- воронка в Telegram-боті: роль → «Поділитися номером» → акаунт створено → міні-застосунок --- */
   const FUNNEL = ['start', 'role', 'contact', 'reg', 'sto_card'];
@@ -1831,7 +1835,8 @@ export function makeApi(db, deps) {
     boot: async (r) => {
       const u = await auth(r);
       const [sto, cars] = await Promise.all([u.sto_id ? db.find('stos', 'id', u.sto_id) : null, u.role === 'driver' ? myCars(u) : []]);
-      return { user: pubUser(u), sto: sto ? pubSto(sto, true) : null, cars, meta: Object.assign({ ria: !!env.AUTO_RIA_KEY, otp: await otpMeta() }, META) };
+      const grp = u.role === 'sto' ? SET.group_services : (!u.sto_id && String(u.source || '').indexOf('tg:sto') === 0) ? SET.group_services : SET.group_drivers;
+      return { user: pubUser(u), sto: sto ? pubSto(sto, true) : null, cars, group: u.role === 'admin' ? '' : grp || '', meta: Object.assign({ ria: !!env.AUTO_RIA_KEY, otp: await otpMeta() }, META) };
     },
     'cars.list': async (r) => ({ cars: await myCars(await auth(r, 'driver')) }),
     'cars.add': async (r) => {
