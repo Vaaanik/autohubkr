@@ -1,0 +1,26 @@
+# АвтоХаб: щомісяця оновлює таблицю vin_registry з відкритого реєстру МВС (data.gov.ua).
+# Потрібен секрет SUPABASE_SERVICE_KEY (Settings → Secrets and variables → Actions). Без нього лише рахує записи.
+name: Реєстр VIN (МВС)
+on:
+  schedule:
+    - cron: '41 4 20 * *'   # 20-го числа щомісяця: ГСЦ оновлює файл у середині місяця
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['scripts/import-vin-registry.mjs', '.github/workflows/vin-registry.yml']
+concurrency:
+  group: vin-registry
+  cancel-in-progress: false
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/import-vin-registry.mjs
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          REGION_PREFIX: '12'

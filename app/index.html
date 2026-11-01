@@ -789,7 +789,8 @@ function carDialog(car) {
         if (setSel('#cDrive', c.drive)) got.push('привід');
         if (setSel('#cBody', c.body)) got.push('кузов');
         $('#cVin').value = c.vin;
-        $('#cVinNote').innerHTML = '<div class="note ' + (c.model && !c.modelGuess ? 'ok' : 'warn') + '" style="margin-top:8px">Заповнили: ' + got.join(', ') + '.' +
+        var src = (c.source || []).indexOf('реєстр МВС') !== -1 ? ' Дані з відкритого реєстру МВС' + (c.color ? ', колір: ' + esc(c.color) : '') + '.' : '';
+        $('#cVinNote').innerHTML = '<div class="note ' + (c.model && !c.modelGuess ? 'ok' : 'warn') + '" style="margin-top:8px">Заповнили: ' + got.join(', ') + '.' + src +
           (!c.model ? ' Модель за цим VIN у відкритих базах не знайшли, оберіть її зі списку.' : c.modelGuess ? ' Модель підказав AI, перевірте її.' : '') + ' Перевірте дані перед збереженням.</div>';
         if (!c.model) setTimeout(function () { $('#cModel').focus(); }, 30);
       }).catch(function (e) { busy(btn, false); $('#cVinNote').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
