@@ -739,7 +739,7 @@ function carDocs() { return (state.meta && state.meta.carDocs) || DOCS_FALLBACK;
 function docDays(d) { if (!d) return null; var t = new Date(); t.setHours(0, 0, 0, 0); return Math.round((new Date(d + 'T00:00:00') - t) / 864e5); }
 function docInfo(d) {
   var n = docDays(d);
-  if (n === null) return { cls: 'none', label: 'не вказано' };
+  if (n === null) return { cls: 'none', label: '—' };
   if (n < 0) return { cls: 'over', label: 'закінчився' };
   if (n === 0) return { cls: 'over', label: 'закінчується сьогодні' };
   if (n <= 30) return { cls: 'soon', label: 'ще ' + n + ' ' + (n % 10 === 1 && n % 100 !== 11 ? 'день' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 'дні' : 'днів') };
@@ -1029,7 +1029,15 @@ function renderCar(id) {
         '<p class="mini" style="margin:8px 0 0">Інтервали орієнтовні. Точні дивіться в сервісній книжці вашого авто. Натисніть на роботу, щоб записати, коли її робили.</p></div>' +
       kmCard(car) + aboutCard(car) +
       (car.osago_until === undefined ? '' : '<div class="card"><div class="between" style="margin-bottom:4px"><h2>Документи й страховка</h2><button type="button" class="link" id="editDocs">Змінити</button></div>' +
-        carDocs().map(function (d) { var i = docInfo(car[d[0]]); return '<div class="doc-row"><div><b>' + esc(d[1]) + '</b><small>' + (car[d[0]] ? 'до ' + esc(dt(car[d[0]])) : 'дату не вказано') + '</small></div><span class="doc-st ' + i.cls + '">' + esc(i.label) + '</span></div>'; }).join('') + '</div>') +
+        carDocs().map(function (d) {
+          var i = docInfo(car[d[0]]), mt = (car.docs_meta || {})[d[0]];
+          var sub = car[d[0]] ? 'до ' + esc(dt(car[d[0]])) + (mt && (mt.insurer || mt.number) ? ' · ' + esc([mt.insurer, mt.number ? '№ ' + mt.number : ''].filter(Boolean).join(', ')) : '')
+            : d[0] === 'inspection_until' ? 'для легкових авто в особистому користуванні зазвичай не потрібен' : 'дату не вказано';
+          return '<div class="doc-row"><div><b>' + esc(d[1]) + '</b><small>' + sub + '</small></div><span class="doc-st ' + i.cls + '">' + esc(i.label) + '</span></div>';
+        }).join('') +
+        '<div class="row" style="margin-top:10px;flex-wrap:wrap"><label class="btn sm" id="docBtn">Сфотографувати поліс<input type="file" accept="image/*,application/pdf" id="docFile" class="sr"></label>' +
+        '<a class="btn sm ghost" href="https://policy.mtsbu.ua/" target="_blank" rel="noopener" id="mtsbu">Перевірити в МТСБУ</a></div>' +
+        '<p class="mini" style="margin:8px 0 0">Сфотографуйте або завантажте PDF поліса ОСЦПВ, КАСКО чи Зеленої карти, і ми заповнимо строк і страховика. Відкритої бази полісів немає: МТСБУ дає перевірку лише на своєму сайті.</p><div id="docErr"></div></div>') +
       (M.ria ? '<div class="card" id="mkt"></div>' : '') +
       expensesHtml(hist, M) +
       '<h2 style="margin:18px 0 10px">Історія обслуговування</h2>' +
@@ -1046,6 +1054,20 @@ function renderCar(id) {
     $('#editCar').onclick = function () { carDialog(car); };
     $('#odoBtn').onclick = $('#kmBtn').onclick = function () { kmDialog(car); };
     bindAbout(car);
+    if ($('#mtsbu') && car.plate) $('#mtsbu').onclick = function () { try { navigator.clipboard.writeText(car.plate); toast('Номер ' + car.plate + ' скопійовано, вставте його на сайті МТСБУ'); } catch (e) {} };
+    if ($('#docFile')) $('#docFile').onchange = function () {
+      var f = this.files[0]; if (!f) return;
+      var lbl = $('#docBtn'); lbl.classList.add('busy'); lbl.firstChild.textContent = 'Читаю документ…'; $('#docErr').innerHTML = '';
+      var read = /pdf$/i.test(f.type) ? new Promise(function (ok, no) {
+        if (f.size > 1500000) return no(new Error('PDF завеликий, до 1,5 МБ'));
+        var fr = new FileReader(); fr.onload = function () { ok(fr.result); }; fr.onerror = function () { no(new Error('Не вдалося прочитати файл')); }; fr.readAsDataURL(f);
+      }) : shrinkPhoto(f);
+      read.then(function (d) { return api('ai.doc', { car_id: car.id, file: d }); }).then(function (r) {
+        var nm = (carDocs().filter(function (x) { return x[0] === r.doc.field; })[0] || [])[1] || 'Документ';
+        state.cars = null; toast(nm + ': до ' + dt(r.doc.until)); route();
+        if (r.doc.mismatch) setTimeout(function () { toast('Увага: номер або VIN у документі не збігається з цим авто', true); }, 600);
+      }).catch(function (e) { lbl.classList.remove('busy'); lbl.firstChild.textContent = 'Сфотографувати поліс'; $('#docErr').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+    };
     if ($('#kmBtn2')) $('#kmBtn2').onclick = function () { kmDialog(car); };
     if ($('#editDocs')) $('#editDocs').onclick = function () { docsDialog(car); };
     if ($('#mkt')) {

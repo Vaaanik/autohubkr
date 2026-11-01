@@ -165,7 +165,7 @@ function makeApi(db, deps) {
 
   /* --- облікові записи --- */
   const pubUser = (u) => { const p = { id: u.id, role: u.role, name: u.name, phone: u.phone, tg: !!u.tg_chat, dual: u.role !== 'admin' && !u.isAdmin && !!u.sto_id }; if (u.isAdmin || u.role === 'admin') p.isAdmin = true; return p; };
-  const CAR_KEYS = ['id', 'make', 'model', 'year', 'plate', 'vin', 'mileage', 'engine', 'fuel', 'power', 'gearbox', 'drive', 'body', 'modification', 'equipment', 'market', 'about', 'info'].concat(CAR_DOCS.map((d) => d[0]));
+  const CAR_KEYS = ['id', 'make', 'model', 'year', 'plate', 'vin', 'mileage', 'engine', 'fuel', 'power', 'gearbox', 'drive', 'body', 'modification', 'equipment', 'market', 'about', 'info', 'docs_meta'].concat(CAR_DOCS.map((d) => d[0]));
   const pubCar = (c, urls) => {
     const p = pick(c, CAR_KEYS); p.photo = c.photo && urls ? (urls[c.photo] || '') : '';
     p.mileage_log = kmLog(c).slice().reverse();
@@ -995,6 +995,35 @@ function makeApi(db, deps) {
     return { car: pubCar(upd, await signPhotos([upd])) };
   }
 
+  // Фото або PDF поліса ОСЦПВ / КАСКО / Зеленої карти / протоколу техконтролю → строк дії в картку авто.
+  // Відкритого API в МТСБУ немає (перевірка на сайті за капчею), тому строки беремо з самого документа.
+  async function aiDoc(r) {
+    const u = await auth(r, 'driver'); const c = await ownCar(u, r.car_id);
+    if (!env.GEMINI_API_KEY) fail('Розпізнавання документів ще не налаштоване');
+    const m = String(r.file || r.image || '').match(/^data:(image\/jpeg|application\/pdf);base64,([A-Za-z0-9+/=]+)$/);
+    if (!m) fail('Надішліть фото (JPEG) або PDF поліса');
+    if (m[2].length * 0.75 > PHOTO_MAX) fail('Файл завеликий, до 1,5 МБ');
+    const ck = 'ai_' + u.id, used = Number(await kvGet(ck) || 0);
+    if (used >= AI_LIMIT) fail('Ліміт розпізнавань вичерпано. Спробуйте за кілька годин.');
+    await kvPut(ck, used + 1, 21600);
+    const system = ['Ти розпізнаєш український автомобільний документ: поліс ОСЦПВ (автоцивілка, зокрема електронний), поліс КАСКО, Зелену карту або протокол обов\'язкового технічного контролю.',
+      'kind: osago, kasko, green, inspection або other. until — останній день дії (YYYY-MM-DD), from — перший день дії. Для техконтролю until — дата наступного контролю.',
+      'insurer — назва страхової компанії, number — номер поліса, plate — держномер авто, vin — VIN. Лише те, що видно в документі; чого немає, залиш порожнім. Не вигадуй.'].join('\n');
+    const schema = { type: 'OBJECT', properties: { kind: { type: 'STRING', enum: ['osago', 'kasko', 'green', 'inspection', 'other'] }, until: { type: 'STRING' }, from: { type: 'STRING' },
+      insurer: { type: 'STRING' }, number: { type: 'STRING' }, plate: { type: 'STRING' }, vin: { type: 'STRING' } }, required: ['kind'] };
+    const a = await gemini(ck, used, system, [{ inline_data: { mime_type: m[1], data: m[2] } }, { text: 'Розпізнай документ.' }], schema);
+    const field = { osago: 'osago_until', kasko: 'kasko_until', green: 'green_until', inspection: 'inspection_until' }[a.kind];
+    if (!field) fail('Не схоже на поліс чи протокол техконтролю. Сфотографуйте документ рівно й повністю.');
+    const until = date_(a.until);
+    if (!until) fail('Не вдалося прочитати дату закінчення. Вкажіть її вручну.');
+    const plate = s_(a.plate).toUpperCase().replace(/\s+/g, ''), vin = s_(a.vin).toUpperCase().replace(/\s+/g, '');
+    const lat = (x) => x.replace(/[АВЕІКМНОРСТХ]/g, (ch) => 'ABEIKMHOPCTX'['АВЕІКМНОРСТХ'.indexOf(ch)]);
+    const other = (plate && c.plate && lat(plate) !== lat(c.plate)) || (vin.length === 17 && c.vin && vin !== c.vin);
+    const docMeta = Object.assign({}, c.docs_meta || {}, { [field]: { insurer: s_(a.insurer).slice(0, 80), number: s_(a.number).slice(0, 30), from: date_(a.from) || '', at: today() } });
+    const upd = await db.update('cars', c.id, { [field]: until, docs_meta: docMeta });
+    return { car: pubCar(upd, await signPhotos([upd])), doc: { field, until, insurer: docMeta[field].insurer, number: docMeta[field].number, mismatch: !!other } };
+  }
+
   // Фото чека або заказ-наряду → чернетка запису в історію (водій перевіряє й зберігає сам).
   async function aiReceipt(r) {
     const u = await auth(r, 'driver');
@@ -1412,6 +1441,9 @@ function makeApi(db, deps) {
       const u = await auth(r, 'driver'); const c = await ownCar(u, r.id);
       const f = carFields(r, true);
       if (f.mileage && Number(f.mileage) !== Number(c.mileage)) f.mileage_log = kmPush(c, f.mileage, 'вручну');
+      const dm = Object.assign({}, c.docs_meta || {}); let dmCh = false;
+      CAR_DOCS.forEach((d) => { if (f[d[0]] !== undefined && f[d[0]] !== (c[d[0]] || '') && dm[d[0]]) { delete dm[d[0]]; dmCh = true; } });
+      if (dmCh) f.docs_meta = dm;
       const upd = await db.update('cars', c.id, f);
       return { car: pubCar(upd, await signPhotos([upd])) };
     },
@@ -1460,7 +1492,7 @@ function makeApi(db, deps) {
     'stats.public': statsPublic, 'ai.receipt': aiReceipt, 'vin.decode': vinDecode,
     'tg.link': tgLink, 'tg.unlink': tgUnlink, 'admin.tg.setup': adminTgSetup, 'admin.mail.test': adminMailTest,
     'tg.auth': tgAuth, 'tg.bind': tgBind, 'sto.photo': stoPhoto, 'admin.sto.photo': adminStoPhoto,
-    'ria.mods': riaMods, 'ria.equips': riaEquips, 'ria.price': riaPrice, 'cars.info': carInfo,
+    'ria.mods': riaMods, 'ria.equips': riaEquips, 'ria.price': riaPrice, 'cars.info': carInfo, 'ai.doc': aiDoc,
     'review.add': reviewAdd,
     'jobs.list': jobsList, 'jobs.add': jobsAdd, 'jobs.update': jobsUpdate, 'jobs.delete': jobsDelete,
     'history.list': async (r) => {
