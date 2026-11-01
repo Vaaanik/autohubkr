@@ -142,7 +142,7 @@ function makeApi(db, deps) {
   const bg = (p) => { const q = Promise.resolve(p).catch((e) => console.error('bg', e)); if (deps.bg) deps.bg(q); return q; };
   const tgOn = () => !!(deps.tg && env.TG_ON);
   const tgSend = (chat, m, buttons) => tgOn() && chat ? bg(deps.tg('sendMessage', { chat_id: chat, text: tgHtml(m), parse_mode: 'HTML', link_preview_options: { is_disabled: true },
-    reply_markup: buttons ? { inline_keyboard: buttons.map((b) => [{ text: b.text, url: b.url }]) } : undefined })) : null;
+    reply_markup: buttons ? { inline_keyboard: buttons.map((b) => [b.url.indexOf(APP_URL) === 0 ? { text: b.text, web_app: { url: b.url } } : { text: b.text, url: b.url }]) } : undefined })) : null;
   const mailSend = (to, m) => deps.mail && to ? bg(deps.mail(to, '[АвтоХаб] ' + m.title, mailHtml(m), mailText(m))) : null;
   const adminTg = (m, buttons) => tgOn() ? bg(db.where('users', 'role', 'admin').then((list) => Promise.all(list.filter((a) => a.tg_chat).map((a) => tgSend(a.tg_chat, m, buttons))))) : null;
   // Лист адміністратору (як і раніше) + те саме в Telegram адміністраторам, які підключили бота.
@@ -181,6 +181,8 @@ function makeApi(db, deps) {
     if (s.lat && s.lng) { p.lat = Number(s.lat); p.lng = Number(s.lng); }
     p.services = String(s.services || '').split(', ').filter(String);
     p.listed = !s.owner_id && s.partner !== true;
+    p.logo = s.logo && deps.storagePub ? deps.storagePub.url(s.logo) : '';
+    p.photos = (Array.isArray(s.photos) ? s.photos : []).map((x) => deps.storagePub ? deps.storagePub.url(x) : '').filter(Boolean);
     if (!s.owner_id && s.partner === true) p.managed = true;   // партнер без власного акаунта: заявки веде зв'язковий
     if (own) { p.active = isActive(s); p.email = s.email || ''; }
     return p;
@@ -494,6 +496,62 @@ function makeApi(db, deps) {
     if (!j || j.sto_id !== u.sto_id) fail('Запис не знайдено');
     if (j.request_id) fail('Запис із заявки АвтоХабу видалити не можна');
     await db.removeWhere('sto_jobs', 'id', j.id);
+    return {};
+  }
+
+  /* --- фото сервісу: логотип і до 8 фото робіт та цеху (публічні) --- */
+  async function stoPhotoOp(sto, r) {
+    if (!deps.storagePub) fail('Фото тимчасово недоступні');
+    const photos = Array.isArray(sto.photos) ? sto.photos.slice() : [];
+    if (r.remove) {
+      if (r.kind === 'logo') { if (sto.logo) await deps.storagePub.remove([sto.logo]).catch(() => {}); return db.update('stos', sto.id, { logo: '' }); }
+      const url = String(r.remove), keep = photos.filter((x) => deps.storagePub.url(x) !== url);
+      const gone = photos.filter((x) => keep.indexOf(x) === -1);
+      if (gone.length) await deps.storagePub.remove(gone).catch(() => {});
+      return db.update('stos', sto.id, { photos: keep });
+    }
+    const m = String(r.image || '').match(/^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/);
+    if (!m) fail('Надішліть фото у форматі JPEG');
+    const bytes = deps.b64decode(m[1]);
+    if (bytes.length > PHOTO_MAX) fail('Фото завелике');
+    if (!(bytes[0] === 0xFF && bytes[1] === 0xD8)) fail('Це не схоже на фото JPEG');
+    if (r.kind !== 'logo' && photos.length >= 8) fail('Можна додати до 8 фото. Видаліть зайві.');
+    const path = sto.id + '/' + (r.kind === 'logo' ? 'logo' : 'p') + '-' + deps.uuid().slice(0, 8) + '.jpg';
+    await deps.storagePub.put(path, bytes, 'image/jpeg');
+    if (r.kind === 'logo') { if (sto.logo) await deps.storagePub.remove([sto.logo]).catch(() => {}); return db.update('stos', sto.id, { logo: path }); }
+    photos.push(path);
+    return db.update('stos', sto.id, { photos });
+  }
+  async function stoPhoto(r) {
+    const u = await auth(r, 'sto');
+    const sto = await db.find('stos', 'id', u.sto_id || '-');
+    if (!sto) fail('Сервіс не знайдено');
+    return { sto: pubSto(await stoPhotoOp(sto, r), true) };
+  }
+  async function adminStoPhoto(r) {
+    await auth(r, 'admin');
+    const sto = await db.find('stos', 'id', String(r.id || ''));
+    if (!sto) fail('Сервіс не знайдено');
+    const upd = await stoPhotoOp(sto, r);
+    const p = pubSto(upd, true); p.source = upd.source; p.geo = geoOf(upd); p.partner = upd.partner === true;
+    return { sto: p };
+  }
+
+  /* --- міні-застосунок Telegram: вхід і прив'язка за підписаними даними Telegram --- */
+  async function tgAuth(r) {
+    const tu = deps.tgCheck ? await deps.tgCheck(r.initData) : null;
+    if (!tu || !tu.id) fail('Не вдалося перевірити Telegram');
+    const u = (await db.where('users', 'tg_chat', String(tu.id)))[0];
+    if (!u) return { linked: false, tgName: s_(tu.first_name) };
+    return session(u);
+  }
+  async function tgBind(r) {
+    const u = await auth(r);
+    const tu = deps.tgCheck ? await deps.tgCheck(r.initData) : null;
+    if (!tu || !tu.id) fail('Не вдалося перевірити Telegram');
+    const chat = String(tu.id);
+    for (const o of await db.where('users', 'tg_chat', chat)) if (o.id !== u.id) await db.update('users', o.id, { tg_chat: '' });
+    await db.update('users', u.id, { tg_chat: chat });
     return {};
   }
 
@@ -905,7 +963,7 @@ function makeApi(db, deps) {
       await tgSend(chat, { emoji: '👋', title: 'Сповіщення вимкнено', intro: 'Підключити знову можна в застосунку, розділ «Профіль».' });
       return {};
     }
-    await tgSend(chat, { emoji: '🚗', title: 'Це бот АвтоХабу', intro: 'Він надсилає сповіщення про заявки. Щоб підключити, відкрийте застосунок → «Профіль» → «Підключити Telegram».' }, [{ text: 'Відкрити АвтоХаб', url: APP_URL }]);
+    await tgSend(chat, { emoji: '🚗', title: 'АвтоХаб — автосервіси Кривого Рогу', intro: 'Гараж вашого авто, заявки в перевірені СТО й відповіді сервісів — прямо тут, у Telegram. Натисніть кнопку нижче. Увійдіть один раз, і бот підключиться сам.' }, [{ text: '🚗 Відкрити АвтоХаб', url: APP_URL }]);
     return {};
   }
   async function adminTgSetup(r) {
@@ -915,7 +973,8 @@ function makeApi(db, deps) {
     const bot = await tgBot();
     const res = await deps.tg('setWebhook', { url: env.API_URL, secret_token: env.TG_SECRET, allowed_updates: ['message'], drop_pending_updates: true });
     if (!res || !res.ok) fail('Telegram не прийняв вебхук: ' + ((res && res.description) || 'невідома помилка'));
-    await deps.tg('setMyCommands', { commands: [{ command: 'start', description: 'Підключити сповіщення' }, { command: 'stop', description: 'Вимкнути сповіщення' }] });
+    await deps.tg('setMyCommands', { commands: [{ command: 'start', description: 'Підключити сповіщення' }, { command: 'app', description: 'Відкрити застосунок' }, { command: 'stop', description: 'Вимкнути сповіщення' }] });
+    await deps.tg('setChatMenuButton', { menu_button: { type: 'web_app', text: 'АвтоХаб', web_app: { url: APP_URL } } });
     await deps.tg('setMyDescription', { description: 'Сповіщення АвтоХабу: нові заявки для сервісів і відповіді для водіїв. Кривий Ріг.' });
     return { bot };
   }
@@ -1099,6 +1158,7 @@ function makeApi(db, deps) {
     'req.create': reqCreate, 'req.list': reqList, 'req.update': reqUpdate, 'req.visit': reqVisit, 'req.confirm': reqConfirm,
     'stats.public': statsPublic, 'ai.receipt': aiReceipt, 'vin.decode': vinDecode,
     'tg.link': tgLink, 'tg.unlink': tgUnlink, 'admin.tg.setup': adminTgSetup, 'admin.mail.test': adminMailTest,
+    'tg.auth': tgAuth, 'tg.bind': tgBind, 'sto.photo': stoPhoto, 'admin.sto.photo': adminStoPhoto,
     'review.add': reviewAdd,
     'jobs.list': jobsList, 'jobs.add': jobsAdd, 'jobs.update': jobsUpdate, 'jobs.delete': jobsDelete,
     'history.list': async (r) => {
@@ -1208,6 +1268,13 @@ const storage = {
     const out = {}; (data || []).forEach((x) => { if (x.signedUrl) out[x.path] = x.signedUrl; }); return out;
   }
 };
+// Фото сервісів (логотип, фото робіт і цеху): публічний кошик sto-photos — їх бачать усі водії й сторінки сайту.
+const PUB_BUCKET = 'sto-photos';
+const storagePub = {
+  put: async (path, bytes, type) => { const { error } = await sb.storage.from(PUB_BUCKET).upload(path, bytes, { contentType: type, upsert: true }); if (error) throw new Error(error.message); },
+  remove: async (paths) => { await sb.storage.from(PUB_BUCKET).remove(paths); },
+  url: (path) => Deno.env.get('SUPABASE_URL') + '/storage/v1/object/public/' + PUB_BUCKET + '/' + path
+};
 const b64decode = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 const bg = (p) => { try { EdgeRuntime.waitUntil(p); } catch (_) { /* поза Supabase */ } };
 
@@ -1232,6 +1299,20 @@ async function tg(method, payload) {
 }
 
 const hex = (buf) => Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+// Перевірка initData міні-застосунку Telegram (HMAC за токеном бота). Повертає користувача Telegram або null.
+async function tgCheck(initData) {
+  if (!TG_TOKEN || !initData) return null;
+  const p = new URLSearchParams(String(initData)); const hash = p.get('hash'); if (!hash) return null; p.delete('hash');
+  const check = [...p.entries()].map(([k, v]) => k + '=' + v).sort().join('\n');
+  const enc = new TextEncoder();
+  const k1 = await crypto.subtle.importKey('raw', enc.encode('WebAppData'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const secret = await crypto.subtle.sign('HMAC', k1, enc.encode(TG_TOKEN));
+  const k2 = await crypto.subtle.importKey('raw', secret, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = Array.from(new Uint8Array(await crypto.subtle.sign('HMAC', k2, enc.encode(check)))).map((b) => b.toString(16).padStart(2, '0')).join('');
+  if (sig !== hash) return null;
+  if (Date.now() / 1000 - Number(p.get('auth_date') || 0) > 86400) return null;
+  try { return JSON.parse(p.get('user') || 'null'); } catch (_) { return null; }
+}
 const hex2 = (buf) => Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
 const TG_SECRET = TG_TOKEN ? hex2(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('autohub-webhook:' + TG_TOKEN))).slice(0, 48) : '';
 const api = makeApi(db, {
@@ -1241,7 +1322,7 @@ const api = makeApi(db, {
     get BAZA_GAI_KEY() { return Deno.env.get('BAZA_GAI_KEY') || ''; }, TG_ON: !!TG_TOKEN, TG_SECRET, API_URL: Deno.env.get('SUPABASE_URL') + '/functions/v1/api' },
   fetch: (u, o) => fetch(u, o),
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-  notify, storage, b64decode, mail, tg, bg
+  notify, storage, storagePub, b64decode, mail, tg, bg, tgCheck
 });
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS',
