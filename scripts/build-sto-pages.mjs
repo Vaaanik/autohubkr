@@ -72,7 +72,7 @@ const foot = (depth) => `</main>
     <nav><a href="${depth}">Головна</a><a href="${depth}app/">Застосунок</a><a href="${depth}services/">Для сервісів</a><a href="${depth}privacy/">Конфіденційність</a></nav>
   </div>
 </footer>
-<script src="${depth}assets/config.js?v=5"></script>
+<script src="${depth}assets/config.js?v=6"></script>
 <script src="${depth}assets/track.js"></script>
 </body>
 </html>

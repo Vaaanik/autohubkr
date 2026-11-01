@@ -471,6 +471,7 @@
           <h2>Заявку партнера прийнято</h2>
           <p style="margin-top:14px" id="tgNote">Дякуємо, що ви з нами! Картку сервісу вже створено. Зареєструйтеся в застосунку з тим самим номером, щоб керувати карткою й отримувати заявки.</p>
           <a class="btn" id="tgBtn" href="#" rel="noopener">Продовжити в Telegram</a>
+          <a class="btn" id="tgGroupBtn" href="#" target="_blank" rel="noopener" style="display:none;margin-top:10px">Група сервісів у Telegram</a>
         </div>
       </div>
     </div>
@@ -495,13 +496,14 @@
 <footer>
   <div class="wrap foot">
     <span>АвтоХаб. Автомобільна спільнота Кривого Рогу. Пілотна версія, закритий тест.</span>
-    <nav><a href="../">Головна</a><a href="../app/">Застосунок</a><a href="../sto/">Автосервіси міста</a><a href="../drivers/">Для водіїв</a><a href="../services/">Для сервісів</a><a href="../privacy/">Конфіденційність</a></nav>
+    <nav><a href="../">Головна</a><a href="../app/">Застосунок</a><a href="../sto/">Автосервіси міста</a><a href="../drivers/">Для водіїв</a><a href="../services/">Для сервісів</a><a id="tgGroupLink" href="#" target="_blank" rel="noopener" style="display:none">Telegram-група сервісів</a><a href="../privacy/">Конфіденційність</a></nav>
   </div>
 </footer>
 
 <div class="sticky"><a class="btn" href="#join">Стати партнером</a></div>
 
-<script src="../assets/config.js?v=5"></script>
+<script src="../assets/config.js?v=6"></script>
+<script>(function(){var u=(window.AUTOHUB_CONFIG||{}).tgServices;if(!u)return;["tgGroupLink","tgGroupBtn"].forEach(function(id){var a=document.getElementById(id);if(a){a.href=u;a.style.display=""}});})();</script>
 <script>
 /* Налаштування беруться з assets/config.js */
 var CFG = window.AUTOHUB_CONFIG || {};

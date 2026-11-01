@@ -10,6 +10,10 @@ window.AUTOHUB_CONFIG = {
   // тут можна вказати вручну без @ (наприклад autohubkr_bot), якщо потрібно.
   tgBot: "",
 
+  // Закриті Telegram-групи для прямого спілкування (показуються на лендингах: у футері й після заявки)
+  tgDrivers:  "https://t.me/+E2OKvVJcxyM0ODRi",   // група водіїв
+  tgServices: "https://t.me/+jMooGlmSlZRlNjFi",   // група сервісів
+
   // Скільки місць у тесті
   driversTotal:  300,
   servicesTotal: 30,
