@@ -588,6 +588,68 @@ function stoPicker() {
 function loading() { view.innerHTML = '<div class="spin">Завантаження…</div>'; }
 function meta() { return state.meta ? Promise.resolve(state.meta) : api('meta').then(function (r) { state.meta = r; return r; }); }
 
+/* Підтвердження номера: код у Telegram / Viber / SMS або через Telegram-бота. done({otp_code}|{otp_nonce}) */
+function verifyPhone(phone, purpose, done) {
+  var C = (state.meta && state.meta.otp) || {}, poll = null, stop = function () { if (poll) { clearInterval(poll); poll = null; } };
+  var codeCh = C.telegram || C.sms;
+  var shown = String(phone).replace(/\D/g, ''); shown = shown.length >= 9 ? '+380 ' + shown.slice(-9).replace(/(\d{2})(\d{3})(\d{2})(\d{2})/, '$1 $2 $3 $4') : phone;
+  openDialog('<h2 style="margin-bottom:6px">Підтвердіть номер</h2><p class="small" style="margin:0 0 12px">' + esc(shown) + '</p><div class="stack">' +
+    (C.telegram ? '<button type="button" class="btn wide" data-ch="telegram">Отримати код у Telegram</button>' : '') +
+    (C.sms ? '<button type="button" class="btn wide ' + (C.telegram ? 'ghost' : '') + '" data-ch="sms">Отримати код ' + (C.viber ? 'у Viber або SMS' : 'в SMS') + '</button>' : '') +
+    (C.bot ? '<button type="button" class="btn wide ' + (codeCh ? 'ghost' : '') + '" id="vBot">Підтвердити через Telegram-бота</button>' + (codeCh ? '' : '<p class="mini" style="margin:0">Відкриється бот АвтоХабу: натисніть «Поділитися номером», і реєстрація продовжиться сама.</p>') : '') +
+    '<div id="vCode" hidden><label class="f" for="vIn">Код із повідомлення</label><input class="i" id="vIn" inputmode="numeric" autocomplete="one-time-code" maxlength="6" style="font-size:22px;letter-spacing:6px;text-align:center">' +
+      '<p class="mini" id="vVia" style="margin:6px 0 0"></p><button type="button" class="btn wide" id="vGo" style="margin-top:10px">Підтвердити</button></div>' +
+    '<div id="vWait" hidden class="note info">Чекаємо підтвердження в Telegram… Після натискання «Поділитися номером» повертайтеся сюди.</div>' +
+    '<div id="vErr"></div><button type="button" class="btn ghost wide" data-close>Скасувати</button></div>');
+  var dlg = document.getElementById('dlg'); if (dlg) dlg.addEventListener('close', stop, { once: true });
+  var err = function (m) { $('#vErr').innerHTML = m ? '<div class="note err">' + esc(m) + '</div>' : ''; };
+  $$('[data-ch]').forEach(function (b) {
+    b.onclick = function () {
+      err(''); busy(b, true);
+      api('otp.send', { phone: phone, purpose: purpose, channel: b.dataset.ch }).then(function (r) {
+        busy(b, false); $('#vCode').hidden = false; $('#vIn').focus();
+        $('#vVia').textContent = { telegram: 'Код надіслано в Telegram (повідомлення від «Verification Codes»).', viber: 'Код надіслано у Viber, якщо його немає, прийде SMS.', sms: 'Код надіслано в SMS.' }[r.via] + ' Діє 10 хвилин.';
+        var t = 60; b.disabled = true; var lbl = b.textContent; var iv = setInterval(function () { t--; b.textContent = 'Ще раз через ' + t + ' с'; if (t <= 0) { clearInterval(iv); b.disabled = false; b.textContent = lbl; } }, 1000);
+      }).catch(function (e) { busy(b, false); err(e.message); });
+    };
+  });
+  if ($('#vGo')) {
+    $('#vIn').oninput = function () { this.value = this.value.replace(/\D/g, ''); if (this.value.length === 4) $('#vGo').click(); };
+    $('#vGo').onclick = function () { var c = $('#vIn').value; if (c.length < 4) return err('Введіть код із повідомлення'); stop(); done({ otp_code: c }, err); };
+  }
+  if ($('#vBot')) $('#vBot').onclick = function () {
+    var b = this; err(''); busy(b, true);
+    api('otp.bot', { phone: phone, purpose: purpose }).then(function (r) {
+      busy(b, false);
+      if (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) Telegram.WebApp.openTelegramLink(r.url); else window.open(r.url, '_blank', 'noopener');
+      $('#vWait').hidden = false; stop();
+      var n = 0;
+      poll = setInterval(function () {
+        if (++n > 300) { stop(); err('Час минув. Спробуйте ще раз.'); return; }
+        api('otp.bot.check', { nonce: r.nonce }).then(function (x) {
+          if (x.confirmed) { stop(); $('#vWait').textContent = 'Номер підтверджено ✓'; done({ otp_nonce: r.nonce }, err); }
+          else if (x.error) { stop(); $('#vWait').hidden = true; err(x.error); }
+        }).catch(function (e) { stop(); err(e.message); });
+      }, 2000);
+    }).catch(function (e) { busy(b, false); err(e.message); });
+  };
+}
+function pinResetDialog(phone0) {
+  openDialog('<h2 style="margin-bottom:6px">Відновити PIN</h2><p class="mini" style="margin:0 0 12px">Підтвердимо, що номер ваш, і ви задасте новий PIN.</p><div class="stack">' +
+    '<div><label class="f" for="rPh">Телефон</label><input class="i" id="rPh" type="tel" inputmode="tel" value="' + esc(phone0 || '') + '" placeholder="+380 67 123 45 67"></div>' +
+    '<div class="grid2"><div><label class="f" for="rPin">Новий PIN</label><input class="i" id="rPin" type="password" inputmode="numeric" maxlength="6"></div><div><label class="f" for="rPin2">Ще раз</label><input class="i" id="rPin2" type="password" inputmode="numeric" maxlength="6"></div></div>' +
+    '<div id="rErr"></div><div class="row"><button type="button" class="btn ghost" data-close style="flex:1">Скасувати</button><button type="button" class="btn" id="rGo" style="flex:1">Далі</button></div></div>');
+  $('#rGo').onclick = function () {
+    var ph = $('#rPh').value, pin = $('#rPin').value, e0 = '';
+    if (String(ph).replace(/\D/g, '').length < 9) e0 = 'Вкажіть номер телефону'; else if (!/^\d{4,6}$/.test(pin)) e0 = 'PIN має бути з 4–6 цифр'; else if (pin !== $('#rPin2').value) e0 = 'PIN-коди не збігаються';
+    if (e0) { $('#rErr').innerHTML = '<div class="note err">' + esc(e0) + '</div>'; return; }
+    verifyPhone(ph, 'reset', function (proof, err) {
+      api('pin.reset', Object.assign({ phone: ph, pin: pin }, proof)).then(function (r) {
+        closeDialog(); state.token = r.token; state.user = r.user; store('ah_token', r.token); store('ah_user', JSON.stringify(r.user)); toast('Новий PIN збережено'); boot();
+      }).catch(function (e) { err(e.message); });
+    });
+  };
+}
 /* ---------- вхід і реєстрація ---------- */
 function renderLogin() {
   var mode = 'login', role = 'driver';
@@ -604,10 +666,12 @@ function renderLogin() {
         (mode === 'reg' ? '<div><label class="f" for="pin2">Ще раз PIN</label><input class="i" id="pin2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" required></div>' : '') + '</div>' +
         (mode === 'reg' && role === 'sto' ? stoFields({}) : '') +
         '<div id="authErr"></div>' +
-        '<button class="btn wide" id="authBtn">' + (mode === 'login' ? 'Увійти' : (role === 'sto' ? 'Зареєструвати сервіс' : 'Створити акаунт')) + '</button>' +
+        '<button class="btn wide" id="authBtn">' + (mode === 'login' ? 'Увійти' : (state.meta && state.meta.otp ? 'Підтвердити номер' : (role === 'sto' ? 'Зареєструвати сервіс' : 'Створити акаунт'))) + '</button>' +
+        (mode === 'login' && state.meta && state.meta.otp ? '<button type="button" class="link" id="forgot" style="align-self:center">Забули PIN?</button>' : '') +
         (mode === 'reg' ? '<p class="small muted" style="margin:0">Реєструючись, ви погоджуєтеся з <a href="../privacy/" target="_blank">політикою конфіденційності</a>. Телефон бачить лише сервіс, який прийняв вашу заявку.</p>' : '<p class="small muted" style="margin:0">Забули PIN? Напишіть нам: <a href="mailto:info@autohubkr.com">info@autohubkr.com</a></p>') +
       '</form></div><p class="login-foot">Пілотна версія для Кривого Рогу · <a href="../">Про АвтоХаб</a> · <a href="../privacy/">Конфіденційність</a></p>';
     $$('[data-m]').forEach(function (b) { b.onclick = function () { mode = b.dataset.m; draw(); }; });
+    if ($('#forgot')) $('#forgot').onclick = function () { pinResetDialog($('#phone').value); };
     $$('[data-r]').forEach(function (b) { b.onclick = function () { role = b.dataset.r; draw(); }; });
     bindChips(view);
     $('#authForm').onsubmit = function (e) {
@@ -625,11 +689,15 @@ function renderLogin() {
         if (role === 'sto') { payload.sto = readSto(); problem = stoProblem(payload.sto); }
       }
       if (problem) { err.innerHTML = '<div class="note err">' + esc(problem) + '</div>'; return; }
-      var btn = $('#authBtn'); busy(btn, true);
-      api(mode === 'login' ? 'login' : 'register', payload).then(function (r) {
-        state.token = r.token; state.user = r.user; store('ah_token', r.token); store('ah_user', JSON.stringify(r.user));
-        return boot();
-      }).catch(function (e2) { busy(btn, false); err.innerHTML = '<div class="note err">' + esc(e2.message) + '</div>'; });
+      var btn = $('#authBtn');
+      var finish = function (r) { state.token = r.token; state.user = r.user; store('ah_token', r.token); store('ah_user', JSON.stringify(r.user)); return boot(); };
+      if (mode === 'reg' && state.meta && state.meta.otp) {
+        return verifyPhone(phone, 'register', function (proof, verr) {
+          api('register', Object.assign(payload, proof)).then(function (r) { closeDialog(); return finish(r); }).catch(function (e2) { verr(e2.message); });
+        });
+      }
+      busy(btn, true);
+      api(mode === 'login' ? 'login' : 'register', payload).then(finish).catch(function (e2) { busy(btn, false); err.innerHTML = '<div class="note err">' + esc(e2.message) + '</div>'; });
     };
   }
   meta().then(draw, function (e) { draw(); fail(e); });

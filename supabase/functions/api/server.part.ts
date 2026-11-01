@@ -102,7 +102,8 @@ const api = makeApi(db, {
   uuid: () => crypto.randomUUID(),
   sha256hex: async (s) => hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))),
   env: { get GEMINI_API_KEY() { return Deno.env.get('GEMINI_API_KEY') || ''; }, get GEMINI_MODEL() { return Deno.env.get('GEMINI_MODEL') || ''; },
-    get AUTO_RIA_KEY() { return Deno.env.get('AUTO_RIA_KEY') || ''; }, TG_ON: !!TG_TOKEN, TG_SECRET, API_URL: Deno.env.get('SUPABASE_URL') + '/functions/v1/api' },
+    get AUTO_RIA_KEY() { return Deno.env.get('AUTO_RIA_KEY') || ''; }, get TG_GATEWAY_TOKEN() { return Deno.env.get('TG_GATEWAY_TOKEN') || ''; },
+    get TURBOSMS_TOKEN() { return Deno.env.get('TURBOSMS_TOKEN') || ''; }, get TURBOSMS_SENDER() { return Deno.env.get('TURBOSMS_SENDER') || ''; }, get TURBOSMS_VIBER_SENDER() { return Deno.env.get('TURBOSMS_VIBER_SENDER') || ''; }, TG_ON: !!TG_TOKEN, TG_SECRET, API_URL: Deno.env.get('SUPABASE_URL') + '/functions/v1/api' },
   fetch: (u, o) => fetch(u, o),
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
   notify, storage, storagePub, b64decode, mail, tg, bg, tgCheck, vinShard
