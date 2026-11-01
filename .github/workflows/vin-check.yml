@@ -1,0 +1,20 @@
+# АвтоХаб: перевірити, чи є VIN в офіційних відкритих даних МВС (data.gov.ua, 2021–2026). Нічого не записує.
+name: Перевірка VIN у даних МВС
+on:
+  workflow_dispatch:
+    inputs:
+      vin:
+        description: VIN (17 символів)
+        required: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/import-vin-registry.mjs
+        env:
+          CHECK_VIN: ${{ inputs.vin }}
