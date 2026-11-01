@@ -239,7 +239,7 @@
     <div class="sec-head"><h2>Як проходить тест</h2></div>
     <ol class="steps">
       <li><h3>Заявка</h3><p>Залишаєте контакт і коротко розповідаєте про авто та які послуги вам потрібні.</p></li>
-      <li><h3>Закрита група</h3><p>Після заявки отримуєте запрошення до Telegram-групи тестувальників.</p></li>
+      <li><h3>Telegram-бот</h3><p>Після заявки відкривається бот АвтоХабу: одна кнопка, і акаунт готовий. Туди ж приходять відповіді сервісів і нагадування.</p></li>
       <li><h3>Перші функції</h3><p>Відкриваємо доступ до гаража, підбору сервісів та AI-помічника поетапно.</p></li>
       <li><h3>Ваш відгук</h3><p>Кажете, що зручно, а що ні. З цього складається план розвитку.</p></li>
     </ol>
@@ -296,7 +296,7 @@
             <div>
               <label class="l" for="tg">Telegram <span class="hint">(нік або номер телефону)</span></label>
               <input type="text" id="tg" name="telegram" placeholder="@нік" autocomplete="off">
-              <div class="err" id="e-tg">Вкажіть Telegram, щоб ми додали вас до групи.</div>
+              <div class="err" id="e-tg">Вкажіть Telegram або телефон, щоб ми могли з вами зв'язатися.</div>
             </div>
           </div>
           <fieldset>
@@ -391,8 +391,8 @@
         <div class="thanks" id="thanks" role="status">
           <div class="tick" aria-hidden="true">&#10003;</div>
           <h2>Заявку прийнято</h2>
-          <p style="margin-top:14px">Дякуємо, що ви з нами! Наступний крок: вступіть до Telegram-групи автоспільноти Кривого Рогу. Там ми повідомимо про відкриття перших функцій.</p>
-          <a class="btn" id="tgBtn" href="#" target="_blank" rel="noopener">Перейти до групи в Telegram</a>
+          <p style="margin-top:14px" id="tgNote">Дякуємо, що ви з нами! Гараж, заявки в сервіси й AI-помічник уже працюють у застосунку: зареєструйтеся за номером телефону.</p>
+          <a class="btn" id="tgBtn" href="#" rel="noopener">Продовжити в Telegram</a>
         </div>
       </div>
     </div>
@@ -428,7 +428,6 @@
 /* Налаштування беруться з assets/config.js */
 var CFG = window.AUTOHUB_CONFIG || {};
 var FORM_ENDPOINT = CFG.formEndpoint || "";
-var TG_GROUP_URL  = CFG.tgDrivers || "";
 var SPOTS_TOTAL   = CFG.driversTotal || 300;
 var SPOTS_TAKEN   = (typeof CFG.driversTaken === 'number') ? CFG.driversTaken : null;
 
@@ -532,11 +531,15 @@ var SPOTS_TAKEN   = (typeof CFG.driversTaken === 'number') ? CFG.driversTaken : 
 
     btn.disabled = true; btn.textContent = 'Надсилаємо...';
 
-    function done(){
+    function done(res){
       f.style.display = 'none';
       var t = $('thanks'); t.classList.add('on');
-      var b = $('tgBtn');
-      if (TG_GROUP_URL) b.href = TG_GROUP_URL; else b.style.display = 'none';
+      var b = $('tgBtn'), go = res && res.tg;
+      if (go) {
+        b.href = go; b.style.display = '';
+        $('tgNote').textContent = 'Зараз відкриється Telegram-бот АвтоХабу. Натисніть «Поділитися номером», і акаунт буде готовий за кілька секунд.';
+        setTimeout(function(){ location.href = go; }, 1500);
+      } else { b.href = '../app/'; b.textContent = 'Відкрити застосунок'; b.removeAttribute('target'); }
       t.scrollIntoView({block:'center', behavior:'smooth'});
     }
 
@@ -548,7 +551,7 @@ var SPOTS_TAKEN   = (typeof CFG.driversTaken === 'number') ? CFG.driversTaken : 
     }
     fetch(FORM_ENDPOINT, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(data)})
       .then(function(r){ return r.json(); })
-      .then(function(res){ if (!res || !res.ok) throw new Error(res && res.error); done(); })
+      .then(function(res){ if (!res || !res.ok) throw new Error(res && res.error); done(res); })
       .catch(function(){
         btn.disabled = false; btn.textContent = BTN_TEXT; refresh();
         show('e-send', true);

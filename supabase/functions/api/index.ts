@@ -1147,7 +1147,7 @@ function makeApi(db, deps) {
     const cached = await kvGet('stats_public');
     if (cached) return JSON.parse(cached);
     const [leads, stos] = await Promise.all([db.all('leads'), db.where('stos', 'active', true)]);
-    const res = { drivers: leads.filter((l) => l.kind === 'driver').length, services: leads.filter((l) => l.kind === 'service').length, catalog: stos.length };
+    const res = { drivers: leads.filter((l) => l.kind === 'driver').length, services: leads.filter((l) => l.kind === 'service').length, catalog: stos.length, tgBot: await botName() };
     await kvPut('stats_public', JSON.stringify(res), 300);
     return res;
   }
@@ -1254,6 +1254,8 @@ function makeApi(db, deps) {
   }
   /* --- воронка в Telegram-боті: роль → «Поділитися номером» → акаунт створено → міні-застосунок --- */
   const FUNNEL = ['start', 'role', 'contact', 'reg', 'sto_card'];
+  const botReady = async () => tgOn() && !!(await kvGet('tg_hook'));
+  const botName = async () => { try { return (await botReady()) ? await tgBot() : ''; } catch (e) { return ''; } };
   const fnHit = async (stage, role) => { for (const k of ['fn_' + stage, 'fn_' + stage + '_' + (role || 'x')]) { const n = Number(await kvGet(k) || 0); await kvPut(k, n + 1, 10 * 365 * 86400); } };
   const ROLE_ASK = { emoji: '👋', title: 'Вітаємо в АвтоХабі', intro: 'Сервіс для водіїв і автосервісів Кривого Рогу: гараж з історією, заявки в перевірені СТО, відповіді й нагадування прямо в Telegram.\n\nХто ви?' };
   async function tgAskRole(chat) {
@@ -1272,6 +1274,20 @@ function makeApi(db, deps) {
     if (linked) {
       await tgKeyboard(chat, tgHtml({ emoji: '🚗', title: 'З поверненням, ' + linked.name, intro: 'Натисніть «Відкрити АвтоХаб» внизу.' }));
       return;
+    }
+    const lm = String(payload || '').match(/^l_([a-f0-9]{16})$/);
+    if (lm) {
+      const lid = await kvGet('leadtg_' + lm[1]), lead = lid ? await db.find('leads', 'id', lid) : null;
+      if (lead) {
+        const role = lead.kind === 'service' ? 'sto' : 'driver';
+        await kvPut('tgreg_' + chat, JSON.stringify({ role, src: 'lead', lead: lead.id }), 7 * 86400);
+        await fnHit('start', role); await fnHit('role', role);
+        const who = lead.kind === 'service' ? s_((lead.data || {}).name) || lead.name : lead.name;
+        await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml({ emoji: '🙌', title: 'Дякуємо за анкету' + (who ? ', ' + who : ''),
+          intro: role === 'sto' ? 'Картку «' + lead.name + '» уже створено. Натисніть «Поділитися номером» внизу: створимо акаунт сервісу й прив\'яжемо до нього картку.' : 'Натисніть «Поділитися номером» внизу, і акаунт водія буде готовий за кілька секунд. Гараж, заявки в СТО й нагадування відкриваються прямо тут, у Telegram.' }),
+          reply_markup: { keyboard: [[{ text: '📱 Поділитися номером', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true } });
+        return;
+      }
     }
     const m = String(payload || '').match(/^(driver|sto)(?:_([a-z0-9_-]{1,40}))?$/i);
     const st = { role: m ? m[1].toLowerCase() : '', src: m && m[2] ? m[2].toLowerCase() : (payload && !m ? String(payload).slice(0, 40).toLowerCase().replace(/[^a-z0-9_-]/g, '') : '') };
@@ -1296,16 +1312,33 @@ function makeApi(db, deps) {
     if (!phone) { await tgSend(chat, { emoji: '⚠️', title: 'Потрібен український номер', intro: 'Поки АвтоХаб працює лише з номерами +380. Зареєструйтеся на autohubkr.com/app/ з українським номером.' }); return; }
     await fnHit('contact', st.role);
     for (const o of await db.where('users', 'tg_chat', chat)) if (o.phone !== phone) await db.update('users', o.id, { tg_chat: '' });
+    const lead = st.lead ? await db.find('leads', 'id', st.lead) : null;
     let u = await db.find('users', 'phone', phone), fresh = false;
     if (u) u = await db.update('users', u.id, { tg_chat: chat, phone_ok: true });
     else {
-      const name = [from.first_name, from.last_name].filter(Boolean).join(' ').slice(0, 60) || s_(contact.first_name) || 'Водій';
+      const leadName = lead ? (lead.kind === 'service' ? s_((lead.data || {}).name) : lead.name) : '';
+      const name = (leadName || [from.first_name, from.last_name].filter(Boolean).join(' ') || s_(contact.first_name) || 'Водій').slice(0, 60);
       u = { id: id(), role: 'driver', name, phone, pin_hash: '', salt: '', sto_id: '', created: now(), phone_ok: true, tg_chat: chat, source: ('tg:' + st.role + (st.src ? ':' + st.src : '')).slice(0, 60) };
       await db.insert('users', u); fresh = true;
       await fnHit('reg', st.role);
       notify((st.role === 'sto' ? 'Сервіс' : 'Водій') + ' зареєструвався через Telegram: ' + name, 'Телефон: ' + phone + (st.src ? '\nДжерело: ' + st.src : '') + (st.role === 'sto' ? '\nКартку сервісу ще треба заповнити в застосунку.' : ''));
     }
     await kvDel('tgreg_' + chat);
+    if (lead) {
+      await db.update('leads', lead.id, { status: 'joined', data: Object.assign({}, lead.data || {}, { user_id: u.id }) });
+      const sid = (lead.data || {}).sto_id, card = sid ? await db.find('stos', 'id', sid) : null;
+      if (lead.kind === 'service' && card && !card.owner_id && !u.sto_id) {
+        await db.update('stos', card.id, Object.assign({ owner_id: u.id }, card.phone ? {} : { phone }));
+        u = await db.update('users', u.id, { sto_id: card.id });
+        notify('Сервіс з анкети підключив акаунт: ' + card.name, 'Власник: ' + u.name + ', ' + phone + '\nКартка ' + (isActive(card) ? 'вже активна.' : 'чекає перевірки: autohubkr.com/app/ → СТО → Перевірка.'));
+      }
+    }
+    if (st.role === 'sto' && u.sto_id) {
+      const card = await db.find('stos', 'id', u.sto_id);
+      await tgKeyboard(chat, tgHtml({ emoji: '✅', title: (fresh ? 'Акаунт створено, ' : 'Вітаємо, ') + u.name, intro: 'Картку сервісу «' + (card ? card.name : '') + '» прив\'язано до вашого акаунта. Додайте адресу, графік, фото й логотип: так водії швидше вас оберуть.' + (card && !isActive(card) ? ' Після перевірки картка з\'явиться в каталозі.' : '') }));
+      await tgSend(chat, { emoji: '🔧', title: 'Кабінет сервісу', intro: 'Тут заявки від водіїв, журнал робіт і картка сервісу.' }, [{ text: 'Відкрити кабінет сервісу', url: APP_URL + '?view=sto' }]);
+      return;
+    }
     const wantSto = st.role === 'sto' && !u.sto_id;
     await tgKeyboard(chat, tgHtml({ emoji: '✅', title: fresh ? 'Акаунт створено, ' + u.name : 'Ви вже в АвтоХабі, ' + u.name,
       intro: wantSto ? 'Залишився один крок: заповніть картку сервісу (назва, адреса, послуги, фото). Після перевірки водії бачитимуть вас у каталозі.' : 'Застосунок відкривається без пароля прямо тут. Сюди ж приходитимуть відповіді сервісів і нагадування.' }));
@@ -1517,7 +1550,11 @@ function makeApi(db, deps) {
     const lines = LEAD_KEYS[kind].filter((k) => data[k]).map((k) => LEAD_LABELS[k] + ': ' + data[k]);
     notify('Нова анкета (' + (kind === 'driver' ? 'водій' : 'сервіс') + '): ' + name + (kind === 'service' && data.name ? ' (' + data.name + ')' : ''),
       lines.join('\n') + stoNote + '\n\nУсі анкети: autohubkr.com/app/ → Анкети');
-    return {};
+    const bot = await botName();
+    if (!bot) return {};
+    const t = deps.uuid().replace(/-/g, '').slice(0, 16);
+    await kvPut('leadtg_' + t, row.id, 14 * 86400);
+    return { tg: 'https://t.me/' + bot + '?start=l_' + t };
   }
 
   async function visitAdd(r, meta) {

@@ -2188,6 +2188,8 @@ function boot() {
 }
 window.addEventListener('hashchange', route);
 state.token = store('ah_token');
+// з бота: «Відкрити кабінет сервісу» → одразу режим сервісу
+if (/[?&]view=sto/.test(location.search)) { store('ah_view', 'sto'); store('ah_as_sto', null); try { history.replaceState(null, '', location.pathname + '#/sto'); } catch (e) {} }
 if (TG) { try { TG.ready(); TG.expand(); document.body.classList.add('in-tg'); } catch (e) {} }
 try { state.user = JSON.parse(store('ah_user') || 'null'); } catch (e) {}
 if (!API) { view.innerHTML = '<div class="card note warn">Застосунок ще не підключено до сервера. Зверніться до адміністратора.</div>'; return; }

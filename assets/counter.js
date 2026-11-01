@@ -1,14 +1,20 @@
 /* АвтоХаб: справжні лічильники з бази (дія stats.public). Показуємо число, лише коли воно не менше CFG.counterMin. */
 (function () {
   // кнопки «Швидше в Telegram»: t.me/<бот>?start=driver_<utm_source>
-  var C0 = window.AUTOHUB_CONFIG || {};
-  if (C0.tgBot) {
+  var C0 = window.AUTOHUB_CONFIG || {}, btns = document.querySelectorAll('[data-tg-start]');
+  if (!btns.length) return;
+  var put = function (bot) {
+    if (!bot) return;
     var src = ((location.search.match(/[?&]utm_source=([^&]+)/) || [])[1] || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30);
-    Array.prototype.forEach.call(document.querySelectorAll('[data-tg-start]'), function (a) {
-      a.href = 'https://t.me/' + C0.tgBot + '?start=' + a.getAttribute('data-tg-start') + (src ? '_' + src : '');
-      a.target = '_blank'; a.rel = 'noopener'; a.hidden = false;
+    Array.prototype.forEach.call(btns, function (a) {
+      a.href = 'https://t.me/' + bot + '?start=' + a.getAttribute('data-tg-start') + (src ? '_' + src : '');
+      a.rel = 'noopener'; a.hidden = false;
     });
-  }
+  };
+  if (C0.tgBot) return put(C0.tgBot);
+  if (!C0.formEndpoint) return;
+  fetch(C0.formEndpoint, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'stats.public' }) })
+    .then(function (r) { return r.json(); }).then(function (s) { if (s && s.ok) put(s.tgBot); }).catch(function () {});
 })();
 (function () {
   var CFG = window.AUTOHUB_CONFIG || {}, url = CFG.formEndpoint;
