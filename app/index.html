@@ -1697,7 +1697,7 @@ function renderAdminUsers() {
 function renderProfile() {
   var u = state.user;
   view.innerHTML = '<h1 style="margin-bottom:12px">Профіль</h1><div class="card"><dl class="kv"><dt>Ім\'я</dt><dd>' + esc(u.name) + '</dd><dt>Телефон</dt><dd>' + esc(fmtPhone(u.phone)) + '</dd><dt>Тип</dt><dd>' + ({ sto: 'Сервіс', admin: 'Адміністратор' }[u.role] || 'Водій') + '</dd></dl></div>' +
-    '<div class="card" id="tgCard"></div>' + (u.role === 'admin' || u.isAdmin ? '<div class="card" id="admNotif"></div>' : '') +
+    '<div class="card" id="tgCard"></div>' + (u.role === 'admin' ? '<div class="card" id="admNotif"></div>' : '') +
     '<div class="card small"><b>Пілотна версія.</b> Ми запускаємо АвтоХаб разом із першими водіями й сервісами Кривого Рогу. Ідеї та проблеми пишіть на <a href="mailto:info@autohubkr.com">info@autohubkr.com</a>.</div>' +
     '<button class="btn wide ghost" id="out">Вийти</button>';
   $('#out').onclick = function () { api('logout').catch(function () {}).then(function () { logoutLocal(); go('/login'); }); };
@@ -1714,7 +1714,11 @@ function renderProfile() {
     $('#mtGo').onclick = function () {
       var b = this; busy(b, true);
       api('admin.mail.test', { to: $('#mtTo').value }, { admin: true }).then(function () { busy(b, false); $('#mtR').innerHTML = '<div class="note ok" style="margin-top:8px">Лист надіслано. Перевірте пошту, зокрема «Спам».</div>'; })
-        .catch(function (e) { busy(b, false); $('#mtR').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+        .catch(function (e) {
+          busy(b, false);
+          var m = /Оновіть сторінку|forbidden|RELAY_SECRET/.test(e.message) ? 'Google-скрипт для листів ще не оновлено або в ньому немає RELAY_SECRET. Листи запрацюють після оновлення скрипту.' : e.message;
+          $('#mtR').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(m) + '</div>';
+        });
     };
   }
 }
