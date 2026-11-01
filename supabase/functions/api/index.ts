@@ -165,7 +165,7 @@ function makeApi(db, deps) {
 
   /* --- облікові записи --- */
   const pubUser = (u) => { const p = { id: u.id, role: u.role, name: u.name, phone: u.phone, tg: !!u.tg_chat, dual: u.role !== 'admin' && !u.isAdmin && !!u.sto_id }; if (u.isAdmin || u.role === 'admin') p.isAdmin = true; return p; };
-  const CAR_KEYS = ['id', 'make', 'model', 'year', 'plate', 'vin', 'mileage', 'engine', 'fuel', 'power', 'gearbox', 'drive', 'body', 'modification', 'equipment', 'market'].concat(CAR_DOCS.map((d) => d[0]));
+  const CAR_KEYS = ['id', 'make', 'model', 'year', 'plate', 'vin', 'mileage', 'engine', 'fuel', 'power', 'gearbox', 'drive', 'body', 'modification', 'equipment', 'market', 'about', 'info'].concat(CAR_DOCS.map((d) => d[0]));
   const pubCar = (c, urls) => {
     const p = pick(c, CAR_KEYS); p.photo = c.photo && urls ? (urls[c.photo] || '') : '';
     p.mileage_log = kmLog(c).slice().reverse();
@@ -199,6 +199,7 @@ function makeApi(db, deps) {
     opt('fuel', CAR_OPTS.fuels); opt('gearbox', CAR_OPTS.gearboxes); opt('drive', CAR_OPTS.drives); opt('body', CAR_OPTS.bodies);
     if (has('modification')) f.modification = s_(r.modification).slice(0, 120);
     if (has('equipment')) f.equipment = s_(r.equipment).slice(0, 120);
+    if (has('about')) f.about = s_(r.about).slice(0, 2000);
     CAR_DOCS.forEach((d) => { if (has(d[0])) { const v = s_(r[d[0]]); if (v && !date_(v)) fail('Перевірте дату: ' + d[1]); f[d[0]] = date_(v); } });
     return f;
   }
@@ -441,6 +442,7 @@ function makeApi(db, deps) {
     return { requests: await signReqPhotos(mine, mine.map((q) => {
       const p = pubReq(q), car = by(cars, 'id', q.car_id), sto = by(stos, 'id', q.sto_id), rv = by(reviews, 'request_id', q.id);
       p.car = car ? carTitle(car) : '';
+      if (u.role === 'sto' && car) { p.car_info = [car.modification, car.equipment, car.mileage ? 'пробіг ' + Number(car.mileage).toLocaleString('uk-UA') + ' км' : '', car.vin && q.status !== 'new' ? 'VIN ' + car.vin : ''].filter(Boolean).join(' · '); p.car_about = car.about || ''; }
       p.sto = sto ? { id: sto.id, name: sto.name, phone: sto.phone, address: sto.address } : null;
       p.review = rv ? { rating: rv.rating, text: rv.text } : null;
       // Код візиту бачить лише водій: показує його в сервісі, сервіс вводить код у застосунку.
@@ -954,6 +956,45 @@ function makeApi(db, deps) {
     fail(lastCode === 429 ? 'AI зараз перевантажений. Спробуйте за хвилину.' : 'AI тимчасово недоступний. Спробуйте пізніше.');
   }
 
+  // Опис авто: характеристики, типова комплектація, слабкі місця й поради з ТО (AI, кеш на однакову версію 180 днів).
+  async function carInfo(r) {
+    const u = await auth(r, 'driver'); const c = await ownCar(u, r.id);
+    if (!env.GEMINI_API_KEY) fail('Опис авто тимчасово недоступний');
+    const parts = [c.make, c.model, c.year, c.modification, c.equipment, c.engine ? c.engine + ' л' : '', c.fuel, c.gearbox, c.drive, c.power ? c.power + ' к.с.' : '', c.body].filter(Boolean);
+    const key = 'carinfo_' + nrm(parts.join('|')).slice(0, 180);
+    let info = r.refresh ? null : JSON.parse(await kvGet(key) || 'null');
+    if (!info) {
+      const ck = 'ai_' + u.id, used = Number(await kvGet(ck) || 0);
+      if (used >= AI_LIMIT) fail('Ліміт AI-запитів вичерпано. Спробуйте за кілька годин.');
+      await kvPut(ck, used + 1, 21600);
+      let opts = [];
+      if (c.equipment && env.AUTO_RIA_KEY) {
+        try { /* опції комплектації з довідника, якщо вони там є */
+          const mods = (await riaMods({ token: r.token, as: r.as, make: c.make, model: c.model, year: c.year })).mods || [];
+          const m = mods.find((x) => x.name === c.modification);
+          if (m) { const eq = await riaEquips({ token: r.token, as: r.as, modification: m.id, year: c.year }); opts = (eq.options || {})[c.equipment] || []; }
+        } catch (e) { opts = []; }
+      }
+      const system = ['Ти автоексперт. Опиши конкретну версію авто для власника в Україні, українською мовою, коротко й по суті.',
+        'Пиши лише те, що загальновідомо для цієї моделі, покоління й двигуна. Якщо не впевнений у цифрі, не вказуй її. Не вигадуй.',
+        'summary — 2–3 речення: що це за авто, покоління, для кого.',
+        'specs — до 10 пар {k, v}: двигун (код, якщо відомий), потужність, крутний момент, розгін 0–100, витрата (змішаний цикл), об\'єм баку, моторне масло (допуск і об\'єм заправки), типорозмір шин, кліренс.',
+        'equipment — до 15 пунктів типового оснащення саме цієї комплектації (якщо комплектацію вказано) або базового оснащення версії.' + (opts.length ? ' Опції з довідника вже є, спирайся на них.' : ''),
+        'strengths — до 4 сильних сторін. weak — до 6 типових слабких місць і поломок цієї версії з орієнтовним пробігом. service — до 6 практичних порад з ТО (інтервали, ремінь/ланцюг ГРМ, масло в коробці).'].join('\n');
+      const schema = { type: 'OBJECT', properties: { summary: { type: 'STRING' },
+        specs: { type: 'ARRAY', items: { type: 'OBJECT', properties: { k: { type: 'STRING' }, v: { type: 'STRING' } }, required: ['k', 'v'] } },
+        equipment: { type: 'ARRAY', items: { type: 'STRING' } }, strengths: { type: 'ARRAY', items: { type: 'STRING' } },
+        weak: { type: 'ARRAY', items: { type: 'STRING' } }, service: { type: 'ARRAY', items: { type: 'STRING' } } }, required: ['summary'] };
+      const a = await gemini(ck, used, system, [{ text: 'Авто: ' + parts.join(', ') + (opts.length ? '\nОпції комплектації з довідника: ' + opts.join('; ') : '') }], schema);
+      const L = (x, n, len) => (Array.isArray(x) ? x : []).map((v) => s_(v).slice(0, len || 200)).filter(Boolean).slice(0, n);
+      info = { summary: s_(a.summary).slice(0, 600), specs: (Array.isArray(a.specs) ? a.specs : []).map((x) => ({ k: s_(x.k).slice(0, 40), v: s_(x.v).slice(0, 80) })).filter((x) => x.k && x.v).slice(0, 10),
+        equipment: opts.length ? opts.slice(0, 40) : L(a.equipment, 15), equipSrc: opts.length ? 'catalog' : 'ai', strengths: L(a.strengths, 4), weak: L(a.weak, 6), service: L(a.service, 6), at: today() };
+      await kvPut(key, JSON.stringify(info), 180 * 86400);
+    }
+    const upd = await db.update('cars', c.id, { info });
+    return { car: pubCar(upd, await signPhotos([upd])) };
+  }
+
   // Фото чека або заказ-наряду → чернетка запису в історію (водій перевіряє й зберігає сам).
   async function aiReceipt(r) {
     const u = await auth(r, 'driver');
@@ -1194,8 +1235,17 @@ function makeApi(db, deps) {
     const eq = await ria('/auto_ria/equips_by_modifications?modificationId=' + mid, 90 * 86400);
     const list = Array.isArray(eq) ? eq : (eq && Array.isArray(eq.equips) ? eq.equips : []);
     const year = int(r.year);
-    const names = [...new Set(list.filter((e) => !year || !e.year || Math.abs(Number(e.year) - year) <= 1).map((e) => s_(e.name)).filter(Boolean))];
-    return { equips: names.slice(0, 60) };
+    if (list[0] && !(await kvGet('ria_eq_shape'))) { console.log('ria equip shape', JSON.stringify(list[0]).slice(0, 600)); await kvPut('ria_eq_shape', 1, 86400); }
+    const fit = list.filter((e) => !year || !e.year || Math.abs(Number(e.year) - year) <= 1);
+    const names = [...new Set(fit.map((e) => s_(e.name)).filter(Boolean))];
+    // якщо довідник віддає перелік опцій комплектації, передаємо його теж
+    const opts = {};
+    fit.forEach((e) => {
+      const raw = e.options || e.equipOptions || e.params || e.features || [];
+      const arr = (Array.isArray(raw) ? raw : Object.values(raw)).map((o) => s_(typeof o === 'string' ? o : (o && (o.name || o.title || o.value)) || '')).filter(Boolean);
+      if (arr.length && s_(e.name)) opts[s_(e.name)] = [...new Set(arr)].slice(0, 80);
+    });
+    return { equips: names.slice(0, 60), options: opts };
   }
   // Середня ринкова ціна схожих авто на AUTO.RIA (той самий рік ±1), кеш 14 днів.
   async function riaPrice(r) {
@@ -1410,7 +1460,7 @@ function makeApi(db, deps) {
     'stats.public': statsPublic, 'ai.receipt': aiReceipt, 'vin.decode': vinDecode,
     'tg.link': tgLink, 'tg.unlink': tgUnlink, 'admin.tg.setup': adminTgSetup, 'admin.mail.test': adminMailTest,
     'tg.auth': tgAuth, 'tg.bind': tgBind, 'sto.photo': stoPhoto, 'admin.sto.photo': adminStoPhoto,
-    'ria.mods': riaMods, 'ria.equips': riaEquips, 'ria.price': riaPrice,
+    'ria.mods': riaMods, 'ria.equips': riaEquips, 'ria.price': riaPrice, 'cars.info': carInfo,
     'review.add': reviewAdd,
     'jobs.list': jobsList, 'jobs.add': jobsAdd, 'jobs.update': jobsUpdate, 'jobs.delete': jobsDelete,
     'history.list': async (r) => {
