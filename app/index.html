@@ -268,6 +268,17 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
 .svc-g+.svc-g{margin-top:10px}
 .svc-gh{font-size:13px;font-weight:700;color:var(--soft);margin-bottom:6px}
 .svc-list .chip small{color:var(--faint);font-weight:400}
+.viewbar{background:#0C1C33;color:var(--chrome);padding:8px 16px 10px;position:sticky;top:60px;z-index:4}
+.vb-in{display:flex;align-items:center;gap:10px;max-width:528px;margin:0 auto}
+.vb-l{font-size:12px;font-weight:600;color:var(--chrome)}
+.vb-seg{flex:1;background:rgba(255,255,255,.08);padding:3px}
+.vb-seg button{color:var(--chrome);padding:7px;font-size:14px}
+.vb-seg button.on{background:var(--volt);color:#fff;box-shadow:none}
+.vb-sub{font-size:12px;max-width:528px;margin:6px auto 0;line-height:1.4}
+.vb-sub .link{color:var(--glow);font-size:12px}
+.sp-row{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;text-align:left;background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;font:inherit;color:inherit}
+.sp-row+.sp-row{margin-top:8px}
+.sp-row:hover{border-color:var(--volt)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (max-width:360px){h1{font-size:23px}.odo i{width:17px;font-size:18px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
@@ -279,6 +290,7 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
     <a class="logo" href="#/" aria-label="AutoHubKR — на головну"><img src="logo-head.webp" width="127" height="44" alt="AutoHubKR"></a>
     <div class="who" id="who"></div>
   </header>
+  <div class="viewbar" id="viewbar" hidden></div>
   <main id="view"><div class="spin">Завантаження…</div></main>
 </div>
 <nav class="tabs" id="tabs" hidden><div class="in" id="tabsIn"></div></nav>
@@ -319,9 +331,12 @@ function km(v) { return v ? Number(v).toLocaleString('uk-UA') + ' км' : ''; }
 function dt(s) { if (!s) return ''; var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}:\d{2}))?/); return m ? m[3] + '.' + m[2] + '.' + m[1] + (m[4] ? ', ' + m[4] : '') : s; }
 function busy(btn, on) { if (!btn) return; btn.disabled = on; if (on) { btn.dataset.t = btn.textContent; btn.textContent = 'Зачекайте…'; } else if (btn.dataset.t) btn.textContent = btn.dataset.t; }
 
-function api(action, data) {
+function api(action, data, opt) {
   if (!API) return Promise.reject(new Error('Застосунок ще не підключено до сервера.'));
   var body = Object.assign({ action: action, token: state.token }, data || {});
+  // адміністратор у режимі перегляду «водій» або «сервіс»
+  var v = store('ah_view');
+  if (state.token && !(opt && opt.admin) && (v === 'driver' || v === 'sto')) { body.as = v; if (v === 'sto') body.as_sto = store('ah_as_sto') || ''; }
   return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
     .then(function (r) { return r.json(); }, function () { throw new Error("Немає зв'язку. Перевірте інтернет."); })
     .then(function (res) {
@@ -333,7 +348,7 @@ function api(action, data) {
 function fail(e) { toast(e && e.message ? e.message : 'Помилка', true); }
 
 function go(path) { if (location.hash !== '#' + path) location.hash = '#' + path; else route(); }
-function logoutLocal() { state.token = null; state.user = null; state.sto = null; state.cars = null; store('ah_token', null); store('ah_user', null); }
+function logoutLocal() { store('ah_view', null); store('ah_as_sto', null); state.token = null; state.user = null; state.sto = null; state.cars = null; store('ah_token', null); store('ah_user', null); }
 
 /* ---------- іконки ---------- */
 var IC = {
@@ -363,6 +378,7 @@ var STO_TABS = [['/sto', 'Заявки', 'wrench'], ['/sto/profile', 'Мій с�
 function route() {
   var h = location.hash.replace(/^#/, '') || '/';
   var who = document.getElementById('who');
+  drawViewbar();
   who.innerHTML = state.user ? '<b>' + esc(state.user.name) + '</b>' + esc(state.sto ? state.sto.name : ({ admin: 'Адміністратор', sto: 'Сервіс' }[state.user.role] || 'Водій')) : '';
   document.body.classList.toggle('is-login', !state.token);
   if (!state.token) { if (h !== '/login') return go('/login'); setTabs(null); return renderLogin(); }
@@ -393,6 +409,45 @@ function route() {
   if (h === '/sto/profile') return renderStoProfile();
   if (h === '/profile') return renderProfile();
   return go('/sto');
+}
+
+/* ---------- перемикач режимів для адміністратора ---------- */
+function drawViewbar() {
+  var bar = document.getElementById('viewbar');
+  if (!state.token || !state.user || !state.user.isAdmin) { bar.hidden = true; bar.innerHTML = ''; return; }
+  var v = state.user.role === 'admin' ? 'admin' : state.user.role;
+  bar.hidden = false;
+  bar.innerHTML = '<div class="vb-in"><span class="vb-l">Режим</span><div class="seg vb-seg" role="tablist" aria-label="Режим перегляду">' +
+    [['admin', 'Адмін'], ['driver', 'Водій'], ['sto', 'Сервіс']].map(function (x) { return '<button type="button" role="tab" aria-selected="' + (v === x[0]) + '" data-view="' + x[0] + '" class="' + (v === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
+    (v === 'sto' && state.sto ? '<div class="vb-sub">Ви бачите кабінет сервісу «' + esc(state.sto.name) + '» і можете діяти від його імені. <button type="button" class="link" id="vbPick">Інший сервіс</button></div>' :
+     v === 'driver' ? '<div class="vb-sub">Ви бачите застосунок як водій: гараж і заявки — ваші власні.</div>' : '');
+  $$('[data-view]', bar).forEach(function (b) { b.onclick = function () { setView(b.dataset.view); }; });
+  if ($('#vbPick')) $('#vbPick').onclick = stoPicker;
+}
+function setView(v, stoId) {
+  if (v === 'sto' && !stoId) return stoPicker();
+  store('ah_view', v === 'admin' ? null : v);
+  store('ah_as_sto', v === 'sto' ? stoId : null);
+  state.cars = null; state.sto = null; state.meta = state.meta;
+  loading();
+  boot().then(function () { go({ admin: '/admin', driver: '/garage', sto: '/sto' }[v]); toast({ admin: 'Режим адміністратора', driver: 'Режим водія', sto: 'Режим сервісу' }[v]); }).catch(fail);
+}
+function stoPicker() {
+  openDialog('<h2 style="margin-bottom:6px">Чий кабінет відкрити?</h2><p class="mini" style="margin:0 0 12px">Сервіси-партнери, які зареєструвались у застосунку. Довідкові СТО без власника сюди не входять.</p><div id="spL"><div class="spin">Завантаження…</div></div>' +
+    '<div class="row" style="margin-top:12px"><button type="button" class="btn ghost" data-close style="flex:1">Скасувати</button></div>');
+  api('admin.stos', {}, { admin: true }).then(function (r) {
+    var list = r.stos.filter(function (s) { return s.owner; });
+    var mine = list.filter(function (s) { return s.source === 'тест'; })[0];
+    $('#spL').innerHTML = (list.length ? list.map(function (s) {
+      return '<button type="button" class="sp-row" data-sid="' + esc(s.id) + '"><b>' + esc(s.name) + '</b><span class="mini">' + esc(s.owner ? s.owner.name : '') + ' · ' + (s.active ? 'показується водіям' : 'не активний') + '</span></button>';
+    }).join('') : '<p class="small muted">Поки жоден сервіс не зареєструвався.</p>') +
+      (mine ? '' : '<button type="button" class="btn sm ghost wide" id="spTest" style="margin-top:10px">Створити тестовий сервіс</button><p class="mini" style="margin:6px 0 0">Тестовий сервіс не показується водіям, доки ви не активуєте його в розділі «СТО».</p>');
+    $$('.sp-row', $('#spL')).forEach(function (b) { b.onclick = function () { closeDialog(); setView('sto', b.dataset.sid); }; });
+    if ($('#spTest')) $('#spTest').onclick = function () {
+      busy(this, true);
+      api('admin.sto.test', {}, { admin: true }).then(function (x) { closeDialog(); setView('sto', x.sto.id); }).catch(fail);
+    };
+  }).catch(function (e) { $('#spL').innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
 }
 
 function loading() { view.innerHTML = '<div class="spin">Завантаження…</div>'; }
@@ -1362,7 +1417,11 @@ function closeDialog() { var d = document.getElementById('dlg'); if (d.close) d.
 /* ---------- старт ---------- */
 function boot() {
   // один запит на старті: користувач, довідники й авто
-  return api('boot').then(function (r) {
+  return api('boot').catch(function (e) {
+    // обраний для перегляду сервіс зник: повертаємось у режим адміністратора
+    if (store('ah_view') && /Оберіть сервіс/.test(e.message)) { store('ah_view', null); store('ah_as_sto', null); return api('boot'); }
+    throw e;
+  }).then(function (r) {
     state.user = r.user; state.sto = r.sto; state.meta = r.meta; if (r.user.role === 'driver') state.cars = r.cars;
     store('ah_user', JSON.stringify(r.user));
     route();
