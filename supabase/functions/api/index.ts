@@ -633,10 +633,28 @@ function makeApi(db, deps) {
     if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) fail('VIN має містити 17 символів (латиниця й цифри, без I, O, Q)');
     if (!(await rate('vin_' + u.id, 30, 3600))) fail('Забагато перевірок. Спробуйте за годину.');
     const out = { vin, make: '', model: '', year: null, engine: null, fuel: '', power: null, gearbox: '', drive: '', body: '', source: [] };
-    try {
+    // 1) Відкритий реєстр МВС: авто, зареєстровані в Україні з 2021 року (Дніпропетровська область).
+    let reg = null;
+    try { reg = await db.find('vin_registry', 'vin', vin); } catch (e) { reg = null; }
+    if (reg && reg.brand) {
+      const tc = (x) => String(x).toLowerCase().replace(/(^|[\s-])([a-zа-яіїєґ])/g, (m0, a, b) => a + b.toUpperCase());
+      out.make = /^(BMW|GMC|MINI|BYD|SEAT|ВАЗ|ЗАЗ|УАЗ|ГАЗ|DS|MG)$/i.test(reg.brand) ? String(reg.brand).toUpperCase() : tc(reg.brand);
+      out.model = /^[A-Z0-9 -]+$/.test(reg.model) && /[A-Z]{3,}/.test(reg.model) ? tc(reg.model) : String(reg.model || '');
+      if (reg.year) out.year = Number(reg.year);
+      const cap = Number(reg.capacity); if (cap >= 500 && cap <= 8500) out.engine = Math.round(cap / 100) / 10;
+      const kw = Number(reg.power_kw); if (kw > 0 && kw < 1100) out.power = Math.round(kw * 1.36);
+      const f = String(reg.fuel || '').toUpperCase();
+      out.fuel = /ЕЛЕКТР/.test(f) && /БЕНЗИН|ДИЗЕЛ/.test(f) ? 'Гібрид' : /ЕЛЕКТР/.test(f) ? 'Електро' : /ГАЗ/.test(f) ? 'Газ/бензин' : /ДИЗЕЛ/.test(f) ? 'Дизель' : /БЕНЗИН/.test(f) ? 'Бензин' : '';
+      const b = String(reg.body || '').toUpperCase();
+      out.body = /ПІКАП/.test(b) ? 'Пікап' : /КАБРІОЛЕТ/.test(b) ? 'Кабріолет' : /КУПЕ/.test(b) ? 'Купе' : /УНІВЕРСАЛ/.test(b) ? 'Універсал' : /ЛІФТБЕК/.test(b) ? 'Ліфтбек' :
+        /ХЕТЧБЕК/.test(b) ? 'Хетчбек' : /СЕДАН/.test(b) ? 'Седан' : /МІНІВЕН/.test(b) ? 'Мінівен' : /ФУРГОН/.test(b) ? 'Фургон' : /ПОЗАШЛЯХ|КРОСОВЕР/.test(b) ? 'Позашляховик' : '';
+      out.color = String(reg.color || '').toLowerCase();
+      out.source.push('реєстр МВС');
+    }
+    if (!out.make || !out.model) try {
       const resp = await deps.fetch('https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/' + vin + '?format=json');
       const v = resp.status === 200 ? (((await resp.json()).Results) || [])[0] || {} : {};
-      if (v.Make) {
+      if (v.Make && !out.make) {
         const tc = (x) => String(x).toLowerCase().replace(/(^|[\s-])([a-zа-я])/g, (m0, a, b) => a + b.toUpperCase());
         out.make = /^(BMW|GMC|MINI|BYD|SEAT)$/i.test(v.Make) ? String(v.Make).toUpperCase() : tc(v.Make);
         out.model = s_(v.Model).slice(0, 80);
@@ -658,7 +676,7 @@ function makeApi(db, deps) {
     if (!out.make && WMI[vin.slice(0, 3)]) { out.make = WMI[vin.slice(0, 3)]; out.source.push('код виробника'); }
     // Для європейських авто vPIC часто плутає цикл років (1981 замість 2011): беремо пізніший.
     const ly = vinYear(vin);
-    if (ly && (!out.year || (out.year + 30 === ly))) out.year = ly;
+    if (ly && !reg && (!out.year || (out.year + 30 === ly))) out.year = ly;
     if (!out.make) fail('Не вдалося розпізнати цей VIN. Заповніть дані вручну.');
     if (!out.model && env.GEMINI_API_KEY) {
       const ck = 'ai_' + u.id, used = Number(await kvGet(ck) || 0);
