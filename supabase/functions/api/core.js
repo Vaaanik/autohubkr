@@ -872,7 +872,7 @@ export function makeApi(db, deps) {
     await auth(r, 'admin');
     const st = await db.find('stos', 'id', String(r.id || ''));
     if (!st || st.deleted === true) fail('Сервіс не знайдено');
-    const [reqs, jobs, revs] = await Promise.all([db.where('requests', 'sto_id', st.id), db.where('jobs', 'sto_id', st.id), db.where('reviews', 'sto_id', st.id)]);
+    const [reqs, jobs, revs] = await Promise.all([db.where('requests', 'sto_id', st.id), db.where('sto_jobs', 'sto_id', st.id), db.where('reviews', 'sto_id', st.id)]);
     const open = reqs.filter((q) => ['new', 'accepted', 'in_work'].indexOf(q.status) !== -1);
     const owner = st.owner_id ? await db.find('users', 'id', st.owner_id) : null;
     const info = { requests: reqs.length, open: open.length, jobs: jobs.length, reviews: revs.length, owner: owner ? owner.name + ', ' + owner.phone : '' };
