@@ -1,10 +1,18 @@
 /* АвтоХаб: справжні лічильники з бази (дія stats.public). Показуємо число, лише коли воно не менше CFG.counterMin. */
 (function () {
   // кнопки «Швидше в Telegram»: t.me/<бот>?start=driver_<utm_source>
-  var C0 = window.AUTOHUB_CONFIG || {}, btns = document.querySelectorAll('[data-tg-start]');
-  if (!btns.length) return;
+  var C0 = window.AUTOHUB_CONFIG || {}, btns = document.querySelectorAll('[data-tg-start]'), apps = document.querySelectorAll('[data-tg-app]');
+  if (!btns.length && !apps.length) return;
   var put = function (bot) {
     if (!bot) return;
+    // «Відкрити застосунок» → міні-застосунок у Telegram-боті; браузерна версія лишається посиланням поруч
+    Array.prototype.forEach.call(apps, function (a) {
+      var web = a.getAttribute('href'), role = a.getAttribute('data-tg-app');
+      a.href = 'https://t.me/' + bot + '?startapp' + (role ? '=' + role : ''); a.rel = 'noopener';
+      a.innerHTML = '<span aria-hidden="true">✈</span> Відкрити в Telegram';
+      var alt = document.createElement('a'); alt.href = web; alt.className = 'app-web'; alt.textContent = 'або у браузері';
+      a.parentNode.insertBefore(alt, a.nextSibling);
+    });
     var src = ((location.search.match(/[?&]utm_source=([^&]+)/) || [])[1] || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30);
     Array.prototype.forEach.call(btns, function (a) {
       a.href = 'https://t.me/' + bot + '?start=' + a.getAttribute('data-tg-start') + (src ? '_' + src : '');
