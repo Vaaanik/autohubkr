@@ -445,8 +445,16 @@ function route() {
 /* ---------- перемикач режимів для адміністратора ---------- */
 function drawViewbar() {
   var bar = document.getElementById('viewbar');
-  if (!state.token || !state.user || !state.user.isAdmin) { bar.hidden = true; bar.innerHTML = ''; return; }
+  if (!state.token || !state.user || !(state.user.isAdmin || state.user.dual)) { bar.hidden = true; bar.innerHTML = ''; return; }
   var v = state.user.role === 'admin' ? 'admin' : state.user.role;
+  if (!state.user.isAdmin) {
+    // один номер — два кабінети: гараж водія й кабінет сервісу працюють окремо
+    bar.hidden = false;
+    bar.innerHTML = '<div class="vb-in"><span class="vb-l">Кабінет</span><div class="seg vb-seg" role="tablist" aria-label="Кабінет">' +
+      [['driver', 'Водій'], ['sto', 'Мій сервіс']].map(function (x) { return '<button type="button" role="tab" aria-selected="' + (v === x[0]) + '" data-view="' + x[0] + '" class="' + (v === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div></div>';
+    $$('[data-view]', bar).forEach(function (b) { b.onclick = function () { setView(b.dataset.view); }; });
+    return;
+  }
   bar.hidden = false;
   bar.innerHTML = '<div class="vb-in"><span class="vb-l">Режим</span><div class="seg vb-seg" role="tablist" aria-label="Режим перегляду">' +
     [['admin', 'Адмін'], ['driver', 'Водій'], ['sto', 'Сервіс']].map(function (x) { return '<button type="button" role="tab" aria-selected="' + (v === x[0]) + '" data-view="' + x[0] + '" class="' + (v === x[0] ? 'on' : '') + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
@@ -456,7 +464,12 @@ function drawViewbar() {
   if ($('#vbPick')) $('#vbPick').onclick = stoPicker;
 }
 function setView(v, stoId) {
-  if (v === 'sto' && !stoId) return stoPicker();
+  if (v === 'sto' && !stoId && state.user && state.user.isAdmin) return stoPicker();
+  if (state.user && !state.user.isAdmin) {
+    store('ah_view', v); store('ah_as_sto', null);
+    state.cars = null; state.sto = null; loading();
+    return boot().then(function () { go(v === 'sto' ? '/sto' : '/garage'); toast(v === 'sto' ? 'Кабінет сервісу' : 'Гараж водія'); }).catch(fail);
+  }
   store('ah_view', v === 'admin' ? null : v);
   store('ah_as_sto', v === 'sto' ? stoId : null);
   state.cars = null; state.sto = null; state.meta = state.meta;
@@ -1166,8 +1179,9 @@ function renderRequests() {
       var body = '<div class="between"><div><h3>' + esc(q.category) + '</h3><div class="mini">' + esc(q.car) + ' · ' + esc(dt(q.created)) + '</div></div><span class="badge b-' + esc(q.status) + '">' + esc(q.status_label) + '</span></div>' +
         '<p class="small" style="margin:8px 0">' + esc(q.description) + '</p>' +
         '<div class="small"><b>' + esc(s.name || '') + '</b>' + (s.address ? ' · <span class="muted">' + esc(s.address) + '</span>' : '') + '</div>';
-      if (q.sto_comment || q.visit || q.price) body += '<div class="note info" style="margin-top:10px"><div class="small muted" style="margin-bottom:2px">Відповідь сервісу</div>' +
-        (q.sto_comment ? '<div>' + esc(q.sto_comment) + '</div>' : '') + (q.visit ? '<div><b>Запрошують:</b> ' + esc(q.visit) + '</div>' : '') + (q.price ? '<div><b>Ціна:</b> ' + esc(money(q.price)) + '</div>' : '') + '</div>';
+      if (q.sto_comment || q.price || (q.visit && !q.visit_state && ['accepted', 'in_work'].indexOf(q.status) === -1)) body += '<div class="note info" style="margin-top:10px"><div class="small muted" style="margin-bottom:2px">Відповідь сервісу</div>' +
+        (q.sto_comment ? '<div>' + esc(q.sto_comment) + '</div>' : '') + (q.price ? '<div><b>Орієнтовна ціна:</b> ' + esc(money(q.price)) + '</div>' : '') + (q.dur_value && q.status === 'done' ? '<div><b>Строк ремонту:</b> ' + esc(durTxt(q.dur_value, q.dur_unit)) + '</div>' : '') + '</div>';
+      body += visitBlock(q, 'driver');
       if (q.code) body += '<div class="code-box"><div><small>Код візиту</small>Покажіть цей код у сервісі, коли приїдете</div><b>' + esc(q.code) + '</b></div>';
       if (q.status === 'done') body += '<div class="note ok" style="margin-top:10px"><b>Виконано:</b> ' + esc(q.work_done) + (q.price ? '<div><b>Сума:</b> ' + esc(money(q.price)) + '</div>' : '') + '</div>';
       if (q.confirmed === 'так') body += '<span class="vtag">Ви підтвердили виконання</span>';
@@ -1184,6 +1198,7 @@ function renderRequests() {
       b.onclick = function () { busy(b, true); api('req.update', { id: b.dataset.cancel, status: 'cancelled' }).then(function () { toast('Заявку скасовано'); route(); }).catch(function (e) { busy(b, false); fail(e); }); };
     });
     $$('[data-review]').forEach(function (b) { b.onclick = function () { reviewDialog(b.dataset.review); }; });
+    bindVisit(view, list, 'driver', renderRequests);
     $$('[data-ok]').forEach(function (b) {
       b.onclick = function () { busy(b, true); api('req.confirm', { id: b.dataset.ok }).then(function () { toast('Дякуємо! Оцініть сервіс, це допоможе іншим водіям.'); reviewDialog(b.dataset.ok); }).catch(function (e) { busy(b, false); fail(e); }); };
     });
@@ -1212,6 +1227,60 @@ function reviewDialog(id) {
   };
 }
 
+/* ---------- час візиту: вибір і показ ---------- */
+var WDN = ['нд', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+function slotTxt(v) { var m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/); if (!m) return v || ''; var d = new Date(+m[1], +m[2] - 1, +m[3]); return m[3] + '.' + m[2] + ' (' + WDN[d.getDay()] + '), ' + m[4] + ':' + m[5]; }
+function durTxt(v, u) { if (!v) return ''; if (u === 'дн') return v + ' ' + (v % 10 === 1 && v % 100 !== 11 ? 'день' : (v % 10 >= 2 && v % 10 <= 4 && (v % 100 < 10 || v % 100 >= 20)) ? 'дні' : 'днів'); return v + ' год'; }
+function localDate(off) { var d = new Date(Date.now() + (off || 0) * 864e5); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function timeOpts(sel) { var o = ''; for (var h = 7; h <= 21; h++) ['00', '30'].forEach(function (mm) { var t = ('0' + h).slice(-2) + ':' + mm; o += '<option' + (t === sel ? ' selected' : '') + '>' + t + '</option>'; }); return o; }
+function slotRow(i, v) {
+  var d = v ? v.slice(0, 10) : localDate(1), t = v ? v.slice(11, 16) : '10:00';
+  return '<div class="grid2 slot-row"><input class="i" type="date" data-sd="' + i + '" value="' + d + '" min="' + localDate(0) + '" max="' + localDate(120) + '"><select class="i" data-st="' + i + '">' + timeOpts(t) + '</select></div>';
+}
+function readSlots(root) { return $$('[data-sd]', root).map(function (d) { var t = $('[data-st="' + d.dataset.sd + '"]', root); return d.value && t ? d.value + 'T' + t.value : ''; }).filter(Boolean); }
+// Діалог «запропонувати інший час / перенести»: водій — до 3 варіантів, сервіс — один
+function slotDialog(q, side, after) {
+  var max = side === 'driver' ? 3 : 1, n = 1, moving = q.visit_state === 'confirmed';
+  openDialog('<h2 style="margin-bottom:6px">' + (moving ? 'Перенести візит' : 'Запропонувати інший час') + '</h2><p class="mini" style="margin:0 0 12px">' +
+    (side === 'driver' ? 'Запропонуйте до трьох зручних варіантів, сервіс обере один.' : 'Водій отримає сповіщення й підтвердить або запропонує свій варіант.') + '</p>' +
+    '<div id="slots">' + slotRow(0) + '</div>' + (max > 1 ? '<button type="button" class="btn sm ghost" id="slotAdd" style="margin-top:8px">+ Ще варіант</button>' : '') +
+    '<label class="f" for="slotNote" style="margin-top:12px">Коментар <span>необов\'язково</span></label><input class="i" id="slotNote" placeholder="' + (side === 'driver' ? 'Зранку працюю, після 17:00 зручно' : 'Запчастини будуть у четвер') + '">' +
+    '<div id="slotErr"></div><div class="row" style="margin-top:12px"><button class="btn ghost" data-close>Скасувати</button><button class="btn" id="slotGo" style="flex:1">Надіслати</button></div>');
+  if ($('#slotAdd')) $('#slotAdd').onclick = function () { if (n >= max) return; $('#slots').insertAdjacentHTML('beforeend', '<div style="margin-top:8px">' + slotRow(n) + '</div>'); n++; if (n >= max) this.remove(); };
+  $('#slotGo').onclick = function () {
+    var b = this; busy(b, true);
+    api('req.slot', { id: q.id, slots: readSlots($('#slots')), note: $('#slotNote').value }).then(function () { closeDialog(); toast(side === 'driver' ? 'Варіанти надіслано сервісу' : 'Новий час надіслано водієві'); after(); })
+      .catch(function (e) { busy(b, false); $('#slotErr').innerHTML = '<div class="note err" style="margin-top:10px">' + esc(e.message) + '</div>'; });
+  };
+}
+// Блок «час візиту» в картці заявки для водія або сервісу
+function visitBlock(q, side) {
+  if (q.status !== 'accepted' && q.status !== 'in_work') return '';
+  var dur = durTxt(q.dur_value, q.dur_unit), durL = dur ? '<div class="small">Строк ремонту: <b>' + esc(dur) + '</b></div>' : '';
+  if (!q.visit_state) return q.visit ? '<div class="note info" style="margin-top:10px"><b>Час візиту:</b> ' + esc(q.visit) + '</div>' : '';
+  var lastNote = (q.visit_log || []).filter(function (e) { return e.note; }).slice(-1)[0];
+  var note = lastNote ? '<div class="small muted" style="margin-top:4px">«' + esc(lastNote.note) + '»</div>' : '';
+  if (q.visit_state === 'confirmed') return '<div class="note ok" style="margin-top:10px">📅 <b>Запис підтверджено:</b> ' + esc(slotTxt(q.visit_at)) + durL +
+    (q.status === 'accepted' ? '<div style="margin-top:8px"><button type="button" class="btn sm ghost" data-move="' + esc(q.id) + '">Перенести</button></div>' : '') + '</div>';
+  if (q.visit_state === 'sto') {
+    if (side === 'driver') return '<div class="note warn" style="margin-top:10px">🕒 <b>Сервіс пропонує:</b> ' + esc(slotTxt(q.visit_at)) + durL + note +
+      '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm" data-slotok="' + esc(q.id) + '">Підтверджую</button><button type="button" class="btn sm ghost" data-move="' + esc(q.id) + '">Інший час</button></div></div>';
+    return '<div class="note info" style="margin-top:10px">🕒 Ви запропонували <b>' + esc(slotTxt(q.visit_at)) + '</b>, чекаємо підтвердження водія.' + durL +
+      '<div style="margin-top:8px"><button type="button" class="btn sm ghost" data-move="' + esc(q.id) + '">Змінити час</button></div></div>';
+  }
+  // visit_state === 'driver'
+  if (side === 'sto') return '<div class="note warn" style="margin-top:10px">🕒 <b>Водій пропонує інший час.</b> Оберіть зручний варіант:' + note +
+    '<div class="row" style="margin-top:8px;flex-wrap:wrap">' + (q.visit_options || []).map(function (o) { return '<button type="button" class="btn sm" data-pick="' + esc(q.id) + '" data-slot="' + esc(o) + '">' + esc(slotTxt(o)) + '</button>'; }).join('') +
+    '<button type="button" class="btn sm ghost" data-move="' + esc(q.id) + '">Свій варіант</button></div></div>';
+  return '<div class="note info" style="margin-top:10px">🕒 Ви запропонували: <b>' + esc((q.visit_options || []).map(slotTxt).join(', ')) + '</b>. Чекаємо відповідь сервісу.' + durL +
+    '<div style="margin-top:8px"><button type="button" class="btn sm ghost" data-move="' + esc(q.id) + '">Змінити</button></div></div>';
+}
+function bindVisit(root, list, side, after) {
+  $$('[data-slotok]', root).forEach(function (b) { b.onclick = function () { busy(b, true); api('req.slot.ok', { id: b.dataset.slotok }).then(function () { toast('Час підтверджено'); after(); }).catch(function (e) { busy(b, false); fail(e); }); }; });
+  $$('[data-pick]', root).forEach(function (b) { b.onclick = function () { busy(b, true); api('req.slot.ok', { id: b.dataset.pick, slot: b.dataset.slot }).then(function () { toast('Час підтверджено, водій отримає сповіщення'); after(); }).catch(function (e) { busy(b, false); fail(e); }); }; });
+  $$('[data-move]', root).forEach(function (b) { b.onclick = function () { slotDialog(list.filter(function (q) { return q.id === b.dataset.move; })[0], side, after); }; });
+}
+
 /* ---------- СТО: заявки ---------- */
 var stoTab = 'active';
 function renderStoRequests() {
@@ -1236,10 +1305,12 @@ function renderStoRequests() {
         '<p style="margin:8px 0">' + esc(q.description) + '</p>' +
         '<dl class="kv">' + (q.preferred ? '<dt>Зручно</dt><dd>' + esc(q.preferred) + '</dd>' : '') +
         '<dt>Водій</dt><dd>' + esc(d.name || '') + (d.phone ? ' · <a href="' + esc(telHref(d.phone)) + '">' + esc(fmtPhone(d.phone)) + '</a>' : '') + '</dd>' +
-        (q.visit ? '<dt>Запрошено</dt><dd>' + esc(q.visit) + '</dd>' : '') + (q.price ? '<dt>Ціна</dt><dd>' + esc(money(q.price)) + '</dd>' : '') +
+        (q.visit && !q.visit_state ? '<dt>Запрошено</dt><dd>' + esc(q.visit) + '</dd>' : '') + (q.price ? '<dt>Ціна</dt><dd>' + esc(money(q.price)) + '</dd>' : '') +
+        (q.dur_value ? '<dt>Строк ремонту</dt><dd>' + esc(durTxt(q.dur_value, q.dur_unit)) + '</dd>' : '') +
         (q.sto_comment ? '<dt>Ваш коментар</dt><dd>' + esc(q.sto_comment) + '</dd>' : '') +
         (q.work_done ? '<dt>Виконано</dt><dd>' + esc(q.work_done) + '</dd>' : '') + '</dl>';
       if (q.review) body += '<div class="small" style="margin-top:8px">Відгук: ' + stars(q.review.rating) + (q.review.text ? ' ' + esc(q.review.text) : '') + '</div>';
+      body += visitBlock(q, 'sto');
       if (q.visited !== undefined && (q.status === 'accepted' || q.status === 'in_work' || q.status === 'done')) body += q.visited ? '<span class="vtag">Візит підтверджено кодом</span>' : '<span class="vtag no">Візит не підтверджено кодом</span>';
       if (q.confirmed === 'так') body += ' <span class="vtag">Водій підтвердив виконання</span>';
       var acts = '';
@@ -1251,6 +1322,7 @@ function renderStoRequests() {
     }).join('') : '<div class="card empty"><b>' + ({ new: 'Нових заявок немає', active: 'Немає заявок у роботі', archive: 'Архів порожній' })[stoTab] + '</b>' +
       (stoTab === 'new' ? 'Коли водій обере ваш сервіс, заявка з\'явиться тут, а телефон водія відкриється після того, як ви її приймете.' : '') + '</div>';
     $$('[data-act]').forEach(function (b) { b.onclick = function () { stoAction(b.dataset.act, all.filter(function (q) { return q.id === b.dataset.id; })[0]); }; });
+    bindVisit($('#stoReqs'), all, 'sto', renderStoRequests);
   }).catch(fail);
 }
 
@@ -1270,21 +1342,29 @@ function stoAction(act, q) {
     return api('req.update', { id: q.id, status: 'in_work' }).then(function () { toast('Позначено: у роботі'); renderStoRequests(); }).catch(fail);
   }
   var html = '';
-  if (act === 'accept') html = '<h2 style="margin-bottom:12px">Прийняти заявку</h2><div class="stack"><div><label class="f" for="aVisit">Коли чекаєте авто</label><input class="i" id="aVisit" placeholder="Завтра о 10:00"></div>' +
+  if (act === 'accept') html = '<h2 style="margin-bottom:12px">Прийняти заявку</h2><div class="stack">' + (q.preferred ? '<div class="note info">Водію зручно: ' + esc(q.preferred) + '</div>' : '') +
+    '<div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Коли чекаєте авто</span><div id="aSlot">' + slotRow(0) + '</div></div>' +
+    '<div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Строк ремонту</span><div class="grid2"><input class="i" id="aDur" inputmode="numeric" placeholder="3"><div class="seg" id="aDurU"><button type="button" data-u="год" class="on">годин</button><button type="button" data-u="дн">днів</button></div></div></div>' +
     '<div><label class="f" for="aPrice">Орієнтовна ціна, грн <span>необов\'язково</span></label><input class="i" id="aPrice" inputmode="numeric"></div>' +
     '<div><label class="f" for="aCom">Коментар водієві <span>необов\'язково</span></label><textarea class="i" id="aCom" placeholder="Що взяти з собою, скільки триватиме"></textarea></div></div>';
   if (act === 'decline') html = '<h2 style="margin-bottom:12px">Відхилити заявку</h2><label class="f" for="aCom">Причина для водія</label><textarea class="i" id="aCom" placeholder="Не працюємо з цією маркою / Немає вільних місць цього тижня"></textarea>';
   if (act === 'done') html = '<h2 style="margin-bottom:12px">Роботи завершено</h2><div class="stack"><div><label class="f" for="aWork">Що зроблено</label><textarea class="i" id="aWork" placeholder="Замінено передні колодки й диски"></textarea></div>' +
     '<div class="grid2"><div><label class="f" for="aPrice">Підсумкова ціна, грн</label><input class="i" id="aPrice" inputmode="numeric" value="' + esc(q.price || '') + '"></div><div><label class="f" for="aKm">Пробіг, км</label><input class="i" id="aKm" inputmode="numeric"></div></div></div>';
   openDialog(html + '<div id="aErr"></div><div class="row" style="margin-top:12px"><button class="btn ghost" data-close>Скасувати</button><button class="btn" id="aGo" style="flex:1">' + ({ accept: 'Прийняти', decline: 'Відхилити', done: 'Завершити' })[act] + '</button></div>');
+  if ($('#aDurU')) $('#aDurU').onclick = function (e) { var b = e.target.closest('[data-u]'); if (!b) return; $$('#aDurU button').forEach(function (x) { x.classList.toggle('on', x === b); }); };
   $('#aGo').onclick = function () {
     var p = { id: q.id };
-    if (act === 'accept') { p.status = 'accepted'; p.visit = $('#aVisit').value; p.price = $('#aPrice').value; p.comment = $('#aCom').value; if (!p.visit.trim()) return showErr('Вкажіть, коли чекаєте авто'); }
+    if (act === 'accept') {
+      p.status = 'accepted'; p.visit_at = readSlots($('#aSlot'))[0]; p.dur_value = $('#aDur').value; p.dur_unit = ($('#aDurU .on') || {}).dataset ? $('#aDurU .on').dataset.u : 'год';
+      p.price = $('#aPrice').value; p.comment = $('#aCom').value;
+      if (!p.visit_at) return showErr('Оберіть дату й час');
+      if (!(Number(p.dur_value) > 0)) return showErr('Вкажіть, скільки триватиме ремонт');
+    }
     if (act === 'decline') { p.status = 'declined'; p.comment = $('#aCom').value; if (!p.comment.trim()) return showErr('Коротко поясніть причину водієві'); }
     if (act === 'done') { p.status = 'done'; p.work_done = $('#aWork').value; p.price = $('#aPrice').value; p.mileage = $('#aKm').value; if (!p.work_done.trim()) return showErr('Опишіть, що зроблено'); }
     var btn = this; busy(btn, true);
     api('req.update', p).then(function () {
-      closeDialog(); toast({ accept: 'Заявку прийнято. Телефон водія відкрито.', decline: 'Заявку відхилено', done: 'Готово. Запис додано в історію авто водія.' }[act]);
+      closeDialog(); toast({ accept: 'Заявку прийнято. Водій підтвердить час або запропонує свій.', decline: 'Заявку відхилено', done: 'Готово. Запис додано в історію авто водія.' }[act]);
       stoTab = act === 'accept' ? 'active' : (act === 'done' ? 'archive' : stoTab); renderStoRequests();
     }).catch(function (e) { busy(btn, false); showErr(e.message); });
   };
@@ -1743,10 +1823,25 @@ function renderProfile() {
   var u = state.user;
   view.innerHTML = '<h1 style="margin-bottom:12px">Профіль</h1><div class="card"><dl class="kv"><dt>Ім\'я</dt><dd>' + esc(u.name) + '</dd><dt>Телефон</dt><dd>' + esc(fmtPhone(u.phone)) + '</dd><dt>Тип</dt><dd>' + ({ sto: 'Сервіс', admin: 'Адміністратор' }[u.role] || 'Водій') + '</dd></dl></div>' +
     '<div class="card" id="tgCard"></div>' + (u.role === 'admin' ? '<div class="card" id="admNotif"></div>' : '') +
+    (u.role === 'driver' && !u.dual && !u.isAdmin ? '<div class="card"><h2>Маєте свій сервіс?</h2><p class="small" style="margin:6px 0 10px">Зареєструйте його під цим самим номером. Гараж водія й кабінет сервісу працюватимуть окремо, перемикач буде вгорі.</p><button class="btn sm dark" id="addSto">Додати мій сервіс</button></div>' : '') +
     '<div class="card small"><b>Пілотна версія.</b> Ми запускаємо АвтоХаб разом із першими водіями й сервісами Кривого Рогу. Ідеї та проблеми пишіть на <a href="mailto:info@autohubkr.com">info@autohubkr.com</a>.</div>' +
     '<button class="btn wide ghost" id="out">Вийти</button>';
   $('#out').onclick = function () { api('logout').catch(function () {}).then(function () { logoutLocal(); go('/login'); }); };
   drawTg();
+  if ($('#addSto')) $('#addSto').onclick = function () {
+    meta().then(function () {
+      openDialog('<h2 style="margin-bottom:12px">Мій сервіс</h2><form class="stack" id="asF" novalidate>' + stoFields({}) + '<div id="asE"></div><div class="row"><button type="button" class="btn ghost" data-close>Скасувати</button><button class="btn" id="asGo" style="flex:1">Зареєструвати сервіс</button></div></form>');
+      bindChips($('#asF'));
+      $('#asF').onsubmit = function (e) {
+        e.preventDefault();
+        var f = readSto(), problem = stoProblem(f);
+        if (problem) { $('#asE').innerHTML = '<div class="note err">' + esc(problem) + '</div>'; return; }
+        var b = $('#asGo'); busy(b, true);
+        api('sto.add', { sto: f }).then(function () { closeDialog(); state.user.dual = true; store('ah_user', JSON.stringify(state.user)); toast('Сервіс додано. Ми перевіримо його протягом 1–2 днів.'); setView('sto'); })
+          .catch(function (e2) { busy(b, false); $('#asE').innerHTML = '<div class="note err">' + esc(e2.message) + '</div>'; });
+      };
+    });
+  };
   if ($('#admNotif')) {
     $('#admNotif').innerHTML = '<h2 style="margin-bottom:6px">Сповіщення платформи</h2><p class="mini" style="margin:0 0 10px">Один раз після того, як додали токен бота в Supabase: підключити бота до сервера.</p>' +
       '<button class="btn sm dark" id="tgSetup">Налаштувати Telegram-бота</button><div id="tgSetupR"></div>' +

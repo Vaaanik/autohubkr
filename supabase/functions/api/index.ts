@@ -103,6 +103,16 @@ function tgHtml(m) {
     (m.rows || []).filter((r) => r[1]).map((r) => `<b>${he(r[0])}:</b> ${he(r[1])}`).join('\n')].filter(Boolean).join('\n\n');
 }
 
+// Час візиту: 'YYYY-MM-DDTHH:MM' → «03.11 (вт), 10:00»
+const WD = ['нд', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+function slotText(v) {
+  const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!m) return String(v || '');
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return m[3] + '.' + m[2] + ' (' + WD[d.getUTCDay()] + '), ' + m[4] + ':' + m[5];
+}
+const durText = (v, u) => v ? v + ' ' + (u === 'дн' ? (v % 10 === 1 && v % 100 !== 11 ? 'день' : (v % 10 >= 2 && v % 10 <= 4 && (v % 100 < 10 || v % 100 >= 20)) ? 'дні' : 'днів') : 'год') : '';
+
 class UserError extends Error { constructor(m, auth) { super(m); this.userMessage = m; this.auth = !!auth; } }
 const fail = (m) => { throw new UserError(m); };
 
@@ -154,7 +164,7 @@ function makeApi(db, deps) {
   };
 
   /* --- облікові записи --- */
-  const pubUser = (u) => { const p = { id: u.id, role: u.role, name: u.name, phone: u.phone, tg: !!u.tg_chat }; if (u.isAdmin || u.role === 'admin') p.isAdmin = true; return p; };
+  const pubUser = (u) => { const p = { id: u.id, role: u.role, name: u.name, phone: u.phone, tg: !!u.tg_chat, dual: u.role !== 'admin' && !u.isAdmin && !!u.sto_id }; if (u.isAdmin || u.role === 'admin') p.isAdmin = true; return p; };
   const CAR_KEYS = ['id', 'make', 'model', 'year', 'plate', 'vin', 'mileage', 'engine', 'fuel', 'power', 'gearbox', 'drive', 'body'].concat(CAR_DOCS.map((d) => d[0]));
   const pubCar = (c, urls) => { const p = pick(c, CAR_KEYS); p.photo = c.photo && urls ? (urls[c.photo] || '') : ''; return p; };
   // Перевірка й нормалізація полів авто (спільна для додавання й редагування).
@@ -189,7 +199,8 @@ function makeApi(db, deps) {
     if (own) { p.active = isActive(s); p.email = s.email || ''; }
     return p;
   }
-  const pubReq = (q) => { const p = pick(q, ['id', 'car_id', 'sto_id', 'category', 'description', 'preferred', 'status', 'sto_comment', 'price', 'visit', 'work_done', 'mileage', 'visited', 'confirmed', 'created', 'updated']); p.status_label = STATUS[q.status] || q.status; return p; };
+  const pubReq = (q) => { const p = pick(q, ['id', 'car_id', 'sto_id', 'category', 'description', 'preferred', 'status', 'sto_comment', 'price', 'visit', 'work_done', 'mileage', 'visited', 'confirmed', 'visit_at', 'visit_state', 'dur_value', 'dur_unit', 'created', 'updated']);
+    p.visit_options = Array.isArray(q.visit_options) ? q.visit_options : []; p.visit_log = Array.isArray(q.visit_log) ? q.visit_log : []; p.status_label = STATUS[q.status] || q.status; return p; };
   const geoOf = (s) => (s.geo === 'x' || s.geo === 'xx') ? 'not_found' : (s.lat ? 'ok' : '');
 
   async function session(u) {
@@ -212,6 +223,10 @@ function makeApi(db, deps) {
         stoId = st.id;
       }
       u = Object.assign({}, u, { role: r.as, sto_id: stoId, isAdmin: true });
+    } else if (u.role !== 'admin') {
+      // Один номер — два кабінети: водій може мати свій сервіс, а сервіс — свій гараж.
+      if (r.as === 'sto' && u.sto_id) u = Object.assign({}, u, { role: 'sto' });
+      else if (r.as === 'driver' && u.role === 'sto') u = Object.assign({}, u, { role: 'driver' });
     }
     if (role && u.role !== role) fail('Ця дія недоступна для вашого типу акаунта');
     return u;
@@ -223,7 +238,7 @@ function makeApi(db, deps) {
     const pin = String(r.pin || '');
     if (!/^\d{4,6}$/.test(pin)) fail('PIN має бути з 4–6 цифр');
     const name = need(r.name, "Вкажіть ім'я");
-    if (await db.find('users', 'phone', phone)) fail('Цей номер уже зареєстровано. Увійдіть або зверніться до підтримки.');
+    if (await db.find('users', 'phone', phone)) fail(role === 'sto' ? 'Цей номер уже зареєстровано як водія. Увійдіть і додайте сервіс у «Профілі»: обидва кабінети працюватимуть під одним номером.' : 'Цей номер уже зареєстровано. Увійдіть: гараж водія доступний і в акаунті сервісу.');
     let st = null, sto = null;
     if (role === 'sto') {
       st = r.sto || {};
@@ -299,6 +314,28 @@ function makeApi(db, deps) {
     });
     res.sort((a, b) => (a.listed ? 1 : 0) - (b.listed ? 1 : 0) || (b.rating || 0) - (a.rating || 0) || b.reviews - a.reviews || (a.name < b.name ? -1 : 1));
     return { stos: res };
+  }
+
+  async function stoAdd(r) {
+    const u = await auth(r, 'driver');
+    const real = await db.find('users', 'id', u.id);
+    if (real.sto_id) fail('До цього номера вже прив\'язано сервіс');
+    const st = r.sto || {};
+    const sto = { id: id(), owner_id: u.id, name: need(st.name, 'Вкажіть назву сервісу'), district: oneOf(st.district, DISTRICTS), address: need(st.address, 'Вкажіть адресу'),
+      phone: phone_(st.phone || real.phone), services: list_(st.services, CATEGORIES).join(', '), hours: s_(st.hours), about: s_(st.about), active: false, created: now(), source: 'реєстрація', geo: '' };
+    const em = s_(st.email).toLowerCase(); if (em) { if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/.test(em)) fail('Перевірте email'); sto.email = em; }
+    const same = (await db.all('stos')).find((x) => !x.owner_id && x.phone && (x.phone === sto.phone || x.phone === real.phone));
+    let stoId = sto.id;
+    if (same) {
+      const keep = { owner_id: u.id, name: sto.name, district: sto.district, address: sto.address, phone: sto.phone, services: sto.services || same.services, hours: sto.hours || same.hours, about: sto.about || same.about };
+      if (sto.email) keep.email = sto.email;
+      if (keep.address !== same.address) { keep.lat = null; keep.lng = null; keep.geo = ''; }
+      await db.update('stos', same.id, keep); stoId = same.id;
+    } else await db.insert('stos', sto);
+    await db.update('users', u.id, { sto_id: stoId });
+    notify((same ? 'СТО підтвердив свою картку: ' : 'Новий СТО чекає перевірки: ') + sto.name, 'Водій ' + real.name + ' (' + real.phone + ') додав свій сервіс до акаунта.\nАдреса: ' + sto.address +
+      '\nПослуги: ' + sto.services + '\n\nПеревірка: autohubkr.com/app/ → СТО → Перевірка.');
+    return { sto_id: stoId };
   }
 
   async function stoUpdate(r) {
@@ -384,7 +421,16 @@ function makeApi(db, deps) {
     }
     if (!FLOW[to] || FLOW[to].indexOf(q.status) === -1) fail('Цей крок зараз недоступний');
     const patch = { status: to, updated: now() };
-    if (to === 'accepted') patch.code = String(1000 + Math.floor(Math.random() * 9000));
+    if (to === 'accepted') {
+      patch.code = String(1000 + Math.floor(Math.random() * 9000));
+      if (r.visit_at !== undefined) {
+        const at = slot_(r.visit_at);
+        const dv = int(r.dur_value); if (!dv || dv > 365) fail('Вкажіть строк ремонту');
+        patch.visit_at = at; patch.visit_state = 'sto'; patch.visit = slotText(at); patch.visit_options = [];
+        patch.dur_value = dv; patch.dur_unit = r.dur_unit === 'дн' ? 'дн' : 'год';
+        patch.visit_log = [{ at: now(), by: 'sto', kind: 'propose', slots: [at] }];
+      }
+    }
     if (r.comment !== undefined) patch.sto_comment = s_(r.comment);
     if (r.price !== undefined && r.price !== '') patch.price = num(r.price);
     if (r.visit !== undefined) patch.visit = s_(r.visit);
@@ -395,11 +441,11 @@ function makeApi(db, deps) {
         const [drv, st] = await Promise.all([db.find('users', 'id', nq.driver_id), db.find('stos', 'id', nq.sto_id)]);
         if (!drv || !drv.tg_chat) return;
         const money = nq.price ? Number(nq.price).toLocaleString('uk-UA') + ' грн' : '';
-        const m = to === 'accepted' ? { emoji: '✅', title: (st ? st.name : 'Сервіс') + ' прийняв заявку', intro: 'Покажіть код візиту в сервісі, коли приїдете.',
-            rows: [['Запрошують', nq.visit], ['Орієнтовна ціна', money], ['Код візиту', nq.code], ['Коментар', nq.sto_comment], ['Адреса', st ? st.address : ''], ['Телефон', st ? st.phone : '']] }
+        const m = to === 'accepted' ? { emoji: '✅', title: (st ? st.name : 'Сервіс') + ' прийняв заявку', intro: nq.visit_state === 'sto' ? 'Підтвердіть час у застосунку або запропонуйте свій. Код візиту покажіть у сервісі.' : 'Покажіть код візиту в сервісі, коли приїдете.',
+            rows: [['Запрошують', nq.visit], ['Строк ремонту', durText(nq.dur_value, nq.dur_unit)], ['Орієнтовна ціна', money], ['Код візиту', nq.code], ['Коментар', nq.sto_comment], ['Адреса', st ? st.address : ''], ['Телефон', st ? st.phone : '']] }
           : to === 'declined' ? { emoji: '↩️', title: (st ? st.name : 'Сервіс') + ' не зможе взяти заявку', intro: 'Оберіть інший сервіс у застосунку.', rows: [['Причина', nq.sto_comment]] }
           : { emoji: '🏁', title: 'Роботи виконано: ' + (st ? st.name : ''), intro: 'Підтвердіть виконання й оцініть сервіс: це допоможе іншим водіям.', rows: [['Що зроблено', nq.work_done], ['Сума', money]] };
-        await tgSend(drv.tg_chat, m, [{ text: 'Відкрити в АвтоХабі', url: APP_URL + '#/requests' }]);
+        await tgSend(drv.tg_chat, m, [{ text: to === 'accepted' && nq.visit_state === 'sto' ? '📅 Підтвердити час' : 'Відкрити в АвтоХабі', url: APP_URL + '#/requests' }]);
       })());
     }
     if (to === 'done') {
@@ -414,6 +460,70 @@ function makeApi(db, deps) {
       } catch (e) { console.error('sto_jobs', e); }
     }
     return { request: pubReq(nq) };
+  }
+
+  // Перевірка часу: формат і не в минулому (за київським часом сервера now()).
+  function slot_(v) {
+    const x = s_(v);
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(x)) fail('Оберіть дату й час');
+    if (x.replace('T', ' ') < now().slice(0, 16)) fail('Цей час уже минув');
+    if (x.slice(0, 10) > fmt(new Date(Date.now() + 120 * 864e5)).slice(0, 10)) fail('Оберіть дату в найближчі 4 місяці');
+    return x;
+  }
+  // Запропонувати час (або перенести): водій — до 3 варіантів, сервіс — один.
+  async function reqSlot(r) {
+    const u = await auth(r);
+    const q = await db.find('requests', 'id', String(r.id || ''));
+    const side = u.role === 'driver' ? 'driver' : 'sto';
+    if (!q || (side === 'driver' ? q.driver_id !== u.id : q.sto_id !== u.sto_id)) fail('Заявку не знайдено');
+    if (q.status !== 'accepted') fail('Час можна змінити, поки авто не прийняли в роботу');
+    const slots = [...new Set((Array.isArray(r.slots) ? r.slots : [r.slots]).filter(Boolean).map(slot_))].slice(0, side === 'driver' ? 3 : 1);
+    if (!slots.length) fail('Оберіть дату й час');
+    const log = (Array.isArray(q.visit_log) ? q.visit_log : []).concat([{ at: now(), by: side, kind: q.visit_state === 'confirmed' ? 'move' : 'propose', slots, note: s_(r.note).slice(0, 200) }]).slice(-20);
+    const patch = side === 'driver' ? { visit_state: 'driver', visit_options: slots, visit_log: log, updated: now() }
+      : { visit_state: 'sto', visit_at: slots[0], visit: slotText(slots[0]), visit_options: [], visit_log: log, updated: now() };
+    const nq = await db.update('requests', q.id, patch);
+    slotNotify(nq, side, slots, s_(r.note), q.visit_state === 'confirmed');
+    return { request: pubReq(nq) };
+  }
+  // Підтвердити час: водій — запропонований сервісом, сервіс — один із варіантів водія.
+  async function reqSlotOk(r) {
+    const u = await auth(r);
+    const q = await db.find('requests', 'id', String(r.id || ''));
+    const side = u.role === 'driver' ? 'driver' : 'sto';
+    if (!q || (side === 'driver' ? q.driver_id !== u.id : q.sto_id !== u.sto_id)) fail('Заявку не знайдено');
+    if (q.status !== 'accepted') fail('Цей крок зараз недоступний');
+    let at;
+    if (side === 'driver') { if (q.visit_state !== 'sto') fail('Немає часу, який чекає вашого підтвердження'); at = q.visit_at; }
+    else { const opts = Array.isArray(q.visit_options) ? q.visit_options : []; at = String(r.slot || ''); if (q.visit_state !== 'driver' || opts.indexOf(at) === -1) fail('Оберіть один із варіантів водія'); }
+    if (at.replace('T', ' ') < now().slice(0, 16)) fail('Цей час уже минув. Запропонуйте інший.');
+    const log = (Array.isArray(q.visit_log) ? q.visit_log : []).concat([{ at: now(), by: side, kind: 'confirm', slots: [at] }]).slice(-20);
+    const nq = await db.update('requests', q.id, { visit_state: 'confirmed', visit_at: at, visit: slotText(at), visit_options: [], visit_log: log, updated: now() });
+    slotNotify(nq, side, [at], '', false, true);
+    return { request: pubReq(nq) };
+  }
+  // Сповіщення другої сторони про зміну часу (Telegram; сервісу — ще й лист).
+  function slotNotify(q, by, slots, note, moved, confirmed) {
+    bg((async () => {
+      const [drv, st] = await Promise.all([db.find('users', 'id', q.driver_id), db.find('stos', 'id', q.sto_id)]);
+      const car = await db.find('cars', 'id', q.car_id);
+      const carT = car ? [car.make, car.model].filter(Boolean).join(' ') : '';
+      const times = slots.map(slotText).join(' або ');
+      if (by === 'sto' && drv) {
+        const m = confirmed ? { emoji: '📅', title: 'Запис підтверджено: ' + (st ? st.name : ''), intro: 'Чекаємо вас ' + times + '. Не забудьте показати код візиту.', rows: [['Адреса', st ? st.address : ''], ['Код візиту', q.code]] }
+          : { emoji: '🕒', title: (moved ? 'Сервіс пропонує перенести візит' : 'Сервіс пропонує інший час'), intro: 'Підтвердіть або запропонуйте свій варіант у застосунку.', rows: [['Час', times], ['Строк ремонту', durText(q.dur_value, q.dur_unit)], ['Коментар', note], ['Сервіс', st ? st.name : '']] };
+        tgSend(drv.tg_chat, m, [{ text: confirmed ? 'Відкрити заявку' : '🕒 Відповісти', url: APP_URL + '#/requests' }]);
+      }
+      if (by === 'driver' && st) {
+        const owner = st.owner_id ? await db.find('users', 'id', st.owner_id) : null;
+        const m = confirmed ? { emoji: '📅', title: 'Водій підтвердив час: ' + times, intro: 'Запис на ' + carT + ' підтверджено.', rows: [['Заявка', q.category], ['Водій', drv ? drv.name : '']] }
+          : { emoji: '🕒', title: moved ? 'Водій просить перенести візит' : 'Водій пропонує інший час', intro: 'Оберіть зручний варіант або запропонуйте свій.', rows: [['Варіанти', times], ['Коментар', note], ['Авто', carT], ['Заявка', q.category]],
+            cta: { text: 'Відповісти', url: APP_URL + '#/sto' } };
+        if (owner) tgSend(owner.tg_chat, m, [{ text: confirmed ? 'Відкрити заявку' : '🕒 Обрати час', url: APP_URL + '#/sto' }]);
+        if (!confirmed) mailSend(st.email, m);
+        if (!st.owner_id) adminTg(Object.assign({}, m, { title: '[' + st.name + '] ' + m.title }), [{ text: 'Кабінет сервісу', url: APP_URL }]);
+      }
+    })());
   }
 
   // Сервіс вводить код, який показав водій: так фіксується, що водій справді приїхав через АвтоХаб.
@@ -1158,7 +1268,7 @@ function makeApi(db, deps) {
     'cars.delete': async (r) => { const u = await auth(r, 'driver'); const c = await ownCar(u, r.id); await db.update('cars', c.id, { deleted: 'так' }); return {}; },
     'sto.catalog': catalog,
     'sto.update': stoUpdate,
-    'req.create': reqCreate, 'req.list': reqList, 'req.update': reqUpdate, 'req.visit': reqVisit, 'req.confirm': reqConfirm,
+    'req.create': reqCreate, 'req.list': reqList, 'req.update': reqUpdate, 'req.visit': reqVisit, 'req.confirm': reqConfirm, 'req.slot': reqSlot, 'req.slot.ok': reqSlotOk, 'sto.add': stoAdd,
     'stats.public': statsPublic, 'ai.receipt': aiReceipt, 'vin.decode': vinDecode,
     'tg.link': tgLink, 'tg.unlink': tgUnlink, 'admin.tg.setup': adminTgSetup, 'admin.mail.test': adminMailTest,
     'tg.auth': tgAuth, 'tg.bind': tgBind, 'sto.photo': stoPhoto, 'admin.sto.photo': adminStoPhoto,
