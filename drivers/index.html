@@ -14,13 +14,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700&family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../assets/site.css?v=3">
+<link rel="stylesheet" href="../assets/site.css?v=4">
 </head>
 <body>
 
 <header class="wrap top">
   <a class="logo" href="../" aria-label="AutoHubKR, на головну"><img src="../app/logo-head.webp" width="150" height="52" alt="AutoHubKR — навігатор автопослуг"></a>
-  <nav class="topnav"><a class="sw" href="../services/">Для сервісів</a><a class="small" href="#join">Долучитися</a></nav>
+  <nav class="topnav"><a class="sw" href="../services/">Для сервісів</a><a class="small" href="#join">Долучитися</a><a class="app" href="../app/">Увійти</a></nav>
 </header>
 
 <main>
@@ -30,7 +30,7 @@
       <h1>Збираємо автомобільну спільноту Кривого Рогу, щоб стати прикладом для всієї країни</h1>
       <p class="lead">АвтоХаб об'єднує водіїв і автосервіси міста: гараж з історією ремонтів і страхуванням, перевірка авто за відкритими базами, облік кількох авто чи автопарку та AI-помічник. Закритий тест на 300 учасників, вхід безкоштовний.</p>
       <a class="btn" href="#join">Долучитися до спільноти</a>
-      <p class="note">Займає дві хвилини. Оплата не потрібна.</p>
+      <p class="note">Займає менше хвилини. Оплата не потрібна.</p>
       <div class="meter" id="meter">
         <div class="bar"><b id="meterBar"></b></div>
         <span id="meterText"></span>
@@ -74,7 +74,8 @@
   <div class="wrap">
     <div class="sec-head">
       <h2>Так виглядатиме застосунок</h2>
-      <p>Це концепт інтерфейсу, а не робоча версія. Дані на екранах умовні. У тесті ви допоможете визначити, що з показаного робити першим.</p>
+      <p>Дані на екранах умовні. Гараж, план ТО, документи, витрати, заявки в СТО й AI-помічник уже працюють у пілотній версії. Перевірку за базами й автопарк ми ще робимо, і ви допоможете визначити, що робити першим.</p>
+      <div class="app-strip"><p><b>Пілотна версія вже працює.</b> Гараж з планом ТО, документи й страховка, історія та витрати, заявки в СТО міста й AI-підказка за симптомами.</p><a class="btn" href="../app/">Відкрити застосунок</a></div>
     </div>
     <div class="phones" tabindex="0" aria-label="Екрани застосунку, гортайте вбік">
 
@@ -220,7 +221,7 @@
     </div>
     <div class="idea-box">
       <p><b>Не бачите потрібної функції?</b> Напишіть у заявці, чого вам бракує. Ідеї тестувальників ми збираємо в перелік і беремо в роботу в першу чергу.</p>
-      <a class="btn" href="#wishes">Запропонувати функцію</a>
+      <a class="btn" href="#wishes" onclick="var d=document.querySelector('.form-more');if(d)d.open=true">Запропонувати функцію</a>
     </div>
   </div>
 </section>
@@ -270,13 +271,13 @@
           <li>Безкоштовно</li>
           <li>VIN вказувати не обов'язково</li>
           <li>Є місце для ваших ідей і побажань</li>
-          <li>Займає близько двох хвилин</li>
+          <li>Займає менше хвилини</li>
         </ul>
       </aside>
 
       <div>
         <form id="f" novalidate>
-          <p class="req-note">Усі поля обов'язкові, крім VIN і номера авто. Незаповнені поля підсвічуються червоним, кнопка спрацює, коли форма буде заповнена.</p>
+          <p class="req-note">Обов'язкові лише ім'я, контакт і послуги. Решта за бажанням.</p>
           <div class="row2">
             <div>
               <label class="l" for="name">Ім'я</label>
@@ -289,20 +290,6 @@
               <div class="err" id="e-tg">Вкажіть Telegram, щоб ми додали вас до групи.</div>
             </div>
           </div>
-
-          <fieldset>
-            <legend>Ваше авто</legend>
-            <div class="row3">
-              <input type="text" name="car_brand" placeholder="Марка" aria-label="Марка">
-              <input type="text" name="car_model" placeholder="Модель" aria-label="Модель">
-              <input type="number" name="car_year" placeholder="Рік" min="1950" max="2027" aria-label="Рік випуску">
-            </div>
-            <div class="row2" style="margin-top:12px">
-              <input type="text" name="vin" placeholder="VIN (необов'язково)" aria-label="VIN" maxlength="20" autocomplete="off">
-              <input type="text" name="plate" placeholder="Номер авто (необов'язково)" aria-label="Номер авто" maxlength="12" autocomplete="off">
-            </div>
-          </fieldset>
-
           <fieldset>
             <legend>Які послуги хочете бачити на платформі? <span class="hint">Оберіть хоча б одну, можна кілька</span></legend>
             <div class="opts">
@@ -324,7 +311,20 @@
               <input type="text" name="services_other" placeholder="Інше, за бажанням: що ще додати?" aria-label="Інші послуги">
             </div>
           </fieldset>
-
+          <details class="form-more">
+            <summary>Розповісти більше <span class="hint">необов'язково, ще хвилина: допоможе нам вирішити, що робити першим</span></summary>
+          <fieldset>
+            <legend>Ваше авто</legend>
+            <div class="row3">
+              <input type="text" name="car_brand" placeholder="Марка" aria-label="Марка">
+              <input type="text" name="car_model" placeholder="Модель" aria-label="Модель">
+              <input type="number" name="car_year" placeholder="Рік" min="1950" max="2027" aria-label="Рік випуску">
+            </div>
+            <div class="row2" style="margin-top:12px">
+              <input type="text" name="vin" placeholder="VIN (необов'язково)" aria-label="VIN" maxlength="20" autocomplete="off">
+              <input type="text" name="plate" placeholder="Номер авто (необов'язково)" aria-label="Номер авто" maxlength="12" autocomplete="off">
+            </div>
+          </fieldset>
           <fieldset>
             <legend>Як ви шукаєте сервіс зараз?</legend>
             <div class="radios">
@@ -334,7 +334,6 @@
               <label><input type="radio" name="search_now" value="Один майстер"> Їжджу до одного й того самого майстра</label>
             </div>
           </fieldset>
-
           <fieldset>
             <legend>Що для вас найважливіше?</legend>
             <div class="radios">
@@ -347,7 +346,6 @@
               <label><input type="radio" name="top_feature" value="Кілька авто / автопарк"> Облік кількох авто або автопарку</label>
             </div>
           </fieldset>
-
           <fieldset>
             <legend>Скільки авто ви обслуговуєте?</legend>
             <div class="radios">
@@ -362,11 +360,11 @@
             <label class="l" for="wish">Яких функцій вам бракує? <span class="hint">Напишіть хоча б кілька слів</span></label>
             <textarea id="wish" name="wishes" maxlength="1500" placeholder="Що б ви хотіли бачити в застосунку, чого немає в переліку вище? Опишіть, як вам зручно."></textarea>
           </div>
-
+          </details>
           <div>
             <label class="consent">
               <input type="checkbox" id="consent" name="consent">
-              <span>Погоджуюся на обробку моїх даних для участі в тесті та зв'язку зі мною. Дані потрібні лише для тесту платформи й не передаються третім особам.</span>
+              <span>Погоджуюся на обробку моїх даних для участі в тесті та зв'язку зі мною згідно з <a href="../privacy/" target="_blank">політикою конфіденційності</a>. Дані не передаються третім особам.</span>
             </label>
             <div class="err" id="e-consent">Потрібна ваша згода, щоб продовжити.</div>
           </div>
@@ -396,21 +394,21 @@
   <div class="wrap">
     <div class="sec-head"><h2>Питання, які часто ставлять</h2></div>
     <details><summary>Скільки це коштує?</summary><p>Участь у тесті безкоштовна. Платити за доступ тестувальникам не доведеться, а про платні можливості в майбутньому ми скажемо заздалегідь.</p></details>
-    <details><summary>Коли відкриється доступ?</summary><p>Спочатку набираємо групу. Про відкриття перших функцій напишемо в Telegram-групі, і точну дату назвемо тоді, коли вона буде впевнено відома.</p></details>
+    <details><summary>Коли відкриється доступ?</summary><p>Пілотна версія вже працює: <a href="../app/">відкрийте застосунок</a> і зареєструйтеся за номером телефону. Нові функції відкриваємо поетапно й першими показуємо учасникам тесту.</p></details>
     <details><summary>Чи обов'язково вказувати VIN?</summary><p>Ні. Можна лише марку, модель і рік або взагалі пропустити авто й додати його пізніше в гаражі.</p></details>
-    <details><summary>Що станеться з моїми даними?</summary><p>Ми використовуємо їх тільки для участі в тесті та зв'язку з вами. Видалити заявку можна, написавши нам у групі.</p></details>
+    <details><summary>Що станеться з моїми даними?</summary><p>Ми використовуємо їх тільки для участі в тесті та зв'язку з вами. Видалити заявку можна, написавши на info@autohubkr.com. Подробиці в <a href="../privacy/">політиці конфіденційності</a>.</p></details>
     <details><summary>Які саме бази використовуватиме перевірка авто?</summary><p>Ми працюємо з відкритими даними. Точний перелік перевірок залежить від доступності цих даних, і в тесті ми покажемо, що вже працює. Це не заміна офіційної перевірки перед купівлею.</p></details>
     <details><summary>Чи можна вести кілька авто або автопарк?</summary><p>Так, у гаражі можна тримати кілька авто. Окремий режим для автопарку з витратами, ТО й документами по кожній машині ми теж хочемо перевірити в тесті, тож позначте це у формі.</p></details>
     <details><summary>Чому лише Кривий Ріг?</summary><p>Кривий Ріг у нас пілот. Тут ми відпрацюємо модель з реальними водіями й сервісами, щоб показати приклад, який зможуть повторити інші міста.</p></details>
-    <details><summary>Я власник сервісу або майстер. Це для мене?</summary><p>Для вас окрема сторінка й умови партнерів-засновників. Напишіть нам, і ми надішлемо посилання.</p></details>
+    <details><summary>Я власник сервісу або майстер. Це для мене?</summary><p>Для вас окрема сторінка й умови партнерів-засновників: <a href="../services/">АвтоХаб для сервісів</a>.</p></details>
   </div>
 </section>
 </main>
 
 <footer>
   <div class="wrap foot">
-    <span>АвтоХаб. Автомобільна спільнота Кривого Рогу. Платформа в розробці, закритий тест.</span>
-    <nav><a href="../">Головна</a><a href="../drivers/">Для водіїв</a><a href="../services/">Для сервісів</a></nav>
+    <span>АвтоХаб. Автомобільна спільнота Кривого Рогу. Пілотна версія, закритий тест.</span>
+    <nav><a href="../">Головна</a><a href="../app/">Застосунок</a><a href="../sto/">Автосервіси міста</a><a href="../drivers/">Для водіїв</a><a href="../services/">Для сервісів</a><a href="../privacy/">Конфіденційність</a></nav>
   </div>
 </footer>
 
@@ -453,14 +451,7 @@ var SPOTS_TAKEN   = (typeof CFG.driversTaken === 'number') ? CFG.driversTaken : 
   var SPECS = [
     {key:'name',  label:"ім'я",              box:function(){return f.name;},       ok:function(){return !!f.name.value.trim();}},
     {key:'tg',    label:'Telegram',          box:function(){return f.telegram;},   ok:function(){return f.telegram.value.trim().length >= 4;}},
-    {key:'brand', label:'марку авто',        box:function(){return f.car_brand;},  ok:function(){return !!f.car_brand.value.trim();}},
-    {key:'model', label:'модель',            box:function(){return f.car_model;},  ok:function(){return !!f.car_model.value.trim();}},
-    {key:'year',  label:'рік випуску',       box:function(){return f.car_year;},   ok:function(){var y=parseInt(f.car_year.value,10); return y>=1950 && y<=2027;}},
     {key:'svc',   label:'хоча б одну послугу', group:true, box:grp('services'),    ok:chk('services')},
-    {key:'srch',  label:'як шукаєте сервіс зараз', group:true, box:grp('search_now'), ok:chk('search_now')},
-    {key:'top',   label:'що для вас найважливіше', group:true, box:grp('top_feature'), ok:chk('top_feature')},
-    {key:'fleet', label:'кількість авто',    group:true, box:grp('fleet_size'),    ok:chk('fleet_size')},
-    {key:'wish',  label:'побажання до функцій', box:function(){return f.wishes;}, ok:function(){return f.wishes.value.trim().length >= 3;}},
     {key:'cons',  label:'згоду на обробку даних', group:true, box:function(){return f.consent.closest('label');}, ok:function(){return f.consent.checked;}}
   ];
   function refresh(){
@@ -556,6 +547,7 @@ var SPOTS_TAKEN   = (typeof CFG.driversTaken === 'number') ? CFG.driversTaken : 
   });
 })();
 </script>
+<script src="../assets/counter.js"></script>
 <script src="../assets/track.js"></script>
 </body>
 </html>

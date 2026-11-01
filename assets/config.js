@@ -14,7 +14,10 @@ window.AUTOHUB_CONFIG = {
   driversTotal:  300,
   servicesTotal: 30,
 
-  // Реальна кількість зайнятих місць. Число показує лічильник на сторінці, null ховає його.
+  // Кількість зайнятих місць вручну. null: число береться з бази автоматично (див. counterMin).
   driversTaken:  null,
-  servicesTaken: null
+  servicesTaken: null,
+
+  // Лічильник з бази показується, лише коли заявок не менше цього числа (щоб не відлякувати «2 з 300»)
+  counterMin: 10
 };

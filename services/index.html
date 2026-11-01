@@ -14,13 +14,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700&family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../assets/site.css?v=3">
+<link rel="stylesheet" href="../assets/site.css?v=4">
 </head>
 <body>
 
 <header class="wrap top">
   <a class="logo" href="../" aria-label="AutoHubKR, на головну"><img src="../app/logo-head.webp" width="150" height="52" alt="AutoHubKR — навігатор автопослуг"></a>
-  <nav class="topnav"><a class="sw" href="../drivers/">Для водіїв</a><a class="small" href="#join">Стати партнером</a></nav>
+  <nav class="topnav"><a class="sw" href="../drivers/">Для водіїв</a><a class="small" href="#join">Стати партнером</a><a class="app" href="../app/">Увійти</a></nav>
 </header>
 
 <main>
@@ -74,7 +74,8 @@
   <div class="wrap">
     <div class="sec-head">
       <h2>Так виглядатиме ваш кабінет</h2>
-      <p>Це концепт інтерфейсу, а не робоча версія. Дані на екранах умовні. Ви допоможете визначити, що робити першим.</p>
+      <p>Дані на екранах умовні. Заявки, картка сервісу й відгуки вже працюють у пілотній версії. Облік замовлень, склад і гроші поки що ідея, яку ми перевіряємо разом з вами.</p>
+      <div class="app-strip"><p><b>Кабінет сервісу вже працює.</b> Заявки від водіїв з описом проблеми й авто, підтвердження візиту кодом і відгуки після роботи. Зареєструйтеся в застосунку як сервіс, ми перевіримо дані протягом 1–2 днів.</p><a class="btn" href="../app/">Відкрити застосунок</a></div>
     </div>
     <div class="phones" tabindex="0" aria-label="Екрани кабінету сервісу, гортайте вбік">
 
@@ -215,7 +216,7 @@
     </div>
     <div class="ask">
       <p><b>Це ідея, і ми хочемо перевірити, чи вона вам потрібна.</b> Скажіть у заявці: так, ні чи «тільки якщо буде простіше». Від цього залежить, що ми будуватимемо першим.</p>
-      <a class="btn" href="#crm-q">Відповісти в заявці</a>
+      <a class="btn" href="#crm-q" onclick="var d=document.querySelector('.form-more');if(d)d.open=true">Відповісти в заявці</a>
     </div>
   </div>
 </section>
@@ -246,7 +247,7 @@
     </div>
     <div class="idea-box">
       <p><b>Не бачите потрібної функції?</b> Напишіть у заявці, чого вам бракує в роботі з клієнтами. Ідеї партнерів ми збираємо й беремо в роботу в першу чергу.</p>
-      <a class="btn" href="#wishes">Запропонувати функцію</a>
+      <a class="btn" href="#wishes" onclick="var d=document.querySelector('.form-more');if(d)d.open=true">Запропонувати функцію</a>
     </div>
   </div>
 </section>
@@ -290,7 +291,7 @@
 
       <div>
         <form id="f" novalidate>
-          <p class="req-note">Усі поля обов'язкові, крім Instagram або сайту. Незаповнені поля підсвічуються червоним, кнопка спрацює, коли форма буде заповнена.</p>
+          <p class="req-note">Обов'язкові лише назва, контакт, район і послуги. Решта за бажанням, але дуже допоможе нам.</p>
 
           <div class="row2">
             <div>
@@ -350,6 +351,8 @@
             </div>
           </fieldset>
 
+          <details class="form-more">
+            <summary>Розповісти більше <span class="hint">необов'язково: потужності, записи, облік і побажання</span></summary>
           <fieldset>
             <legend>Скільки в сервісі постів або майстрів?</legend>
             <div class="radios">
@@ -436,11 +439,11 @@
             <label class="l" for="wish">Яких функцій вам бракує в роботі з клієнтами? <span class="hint">Напишіть хоча б кілька слів</span></label>
             <textarea id="wish" name="wishes" maxlength="1500" placeholder="Що б полегшило вашу роботу: записи, нагадування, облік, звіти, зв'язок із вашою CRM? Опишіть, як вам зручно."></textarea>
           </div>
-
+          </details>
           <div>
             <label class="consent">
               <input type="checkbox" id="consent" name="consent">
-              <span>Погоджуюся на обробку даних мого сервісу для участі в тесті та зв'язку зі мною. Дані потрібні лише для цього й не передаються третім особам.</span>
+              <span>Погоджуюся на обробку даних мого сервісу для участі в тесті та зв'язку зі мною згідно з <a href="../privacy/" target="_blank">політикою конфіденційності</a>. Дані не передаються третім особам.</span>
             </label>
           </div>
 
@@ -474,7 +477,7 @@
     <details><summary>Чи треба працювати лише через вас?</summary><p>Ні. Ви працюєте з усіма клієнтами, як і раніше. Платформа додатковий канал заявок та інструмент обліку клієнтів.</p></details>
     <details><summary>Чи можна вийти з тесту?</summary><p>Так, у будь-який момент. Напишіть нам, і ми приберемо картку з каталогу.</p></details>
     <details><summary>Які відгуки ви публікуватимете?</summary><p>Лише від водіїв, які реально звернулися до сервісу через платформу. Ви можете відповісти на кожен відгук.</p></details>
-    <details><summary>Що станеться з даними мого сервісу?</summary><p>Ми використовуємо їх тільки для участі в тесті та зв'язку з вами. Картку в каталозі публікуємо лише після вашого підтвердження.</p></details>
+    <details><summary>Що станеться з даними мого сервісу?</summary><p>Ми використовуємо їх тільки для участі в тесті та зв'язку з вами. Картку в каталозі публікуємо лише після вашого підтвердження. Подробиці в <a href="../privacy/">політиці конфіденційності</a>.</p></details>
     <details><summary>Чому лише Кривий Ріг?</summary><p>Кривий Ріг у нас пілот. Тут ми відпрацюємо модель з реальними водіями й сервісами, щоб показати приклад, який зможуть повторити інші міста.</p></details>
   </div>
 </section>
@@ -482,8 +485,8 @@
 
 <footer>
   <div class="wrap foot">
-    <span>АвтоХаб. Автомобільна спільнота Кривого Рогу. Платформа в розробці, закритий тест.</span>
-    <nav><a href="../">Головна</a><a href="../drivers/">Для водіїв</a><a href="../services/">Для сервісів</a></nav>
+    <span>АвтоХаб. Автомобільна спільнота Кривого Рогу. Пілотна версія, закритий тест.</span>
+    <nav><a href="../">Головна</a><a href="../app/">Застосунок</a><a href="../sto/">Автосервіси міста</a><a href="../drivers/">Для водіїв</a><a href="../services/">Для сервісів</a><a href="../privacy/">Конфіденційність</a></nav>
   </div>
 </footer>
 
@@ -527,15 +530,6 @@ var SPOTS_TAKEN   = (typeof CFG.servicesTaken === 'number') ? CFG.servicesTaken 
     {key:'tg',    label:'Telegram або телефон',   box:el('telegram'), ok:txt('telegram',4)},
     {key:'dist',  label:'район міста',            group:true, box:grp('district'), ok:chk('district')},
     {key:'svc',   label:'хоча б одну послугу',    group:true, box:grp('services'), ok:chk('services')},
-    {key:'posts', label:'кількість постів',       group:true, box:grp('posts'),    ok:chk('posts')},
-    {key:'book',  label:'як приймаєте записи',    group:true, box:grp('booking'),  ok:chk('booking')},
-    {key:'cap',   label:'вільну завантаженість',  group:true, box:grp('capacity'), ok:chk('capacity')},
-    {key:'ready', label:'готовність приймати заявки', group:true, box:grp('ready'), ok:chk('ready')},
-    {key:'pay',   label:'модель оплати',          group:true, box:grp('pay'),      ok:chk('pay')},
-    {key:'crm',   label:'чи потрібна єдина система керування', group:true, box:grp('crm'), ok:chk('crm')},
-    {key:'crmf',  label:'що було б найкорисніше (або відповідь «Ні» вище)', group:true, box:grp('crm_features'), ok:function(){ return val('crm')==='Ні' || chk('crm_features')(); }},
-    {key:'tools', label:'чим ведете облік зараз', group:true, box:grp('tools'), ok:chk('tools')},
-    {key:'wish',  label:'побажання до функцій',   box:el('wishes'),   ok:txt('wishes',3)},
     {key:'cons',  label:'згоду на обробку даних', group:true, box:function(){return f.consent.closest('label');}, ok:function(){return f.consent.checked;}}
   ];
   function refresh(){
@@ -627,6 +621,7 @@ var SPOTS_TAKEN   = (typeof CFG.servicesTaken === 'number') ? CFG.servicesTaken 
   });
 })();
 </script>
+<script src="../assets/counter.js"></script>
 <script src="../assets/track.js"></script>
 </body>
 </html>

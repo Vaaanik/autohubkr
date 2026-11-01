@@ -14,13 +14,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700&family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/site.css?v=3">
+<link rel="stylesheet" href="assets/site.css?v=4">
 </head>
 <body>
 
 <header class="wrap top">
   <a class="logo" href="./" aria-label="AutoHubKR, на головну"><img src="app/logo-head.webp" width="150" height="52" alt="AutoHubKR — навігатор автопослуг"></a>
-  <nav class="topnav"><a class="sw" href="services/">Для сервісів</a><a class="small" href="drivers/">Для водіїв</a></nav>
+  <nav class="topnav"><a class="sw" href="sto/">Сервіси</a><a class="sw" href="services/">Для сервісів</a><a class="small" href="drivers/">Для водіїв</a><a class="app" href="app/">Увійти</a></nav>
 </header>
 
 <main>
@@ -29,6 +29,7 @@
     <h1 style="max-width:16em">Автомобільна спільнота Кривого Рогу</h1>
     <p class="lead" style="font-size:19px;color:var(--ink-soft);max-width:38em;margin:22px 0 34px">Водії й автосервіси міста в одному місці: гараж з історією ремонтів, чесні відгуки, заявки на ремонт і проста система обліку для сервісів. Ми збираємо перших учасників, щоб Кривий Ріг став прикладом для всієї країни.</p>
 
+    <p class="live-count" id="liveCount" hidden></p>
     <div class="choose">
       <div class="pick d">
         <h2>Я водій</h2>
@@ -58,7 +59,8 @@
 
 <section class="alt">
   <div class="wrap">
-    <div class="sec-head"><h2>Як ми це будуємо</h2><p>Платформа в розробці. Ми запускаємо закритий тест у Кривому Розі, щоб перевірити ідею з реальними людьми, а вже потім розвивати її далі.</p></div>
+    <div class="sec-head"><h2>Як ми це будуємо</h2><p>Пілотна версія застосунку вже працює в Кривому Розі: гараж, план ТО, заявки в сервіси й відгуки. Решту функцій відкриваємо поетапно разом з першими учасниками.</p></div>
+    <div class="app-strip" style="margin:0 0 26px"><p><b>Уже можна спробувати.</b> Зареєструйтеся за номером телефону: як водій або як сервіс.</p><a class="btn" href="app/">Відкрити застосунок</a></div>
     <div class="three">
       <div><h3>Водії</h3><p>Перші 300 учасників отримують безкоштовний доступ і впливають на функції.</p></div>
       <div><h3>Сервіси</h3><p>Перші 30 партнерів-засновників отримують безкоштовну картку й заявки без комісії на старті.</p></div>
@@ -70,11 +72,12 @@
 
 <footer>
   <div class="wrap foot">
-    <span>АвтоХаб. Автомобільна спільнота Кривого Рогу. Платформа в розробці, закритий тест.</span>
-    <nav><a href="drivers/">Для водіїв</a><a href="services/">Для сервісів</a></nav>
+    <span>АвтоХаб. Автомобільна спільнота Кривого Рогу. Пілотна версія, закритий тест.</span>
+    <nav><a href="app/">Застосунок</a><a href="sto/">Автосервіси міста</a><a href="drivers/">Для водіїв</a><a href="services/">Для сервісів</a><a href="privacy/">Конфіденційність</a></nav>
   </div>
 </footer>
 <script src="assets/config.js?v=5"></script>
+<script src="assets/counter.js"></script>
 <script src="assets/track.js"></script>
 </body>
 </html>
