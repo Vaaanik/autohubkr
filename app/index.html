@@ -309,6 +309,9 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (max-width:360px){h1{font-size:23px}.odo i{width:17px;font-size:18px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+.odo-btn{background:none;border:0;padding:0;color:inherit;text-align:right;cursor:pointer;font:inherit}
+.km-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.km-row:first-of-type{border-top:0}.km-row small{display:block;color:var(--soft);font-size:12px}
 </style>
 </head>
 <body>
@@ -355,6 +358,37 @@ function plateHtml(p) {
 function odoHtml(v) {
   var n = String(Math.round(Number(v) || 0)), d = ('000000' + n).slice(-Math.max(6, n.length)), lead = true;
   return '<span class="odo" aria-label="Пробіг ' + esc(km(v) || 'не вказано') + '">' + d.split('').map(function (c) { var z = lead && c === '0'; if (c !== '0') lead = false; return '<i' + (z ? ' class="z"' : '') + '>' + c + '</i>'; }).join('') + '<span>км</span></span>';
+}
+function kmCard(car) {
+  var log = car.mileage_log || [];
+  if (!log.length) return '<div class="card"><div class="between"><h2>Пробіг</h2></div><p class="small muted" style="margin:6px 0 10px">Вкажіть поточний пробіг: від нього рахується план обслуговування.</p><button type="button" class="btn sm" id="kmBtn2">Вказати пробіг</button></div>';
+  var days = Math.round((Date.now() - new Date(log[0].date + 'T12:00:00').getTime()) / 864e5);
+  var first = log[log.length - 1], span = (new Date(log[0].date) - new Date(first.date)) / 864e5, avg = span >= 30 && log[0].km > first.km ? Math.round((log[0].km - first.km) / span * 30.4) : 0;
+  var row = function (e, i) {
+    var d = log[i + 1] ? e.km - log[i + 1].km : 0;
+    return '<div class="km-row"><div><b>' + esc(km(e.km)) + '</b><small>' + esc(dt(e.date)) + (e.src ? ' · ' + esc(e.src) : '') + '</small></div>' + (d > 0 ? '<span class="small muted">+' + esc(Number(d).toLocaleString('uk-UA')) + '</span>' : '') + '</div>';
+  };
+  return '<div class="card"><div class="between" style="margin-bottom:4px"><h2>Пробіг</h2><button type="button" class="link" id="kmBtn2">Оновити</button></div>' +
+    (days > 30 ? '<div class="note warn" style="margin:6px 0 8px">Пробіг не оновлювали ' + days + ' дн. Оновіть, щоб план обслуговування був точним.</div>' : '') +
+    (avg ? '<div class="small" style="margin-bottom:6px">У середньому <b>' + esc(Number(avg).toLocaleString('uk-UA')) + ' км на місяць</b></div>' : '') +
+    log.slice(0, 4).map(row).join('') +
+    (log.length > 4 ? '<details class="plan-more"><summary>Уся історія (' + log.length + ')</summary>' + log.slice(4).map(function (e, i) { return row(e, i + 4); }).join('') + '</details>' : '') + '</div>';
+}
+function kmDialog(car) {
+  var today = new Date().toISOString().slice(0, 10);
+  openDialog('<h2 style="margin-bottom:12px">Оновити пробіг</h2><div class="stack">' +
+    '<div class="grid2"><div><label class="f" for="kmV">Пробіг, км</label><input class="i" id="kmV" inputmode="numeric" placeholder="' + esc(car.mileage || '') + '"></div>' +
+    '<div><label class="f" for="kmD">Дата</label><input class="i" id="kmD" type="date" value="' + today + '" max="' + today + '"></div></div>' +
+    (car.mileage ? '<p class="mini" style="margin:0">Зараз: ' + esc(km(car.mileage)) + '</p>' : '') +
+    '<label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="kmFix"> Виправити помилку (новий пробіг менший)</label>' +
+    '<div id="kmErr"></div><div class="row"><button class="btn ghost" data-close style="flex:1">Скасувати</button><button class="btn" id="kmGo" style="flex:1">Зберегти</button></div></div>');
+  setTimeout(function () { $('#kmV').focus(); }, 30);
+  $('#kmGo').onclick = function () {
+    var b = this; busy(b, true);
+    api('cars.mileage', { id: car.id, mileage: $('#kmV').value.replace(/\s/g, ''), date: $('#kmD').value, fix: $('#kmFix').checked })
+      .then(function () { closeDialog(); state.cars = null; toast('Пробіг оновлено'); route(); })
+      .catch(function (e) { busy(b, false); $('#kmErr').innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
+  };
 }
 function km(v) { return v ? Number(v).toLocaleString('uk-UA') + ' км' : ''; }
 function dt(s) { if (!s) return ''; var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}:\d{2}))?/); return m ? m[3] + '.' + m[2] + '.' + m[1] + (m[4] ? ', ' + m[4] : '') : s; }
@@ -743,7 +777,7 @@ function carDialog(car) {
     var engines = []; for (var v = 6; v <= 70; v++) engines.push((v / 10).toFixed(1));
     openDialog('<h2 style="margin-bottom:4px">' + (edit ? 'Редагувати авто' : 'Нове авто') + '</h2><p class="mini" style="margin:0 0 12px">Почніть вводити марку: шукає й латиницею, й кирилицею.</p>' +
       '<form class="stack" id="carForm" novalidate>' +
-      '<div><label class="f" for="cVin">' + (M.carDocs ? 'VIN <span>введіть, і ми заповнимо решту з реєстру МВС</span>' : 'VIN <span>необов\'язково</span>') + '</label><div class="row"><input class="i" id="cVin" maxlength="17" autocomplete="off" autocapitalize="characters" placeholder="17 символів, є в техпаспорті" value="' + esc(car.vin || '') + '" style="flex:1;text-transform:uppercase">' +
+      '<div><label class="f" for="cVin">' + (M.carDocs ? 'VIN <span>введіть, і ми заповнимо решту</span>' : 'VIN <span>необов\'язково</span>') + '</label><div class="row"><input class="i" id="cVin" maxlength="17" autocomplete="off" autocapitalize="characters" placeholder="17 символів, є в техпаспорті" value="' + esc(car.vin || '') + '" style="flex:1;text-transform:uppercase">' +
         (M.carDocs ? '<button type="button" class="btn sm dark" id="cVinGo">Заповнити</button>' : '') + '</div><div id="cVinNote"></div></div>' +
       '<div><label class="f" for="cMake">Марка</label><input class="i" id="cMake" placeholder="Skoda, Toyota, ЗАЗ…" value="' + esc(car.make || '') + '"></div>' +
       '<div><label class="f" for="cModel">Модель</label><input class="i" id="cModel" placeholder="Спершу оберіть марку" value="' + esc(car.model || '') + '"' + (car.make ? '' : ' disabled') + '></div>' +
@@ -847,8 +881,8 @@ function carDialog(car) {
         if (setSel('#cBody', c.body)) got.push('кузов');
         $('#cVin').value = c.vin || '';
         if (c.plate && !$('#cPlate').value) $('#cPlate').value = c.plate;
-        var src = (c.source || []).indexOf('реєстр МВС') !== -1 ? ' Дані з відкритого реєстру МВС (data.gov.ua)' + (c.color ? ', колір: ' + esc(c.color) : '') + '.' : '';
-        $('#cVinNote').innerHTML = (c.stolen ? '<div class="note err" style="margin-top:8px"><b>Увага:</b> за даними МВС це авто числиться в розшуку.</div>' : '') +
+        var src = c.color ? ' Колір: ' + esc(c.color) + '.' : '';
+        $('#cVinNote').innerHTML = (c.stolen ? '<div class="note err" style="margin-top:8px"><b>Увага:</b> це авто числиться в розшуку.</div>' : '') +
           (c.plate && !c.vin ? '<div class="note info" style="margin-top:8px">VIN за номером не відкривається. Якщо потрібен VIN, впишіть його з техпаспорта.</div>' : '') +
           '<div class="note ' + (c.model && !c.modelGuess ? 'ok' : 'warn') + '" style="margin-top:8px">Заповнили: ' + got.join(', ') + '.' + src +
           (!c.model ? ' Модель за цим VIN у відкритих базах не знайшли, оберіть її зі списку.' : c.modelGuess ? ' Модель підказав AI, перевірте її.' : '') + ' Перевірте дані перед збереженням.</div>';
@@ -952,9 +986,9 @@ function renderCar(id) {
       '<div class="dash' + (car.photo ? ' has-photo' : '') + '">' + (car.photo ? '<div class="dash-photo"><img src="' + esc(car.photo) + '" alt="Фото ' + esc(car.make + ' ' + car.model) + '"></div>' : '') +
       '<h1 style="color:#fff;font-size:22px">' + esc(car.make + ' ' + car.model) + (car.year ? '<span class="yr" style="font-size:18px">' + esc(car.year) + '</span>' : '') + '</h1>' +
       (spec ? '<div class="spec">' + esc(spec) + '</div>' : '') + (car.modification ? '<div class="spec" style="opacity:.8">' + esc(car.modification) + '</div>' : '') +
-      '<div class="dash-row"><div>' + plateHtml(car.plate) + '</div><div><div class="odo-l">Пробіг</div>' + odoHtml(car.mileage) + '</div></div>' +
+      '<div class="dash-row"><div>' + plateHtml(car.plate) + '</div><button type="button" id="odoBtn" class="odo-btn" aria-label="Оновити пробіг"><div class="odo-l">Пробіг ✎</div>' + odoHtml(car.mileage) + '</button></div>' +
       (car.vin ? '<div class="vin">VIN ' + esc(car.vin) + '</div>' : '') +
-      '<div class="acts"><a class="btn sm" href="#/new?car=' + esc(car.id) + '">Заявка в СТО</a><button class="btn sm ghost" id="addHist">Додати запис</button><button class="btn sm ghost" id="editCar">Редагувати</button>' +
+      '<div class="acts"><a class="btn sm" href="#/new?car=' + esc(car.id) + '">Заявка в СТО</a><button class="btn sm ghost" id="kmBtn">Оновити пробіг</button><button class="btn sm ghost" id="addHist">Додати запис</button><button class="btn sm ghost" id="editCar">Редагувати</button>' +
       '<label class="btn sm ghost" id="photoBtn">' + (car.photo ? 'Змінити фото' : 'Додати фото') + '<input type="file" accept="image/*" id="carPhoto" class="sr"></label></div></div>' +
       '<div class="card"><div class="between" style="margin-bottom:6px"><h2>План обслуговування</h2>' + (car.mileage ? '' : '<span class="mini">вкажіть пробіг</span>') + '</div>' +
         (urgent.length ? urgent.map(planRow).join('') : (car.mileage ? '<p class="small" style="margin:4px 0 8px">Термінових робіт немає' + (okc ? ': ' + okc + ' позицій за графіком.' : '.') + '</p>' : '<p class="small muted" style="margin:4px 0">Додайте пробіг у «Редагувати», і план порахується автоматично.</p>')) +
@@ -962,6 +996,7 @@ function renderCar(id) {
           '<p class="mini" style="margin:0 0 6px">Натисніть на роботу й вкажіть, коли її робили. Тоді план підкаже, коли наступна.</p><div class="plan-compact">' +
           nodata.map(function (p) { return '<button type="button" class="pc-row" data-svc="' + esc(p.s[0]) + '"><span>' + esc(p.s[1]) + '</span><small>' + esc(p.note) + '</small></button>'; }).join('') + '</div></details>' : '') +
         '<p class="mini" style="margin:8px 0 0">Інтервали орієнтовні. Точні дивіться в сервісній книжці вашого авто. Натисніть на роботу, щоб записати, коли її робили.</p></div>' +
+      kmCard(car) +
       (car.osago_until === undefined ? '' : '<div class="card"><div class="between" style="margin-bottom:4px"><h2>Документи й страховка</h2><button type="button" class="link" id="editDocs">Змінити</button></div>' +
         carDocs().map(function (d) { var i = docInfo(car[d[0]]); return '<div class="doc-row"><div><b>' + esc(d[1]) + '</b><small>' + (car[d[0]] ? 'до ' + esc(dt(car[d[0]])) : 'дату не вказано') + '</small></div><span class="doc-st ' + i.cls + '">' + esc(i.label) + '</span></div>'; }).join('') + '</div>') +
       (M.ria ? '<div class="card" id="mkt"></div>' : '') +
@@ -978,6 +1013,8 @@ function renderCar(id) {
     $('#addHist').onclick = function () { histDialog(car, M); };
     if ($('#addHist2')) $('#addHist2').onclick = function () { histDialog(car, M); };
     $('#editCar').onclick = function () { carDialog(car); };
+    $('#odoBtn').onclick = $('#kmBtn').onclick = function () { kmDialog(car); };
+    if ($('#kmBtn2')) $('#kmBtn2').onclick = function () { kmDialog(car); };
     if ($('#editDocs')) $('#editDocs').onclick = function () { docsDialog(car); };
     if ($('#mkt')) {
       var drawMkt = function (mk) {
@@ -1251,13 +1288,19 @@ function renderRequests() {
       var acts = '';
       if (q.status === 'done' && q.confirmed === '') acts += '<button class="btn sm" data-ok="' + esc(q.id) + '">Підтверджую виконання</button><button class="btn sm ghost" data-dispute="' + esc(q.id) + '">Є проблема</button>';
       if (['accepted', 'in_work'].indexOf(q.status) !== -1 && s.phone) acts += '<a class="btn sm dark" href="' + esc(telHref(s.phone)) + '">Подзвонити</a>';
-      if (['new', 'accepted'].indexOf(q.status) !== -1) acts += '<button class="btn sm ghost" data-cancel="' + esc(q.id) + '">Скасувати</button>';
+      if (['new', 'accepted'].indexOf(q.status) !== -1) acts += '<button class="btn sm ghost" data-cancel="' + esc(q.id) + '" data-st="' + q.status + '">' + (q.status === 'accepted' ? 'Скасувати запис' : 'Скасувати') + '</button>';
       if (q.status === 'done' && q.confirmed !== '' && !q.review) acts += '<button class="btn sm" data-review="' + esc(q.id) + '">Залишити відгук</button>';
       if (q.review) body += '<div class="small" style="margin-top:8px">Ваш відгук: ' + stars(q.review.rating) + (q.review.text ? ' ' + esc(q.review.text) : '') + '</div>';
       return '<div class="card">' + body + (acts ? '<div class="row" style="margin-top:12px;flex-wrap:wrap">' + acts + '</div>' : '') + '</div>';
     }).join('') : '<div class="card empty"><b>Заявок ще немає</b>Опишіть проблему й оберіть сервіс, а відповідь прийде сюди.<div style="margin-top:14px"><a class="btn" href="#/new">Нова заявка</a></div></div>');
     $$('[data-cancel]').forEach(function (b) {
-      b.onclick = function () { busy(b, true); api('req.update', { id: b.dataset.cancel, status: 'cancelled' }).then(function () { toast('Заявку скасовано'); route(); }).catch(function (e) { busy(b, false); fail(e); }); };
+      b.onclick = function () {
+        var acc = b.dataset.st === 'accepted';
+        openDialog('<h2 style="margin-bottom:6px">' + (acc ? 'Скасувати запис?' : 'Скасувати заявку?') + '</h2><p class="mini" style="margin:0 0 10px">' + (acc ? 'Сервіс отримає сповіщення, а час звільниться. Якщо просто незручний час, краще запропонуйте інший.' : 'Сервіс більше не бачитиме цю заявку як нову.') + '</p>' +
+          '<input class="i" id="cnR" placeholder="Причина, необов\'язково">' +
+          '<div class="row" style="margin-top:12px"><button class="btn ghost" data-close style="flex:1">Ні</button><button class="btn danger" id="cnGo" style="flex:1">Скасувати</button></div>');
+        $('#cnGo').onclick = function () { var bb = this; busy(bb, true); api('req.update', { id: b.dataset.cancel, status: 'cancelled', comment: $('#cnR').value }).then(function () { closeDialog(); toast(acc ? 'Запис скасовано' : 'Заявку скасовано'); route(); }).catch(function (e) { busy(bb, false); fail(e); }); };
+      };
     });
     $$('[data-review]').forEach(function (b) { b.onclick = function () { reviewDialog(b.dataset.review); }; });
     bindVisit(view, list, 'driver', renderRequests);
@@ -1323,7 +1366,8 @@ function slotDialog(q, side, after) {
 function visitBlock(q, side) {
   if (q.status !== 'accepted' && q.status !== 'in_work') return '';
   var dur = durTxt(q.dur_value, q.dur_unit), durL = dur ? '<div class="small">Строк ремонту: <b>' + esc(dur) + '</b></div>' : '';
-  if (!q.visit_state) return q.visit ? '<div class="note info" style="margin-top:10px"><b>Час візиту:</b> ' + esc(q.visit) + '</div>' : '';
+  if (!q.visit_state) return '<div class="note info" style="margin-top:10px"><b>Час візиту:</b> ' + esc(q.visit || 'не узгоджено') + durL +
+    (q.status === 'accepted' ? '<div style="margin-top:8px"><button type="button" class="btn sm ghost" data-move="' + esc(q.id) + '">' + (side === 'driver' ? 'Запропонувати інший час' : 'Змінити час') + '</button></div>' : '') + '</div>';
   var lastNote = (q.visit_log || []).filter(function (e) { return e.note; }).slice(-1)[0];
   var note = lastNote ? '<div class="small muted" style="margin-top:4px">«' + esc(lastNote.note) + '»</div>' : '';
   if (q.visit_state === 'confirmed') return '<div class="note ok" style="margin-top:10px">📅 <b>Запис підтверджено:</b> ' + esc(slotTxt(q.visit_at)) + durL +
@@ -1382,6 +1426,7 @@ function renderStoRequests() {
       var acts = '';
       if (q.visited === '' && (q.status === 'accepted' || q.status === 'in_work')) acts += '<button class="btn sm dark" data-act="code" data-id="' + esc(q.id) + '">Ввести код водія</button>';
       if (q.status === 'new') acts = '<button class="btn sm" data-act="accept" data-id="' + esc(q.id) + '">Прийняти</button><button class="btn sm ghost" data-act="decline" data-id="' + esc(q.id) + '">Відхилити</button>';
+      if (q.status === 'accepted') acts += '<button class="btn sm ghost" data-act="decline" data-id="' + esc(q.id) + '">Скасувати запис</button>';
       if (q.status === 'accepted') acts += (q.visited ? '' : '<button class="btn sm ' + (q.visited === undefined ? 'dark' : 'ghost') + '" data-act="in_work" data-id="' + esc(q.id) + '">' + (q.visited === undefined ? 'Авто в роботі' : 'Авто в роботі без коду') + '</button>') + '<button class="btn sm" data-act="done" data-id="' + esc(q.id) + '">Завершити</button>';
       if (q.status === 'in_work') acts += '<button class="btn sm" data-act="done" data-id="' + esc(q.id) + '">Завершити</button>';
       return '<div class="card">' + body + (acts ? '<div class="row" style="margin-top:12px;flex-wrap:wrap">' + acts + '</div>' : '') + '</div>';
@@ -1413,7 +1458,7 @@ function stoAction(act, q) {
     '<div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Строк ремонту</span><div class="grid2"><input class="i" id="aDur" inputmode="numeric" placeholder="3"><div class="seg" id="aDurU"><button type="button" data-u="год" class="on">годин</button><button type="button" data-u="дн">днів</button></div></div></div>' +
     '<div><label class="f" for="aPrice">Орієнтовна ціна, грн <span>необов\'язково</span></label><input class="i" id="aPrice" inputmode="numeric"></div>' +
     '<div><label class="f" for="aCom">Коментар водієві <span>необов\'язково</span></label><textarea class="i" id="aCom" placeholder="Що взяти з собою, скільки триватиме"></textarea></div></div>';
-  if (act === 'decline') html = '<h2 style="margin-bottom:12px">Відхилити заявку</h2><label class="f" for="aCom">Причина для водія</label><textarea class="i" id="aCom" placeholder="Не працюємо з цією маркою / Немає вільних місць цього тижня"></textarea>';
+  if (act === 'decline') html = '<h2 style="margin-bottom:12px">' + (q.status === 'accepted' ? 'Скасувати запис' : 'Відхилити заявку') + '</h2>' + (q.status === 'accepted' ? '<p class="mini" style="margin:-6px 0 10px">Якщо проблема лише в часі, краще натисніть «Змінити час».</p>' : '') + '<label class="f" for="aCom">Причина для водія</label><textarea class="i" id="aCom" placeholder="Не працюємо з цією маркою / Немає вільних місць цього тижня"></textarea>';
   if (act === 'done') html = '<h2 style="margin-bottom:12px">Роботи завершено</h2><div class="stack"><div><label class="f" for="aWork">Що зроблено</label><textarea class="i" id="aWork" placeholder="Замінено передні колодки й диски"></textarea></div>' +
     '<div class="grid2"><div><label class="f" for="aPrice">Підсумкова ціна, грн</label><input class="i" id="aPrice" inputmode="numeric" value="' + esc(q.price || '') + '"></div><div><label class="f" for="aKm">Пробіг, км</label><input class="i" id="aKm" inputmode="numeric"></div></div></div>';
   openDialog(html + '<div id="aErr"></div><div class="row" style="margin-top:12px"><button class="btn ghost" data-close>Скасувати</button><button class="btn" id="aGo" style="flex:1">' + ({ accept: 'Прийняти', decline: 'Відхилити', done: 'Завершити' })[act] + '</button></div>');

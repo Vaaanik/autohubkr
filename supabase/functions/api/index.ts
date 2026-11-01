@@ -51,7 +51,7 @@ const GEMINI_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-2.5-
 const AI_LIMIT = 15;            // підказок AI на водія за 6 годин
 const SESSION_DAYS = 60;
 const MAX_LEN = 1500;
-const FLOW = { accepted: ['new'], declined: ['new'], in_work: ['accepted'], done: ['accepted', 'in_work'], cancelled: ['new', 'accepted'] };
+const FLOW = { accepted: ['new'], declined: ['new', 'accepted'], in_work: ['accepted'], done: ['accepted', 'in_work'], cancelled: ['new', 'accepted'] };
 const DISTRICT_HINTS = [['Центрально-Міськ', 0], ['Центрально-Городск', 0], ['Металург', 1], ['Металлург', 1], ['Жовтнев', 1], ['Октябрьск', 1],
   ['Саксаган', 2], ['Довгинц', 3], ['Долгинц', 3], ['Покровськ', 4], ['Покровск', 4], ['Дзержин', 4], ['Тернів', 5], ['Терновск', 5], ['Інгулец', 6], ['Ингулец', 6]];
 
@@ -166,7 +166,23 @@ function makeApi(db, deps) {
   /* --- облікові записи --- */
   const pubUser = (u) => { const p = { id: u.id, role: u.role, name: u.name, phone: u.phone, tg: !!u.tg_chat, dual: u.role !== 'admin' && !u.isAdmin && !!u.sto_id }; if (u.isAdmin || u.role === 'admin') p.isAdmin = true; return p; };
   const CAR_KEYS = ['id', 'make', 'model', 'year', 'plate', 'vin', 'mileage', 'engine', 'fuel', 'power', 'gearbox', 'drive', 'body', 'modification', 'equipment', 'market'].concat(CAR_DOCS.map((d) => d[0]));
-  const pubCar = (c, urls) => { const p = pick(c, CAR_KEYS); p.photo = c.photo && urls ? (urls[c.photo] || '') : ''; return p; };
+  const pubCar = (c, urls) => {
+    const p = pick(c, CAR_KEYS); p.photo = c.photo && urls ? (urls[c.photo] || '') : '';
+    p.mileage_log = kmLog(c).slice().reverse();
+    p.mileage_at = p.mileage_log.length ? p.mileage_log[0].date : '';
+    return p;
+  };
+  // Історія пробігу: масив { date, km, src } у cars.mileage_log, від старих до нових.
+  const kmLog = (c) => {
+    const l = (Array.isArray(c.mileage_log) ? c.mileage_log : []).filter((e) => e && e.km);
+    // авто, додані до появи історії: поточний пробіг стає першим записом
+    return l.length || !c.mileage ? l : [{ date: String(c.created || '').slice(0, 10) || today(), km: Number(c.mileage), src: 'додано авто' }];
+  };
+  function kmPush(c, km, src, date) {
+    const log = kmLog(c).concat([{ date: date || today(), km: Number(km), src: s_(src).slice(0, 80) }]);
+    log.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.km - b.km);
+    return log.slice(-200);
+  }
   // Перевірка й нормалізація полів авто (спільна для додавання й редагування).
   function carFields(r, partial) {
     const f = {};
@@ -298,7 +314,12 @@ function makeApi(db, deps) {
     if (!c || c.user_id !== u.id || c.deleted) fail('Авто не знайдено');
     return c;
   }
-  async function bumpMileage(car, km) { if (km && (!car.mileage || Number(km) > Number(car.mileage))) await db.update('cars', car.id, { mileage: km }); }
+  async function bumpMileage(car, km, src, date) {
+    if (!km) return;
+    const patch = { mileage_log: kmPush(car, km, src || 'запис обслуговування', date) };
+    if (!car.mileage || Number(km) > Number(car.mileage)) patch.mileage = km;
+    await db.update('cars', car.id, patch);
+  }
 
   /* --- каталог СТО --- */
   async function catalog(r) {
@@ -457,11 +478,23 @@ function makeApi(db, deps) {
         patch.visit_log = [{ at: now(), by: 'sto', kind: 'propose', slots: [at] }];
       }
     }
-    if (r.comment !== undefined) patch.sto_comment = s_(r.comment);
+    if (r.comment !== undefined && u.role !== 'driver') patch.sto_comment = s_(r.comment);
+    if (u.role === 'driver' && to === 'cancelled' && s_(r.comment)) patch.sto_comment = 'Водій: ' + s_(r.comment);
     if (r.price !== undefined && r.price !== '') patch.price = num(r.price);
     if (r.visit !== undefined) patch.visit = s_(r.visit);
     if (to === 'done') { patch.work_done = need(r.work_done, 'Опишіть виконані роботи'); patch.mileage = int(r.mileage); }
     const nq = await db.update('requests', q.id, patch);
+    if (u.role === 'driver' && to === 'cancelled') {
+      bg((async () => {
+        const st = await db.find('stos', 'id', nq.sto_id); const car = await db.find('cars', 'id', nq.car_id);
+        const m = { emoji: '❌', title: 'Водій скасував ' + (q.status === 'accepted' ? 'запис' : 'заявку'), intro: q.status === 'accepted' && q.visit ? 'Час ' + q.visit + ' звільнився.' : '',
+          rows: [['Заявка', nq.category], ['Авто', car ? [car.make, car.model].join(' ') : ''], ['Причина', s_(r.comment)]] };
+        const owner = st && st.owner_id ? await db.find('users', 'id', st.owner_id) : null;
+        if (owner) tgSend(owner.tg_chat, m, [{ text: 'Відкрити заявки', url: APP_URL + '#/sto' }]);
+        if (st && st.owner_id) mailSend(st.email, m);
+        if (st && !st.owner_id) adminTg(Object.assign({}, m, { title: '[' + st.name + '] ' + m.title }));
+      })());
+    }
     if (u.role !== 'driver' && ['accepted', 'declined', 'done'].indexOf(to) !== -1) {
       bg((async () => {
         const [drv, st] = await Promise.all([db.find('users', 'id', nq.driver_id), db.find('stos', 'id', nq.sto_id)]);
@@ -469,7 +502,7 @@ function makeApi(db, deps) {
         const money = nq.price ? Number(nq.price).toLocaleString('uk-UA') + ' грн' : '';
         const m = to === 'accepted' ? { emoji: '✅', title: (st ? st.name : 'Сервіс') + ' прийняв заявку', intro: nq.visit_state === 'sto' ? 'Підтвердіть час у застосунку або запропонуйте свій. Код візиту покажіть у сервісі.' : 'Покажіть код візиту в сервісі, коли приїдете.',
             rows: [['Запрошують', nq.visit], ['Строк ремонту', durText(nq.dur_value, nq.dur_unit)], ['Орієнтовна ціна', money], ['Код візиту', nq.code], ['Коментар', nq.sto_comment], ['Адреса', st ? st.address : ''], ['Телефон', st ? st.phone : '']] }
-          : to === 'declined' ? { emoji: '↩️', title: (st ? st.name : 'Сервіс') + ' не зможе взяти заявку', intro: 'Оберіть інший сервіс у застосунку.', rows: [['Причина', nq.sto_comment]] }
+          : to === 'declined' ? { emoji: '↩️', title: (st ? st.name : 'Сервіс') + (q.status === 'accepted' ? ' скасував запис' : ' не зможе взяти заявку'), intro: 'Оберіть інший сервіс у застосунку.', rows: [['Причина', nq.sto_comment]] }
           : { emoji: '🏁', title: 'Роботи виконано: ' + (st ? st.name : ''), intro: 'Підтвердіть виконання й оцініть сервіс: це допоможе іншим водіям.', rows: [['Що зроблено', nq.work_done], ['Сума', money]] };
         await tgSend(drv.tg_chat, m, [{ text: to === 'accepted' && nq.visit_state === 'sto' ? '📅 Підтвердити час' : 'Відкрити в АвтоХабі', url: APP_URL + '#/requests' }]);
       })());
@@ -478,7 +511,7 @@ function makeApi(db, deps) {
       const [sto, car] = await Promise.all([db.find('stos', 'id', nq.sto_id), db.find('cars', 'id', nq.car_id)]);
       await db.insert('history', { id: id(), car_id: nq.car_id, user_id: nq.driver_id, date: today(), work: nq.work_done, place: sto ? sto.name : '',
         price: nq.price, mileage: nq.mileage, request_id: nq.id, created: now(), confirmed: '' });
-      if (car && nq.mileage) await bumpMileage(car, nq.mileage);
+      if (car && nq.mileage) await bumpMileage(car, nq.mileage, 'сервіс' + (sto ? ': ' + sto.name : ''));
       try {
         const drv = await db.find('users', 'id', nq.driver_id);
         await db.insert('sto_jobs', { id: id(), sto_id: nq.sto_id, date: today(), client_name: drv ? drv.name : '', client_phone: drv ? drv.phone : '', car: car ? [car.make, car.model, car.year].filter(Boolean).join(' ') : '',
@@ -1321,12 +1354,37 @@ function makeApi(db, deps) {
       const u = await auth(r, 'driver');
       if ((await db.where('cars', 'user_id', u.id)).filter((c) => !c.deleted).length >= 10) fail('Можна додати до 10 авто');
       const c = Object.assign({ id: id(), user_id: u.id, created: now(), deleted: '', photo: '' }, carFields(r, false));
+      c.mileage_log = c.mileage ? kmPush({}, c.mileage, 'додано авто') : [];
       await db.insert('cars', c);
       return { car: pubCar(c, {}) };
     },
     'cars.update': async (r) => {
       const u = await auth(r, 'driver'); const c = await ownCar(u, r.id);
-      const upd = await db.update('cars', c.id, carFields(r, true));
+      const f = carFields(r, true);
+      if (f.mileage && Number(f.mileage) !== Number(c.mileage)) f.mileage_log = kmPush(c, f.mileage, 'вручну');
+      const upd = await db.update('cars', c.id, f);
+      return { car: pubCar(upd, await signPhotos([upd])) };
+    },
+    // Оновлення пробігу з датою; менше за попередній значення приймаємо лише як виправлення помилки.
+    'cars.mileage': async (r) => {
+      const u = await auth(r, 'driver'); const c = await ownCar(u, r.id);
+      const km = int(r.mileage);
+      if (!km || km > 2000000) fail('Вкажіть пробіг у кілометрах');
+      const date = date_(r.date) || today();
+      if (date > today()) fail('Дата не може бути в майбутньому');
+      const log = kmLog(c);
+      if (r.fix) {
+        const keep = log.filter((e) => e.km <= km);
+        const upd = await db.update('cars', c.id, { mileage: km, mileage_log: kmPush({ mileage_log: keep }, km, 'виправлено', date) });
+        return { car: pubCar(upd, await signPhotos([upd])) };
+      }
+      const before = log.filter((e) => e.date <= date).reduce((m, e) => Math.max(m, e.km), 0);
+      const after = log.filter((e) => e.date > date).reduce((m, e) => Math.min(m, e.km), Infinity);
+      if (km < before) fail('Пробіг менший за попередній запис (' + before.toLocaleString('uk-UA') + ' км). Якщо там помилка, позначте «Виправити помилку».');
+      if (km > after) fail('Пробіг більший, ніж у пізнішому записі. Перевірте дату.');
+      const patch = { mileage_log: kmPush(c, km, s_(r.src) || 'вручну', date) };
+      if (!c.mileage || km >= Number(c.mileage)) patch.mileage = km;
+      const upd = await db.update('cars', c.id, patch);
       return { car: pubCar(upd, await signPhotos([upd])) };
     },
     // Фото авто: браузер стискає до ~1280 px JPEG і надсилає як data URL; зберігаємо в приватному сховищі.
@@ -1371,7 +1429,7 @@ function makeApi(db, deps) {
       const row = { id: id(), car_id: c.id, user_id: u.id, date, work, services: services.join(','), place: s_(r.place).slice(0, 120),
         price: num(r.price), mileage: int(r.mileage), request_id: '', created: now() };
       await db.insert('history', row);
-      if (row.mileage) await bumpMileage(c, row.mileage);
+      if (row.mileage) await bumpMileage(c, row.mileage, row.place ? 'обслуговування: ' + row.place : 'запис обслуговування', row.date);
       return { record: histOut(row) };
     },
     'history.delete': async (r) => {
