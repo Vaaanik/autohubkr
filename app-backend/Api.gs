@@ -67,6 +67,7 @@ function doPost(e) {
   try {
     var req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     if (req.action === 'relay.notify') return out_(relayNotify_(req));
+    if (req.action === 'relay.mail') return out_(relayMail_(req));
     if (MIGRATED && req.action !== 'meta') return out_({ ok: false, error: 'Застосунок оновлено. Оновіть сторінку.' });
     var fn = ACTIONS[req.action];
     if (!fn) return out_({ ok: false, error: 'Невідома дія' });
@@ -133,6 +134,23 @@ var ACTIONS = {
 
 /* ---------- пересилання листів для сервера Supabase ---------- */
 // Лист іде лише на ADMIN_EMAIL, тож сторонній запит не може надіслати пошту комусь іншому; є ліміт на годину.
+// Лист будь-якому адресату (сервісу) — лише із секретом RELAY_SECRET («Налаштування проєкту» → «Властивості скрипту»),
+// тож сторонні не можуть розсилати пошту через скрипт. Підтримує HTML.
+function relayMail_(r) {
+  var secret = PropertiesService.getScriptProperties().getProperty('RELAY_SECRET');
+  if (!secret || String(r.secret || '') !== secret) return { ok: false, error: 'forbidden' };
+  var cache = CacheService.getScriptCache();
+  var n = Number(cache.get('relay_m') || 0);
+  if (n >= RELAY_LIMIT) return { ok: false, error: 'limit' };
+  cache.put('relay_m', String(n + 1), 3600);
+  var to = String(r.to || '').trim(), subject = s_(r.subject).slice(0, 150);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to) || !subject) return { ok: false, error: 'bad' };
+  var opts = { name: 'АвтоХаб', replyTo: 'info@autohubkr.com' };
+  if (r.html) opts.htmlBody = String(r.html).slice(0, 60000);
+  MailApp.sendEmail(to, subject, s_(r.text) || subject, opts);
+  return { ok: true, left: MailApp.getRemainingDailyQuota() };
+}
+
 function relayNotify_(r) {
   var cache = CacheService.getScriptCache();
   var n = Number(cache.get('relay_n') || 0);

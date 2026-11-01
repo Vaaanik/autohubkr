@@ -72,6 +72,34 @@ function vinYear(vin) {
   return y;
 }
 
+/* ---------- красиві сповіщення: лист (HTML) і Telegram ---------- */
+const APP_URL = 'https://autohubkr.com/app/';
+const he = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// msg = { emoji, title, intro, rows: [[назва, значення]], quote, cta: { text, url }, note }
+export function mailHtml(m) {
+  const rows = (m.rows || []).filter((r) => r[1]).map((r) =>
+    `<tr><td style="padding:8px 0;color:#5B6B7F;font-size:14px;width:38%;vertical-align:top">${he(r[0])}</td><td style="padding:8px 0;color:#06111F;font-size:15px;font-weight:600">${he(r[1])}</td></tr>`).join('');
+  return `<!doctype html><html lang="uk"><body style="margin:0;background:#EDF0F3;font-family:Segoe UI,Roboto,Arial,sans-serif">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EDF0F3;padding:24px 12px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fff;border-radius:16px;overflow:hidden">
+<tr><td style="background:#06111F;padding:18px 24px"><span style="color:#fff;font-size:20px;font-weight:800;letter-spacing:.02em">Авто<span style="color:#3B8BFF">Хаб</span></span>
+<span style="color:#8FA3B8;font-size:13px;float:right;margin-top:5px">Кривий Ріг</span></td></tr>
+<tr><td style="padding:24px 24px 8px"><div style="font-size:28px;line-height:1">${he(m.emoji || '🔔')}</div>
+<h1 style="margin:10px 0 6px;font-size:21px;color:#06111F">${he(m.title)}</h1>${m.intro ? `<p style="margin:0;color:#3A4A5E;font-size:15px;line-height:1.5">${he(m.intro)}</p>` : ''}</td></tr>
+${m.quote ? `<tr><td style="padding:12px 24px 0"><div style="background:#F3F6FA;border-left:4px solid #1F7BFF;border-radius:8px;padding:12px 14px;color:#06111F;font-size:15px;line-height:1.5">${he(m.quote)}</div></td></tr>` : ''}
+${rows ? `<tr><td style="padding:12px 24px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #E3E8EE">${rows}</table></td></tr>` : ''}
+${m.cta ? `<tr><td style="padding:22px 24px 6px"><a href="${he(m.cta.url)}" style="display:inline-block;background:#1F7BFF;color:#fff;text-decoration:none;font-weight:700;font-size:16px;padding:13px 22px;border-radius:10px">${he(m.cta.text)}</a></td></tr>` : ''}
+<tr><td style="padding:16px 24px 24px;color:#7D8DA1;font-size:12px;line-height:1.5">${he(m.note || 'Ви отримали цей лист, бо ваш сервіс підключений до АвтоХабу. Налаштування сповіщень — у застосунку, розділ «Мій сервіс».')}</td></tr>
+</table></td></tr></table></body></html>`;
+}
+export function mailText(m) {
+  return [m.title, m.intro, m.quote ? '«' + m.quote + '»' : '', ...(m.rows || []).filter((r) => r[1]).map((r) => r[0] + ': ' + r[1]), m.cta ? m.cta.text + ': ' + m.cta.url : ''].filter(Boolean).join('\n');
+}
+export function tgHtml(m) {
+  return [`${m.emoji || '🔔'} <b>${he(m.title)}</b>`, m.intro ? he(m.intro) : '', m.quote ? `<blockquote>${he(m.quote)}</blockquote>` : '',
+    (m.rows || []).filter((r) => r[1]).map((r) => `<b>${he(r[0])}:</b> ${he(r[1])}`).join('\n')].filter(Boolean).join('\n\n');
+}
+
 export class UserError extends Error { constructor(m, auth) { super(m); this.userMessage = m; this.auth = !!auth; } }
 const fail = (m) => { throw new UserError(m); };
 
@@ -108,10 +136,20 @@ export function makeApi(db, deps) {
   const kvPut = (k, v, sec) => db.upsert('kv', { key: k, val: String(v), expires: new Date(Date.now() + sec * 1000).toISOString() });
   const kvDel = (k) => db.removeWhere('kv', 'key', k);
 
-  const notify = (subject, body) => { if (deps.notify) deps.notify(subject, body); };
+  const bg = (p) => { const q = Promise.resolve(p).catch((e) => console.error('bg', e)); if (deps.bg) deps.bg(q); return q; };
+  const tgOn = () => !!(deps.tg && env.TG_ON);
+  const tgSend = (chat, m, buttons) => tgOn() && chat ? bg(deps.tg('sendMessage', { chat_id: chat, text: tgHtml(m), parse_mode: 'HTML', link_preview_options: { is_disabled: true },
+    reply_markup: buttons ? { inline_keyboard: buttons.map((b) => [{ text: b.text, url: b.url }]) } : undefined })) : null;
+  const mailSend = (to, m) => deps.mail && to ? bg(deps.mail(to, '[АвтоХаб] ' + m.title, mailHtml(m), mailText(m))) : null;
+  const adminTg = (m, buttons) => tgOn() ? bg(db.where('users', 'role', 'admin').then((list) => Promise.all(list.filter((a) => a.tg_chat).map((a) => tgSend(a.tg_chat, m, buttons))))) : null;
+  // Лист адміністратору (як і раніше) + те саме в Telegram адміністраторам, які підключили бота.
+  const notify = (subject, body) => {
+    if (deps.notify) deps.notify(subject, body);
+    adminTg({ emoji: '🛠', title: subject, intro: String(body || '').slice(0, 1500) }, [{ text: 'Адмін-панель', url: APP_URL }]);
+  };
 
   /* --- облікові записи --- */
-  const pubUser = (u) => { const p = { id: u.id, role: u.role, name: u.name, phone: u.phone }; if (u.isAdmin || u.role === 'admin') p.isAdmin = true; return p; };
+  const pubUser = (u) => { const p = { id: u.id, role: u.role, name: u.name, phone: u.phone, tg: !!u.tg_chat }; if (u.isAdmin || u.role === 'admin') p.isAdmin = true; return p; };
   const CAR_KEYS = ['id', 'make', 'model', 'year', 'plate', 'vin', 'mileage', 'engine', 'fuel', 'power', 'gearbox', 'drive', 'body'].concat(CAR_DOCS.map((d) => d[0]));
   const pubCar = (c, urls) => { const p = pick(c, CAR_KEYS); p.photo = c.photo && urls ? (urls[c.photo] || '') : ''; return p; };
   // Перевірка й нормалізація полів авто (спільна для додавання й редагування).
@@ -141,7 +179,7 @@ export function makeApi(db, deps) {
     p.services = String(s.services || '').split(', ').filter(String);
     p.listed = !s.owner_id && s.partner !== true;
     if (!s.owner_id && s.partner === true) p.managed = true;   // партнер без власного акаунта: заявки веде зв'язковий
-    if (own) p.active = isActive(s);
+    if (own) { p.active = isActive(s); p.email = s.email || ''; }
     return p;
   }
   const pubReq = (q) => { const p = pick(q, ['id', 'car_id', 'sto_id', 'category', 'description', 'preferred', 'status', 'sto_comment', 'price', 'visit', 'work_done', 'mileage', 'visited', 'confirmed', 'created', 'updated']); p.status_label = STATUS[q.status] || q.status; return p; };
@@ -184,6 +222,7 @@ export function makeApi(db, deps) {
       st = r.sto || {};
       sto = { id: id(), owner_id: '', name: need(st.name, 'Вкажіть назву сервісу'), district: oneOf(st.district, DISTRICTS), address: need(st.address, 'Вкажіть адресу'),
         phone: phone_(st.phone || phone), services: list_(st.services, CATEGORIES).join(', '), hours: s_(st.hours), about: s_(st.about), active: false, created: now(), source: 'реєстрація', geo: '' };
+      const em = s_(st.email).toLowerCase(); if (em) { if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/.test(em)) fail('Перевірте email'); sto.email = em; }
     }
     const salt = deps.uuid();
     const user = { id: id(), role, name, phone, pin_hash: await hash(pin, salt), salt, sto_id: sto ? sto.id : '', created: now() };
@@ -267,7 +306,8 @@ export function makeApi(db, deps) {
     if (f.services !== undefined) patch.services = list_(f.services, CATEGORIES).join(', ');
     if (f.hours !== undefined) patch.hours = s_(f.hours);
     if (f.about !== undefined) patch.about = s_(f.about);
-    const upd = await db.update('stos', sto.id, patch);
+    if (f.email !== undefined) { const em = s_(f.email).toLowerCase(); if (em && !/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/.test(em)) fail('Перевірте email'); patch.email = em; }
+    const upd = Object.keys(patch).length ? await db.update('stos', sto.id, patch) : sto;
     return { sto: pubSto(upd, true) };
   }
 
@@ -283,6 +323,16 @@ export function makeApi(db, deps) {
     const q = { id: id(), driver_id: u.id, car_id: car.id, sto_id: sto.id, category: oneOf(r.category, CATEGORIES), description: need(r.description, 'Опишіть проблему'),
       preferred: s_(r.preferred), status: 'new', sto_comment: '', price: null, visit: '', work_done: '', mileage: null, created: now(), updated: now() };
     await db.insert('requests', q);
+    {
+      const m = { emoji: '🚗', title: 'Нова заявка: ' + q.category, intro: 'Водій обрав ваш сервіс в АвтоХабі. Прийміть заявку, і ви побачите його телефон.',
+        quote: q.description, rows: [['Авто', [car.make, car.model, car.year].filter(Boolean).join(' ')], ['Пробіг', car.mileage ? Number(car.mileage).toLocaleString('uk-UA') + ' км' : ''],
+          ['Коли зручно', q.preferred], ['Сервіс', sto.name]], cta: { text: 'Відкрити заявку', url: APP_URL + '#/sto' } };
+      if (sto.owner_id) {
+        const owner = await db.find('users', 'id', sto.owner_id);
+        if (owner) tgSend(owner.tg_chat, m, [{ text: '📋 Відкрити заявку', url: APP_URL + '#/sto' }]);
+        mailSend(sto.email, m);
+      }
+    }
     notify((sto.owner_id ? 'Нова заявка в АвтоХабі → ' : 'Заявка для зв\'язкового: зателефонуйте → ') + sto.name,
       'СТО: ' + sto.name + ' (' + sto.phone + ')\nАвто: ' + carTitle(car) + '\nКатегорія: ' + q.category +
       '\nОпис: ' + q.description + '\nБажаний час: ' + (q.preferred || '—') + '\nВодій: ' + u.name + ', ' + u.phone);
@@ -333,6 +383,18 @@ export function makeApi(db, deps) {
     if (r.visit !== undefined) patch.visit = s_(r.visit);
     if (to === 'done') { patch.work_done = need(r.work_done, 'Опишіть виконані роботи'); patch.mileage = int(r.mileage); }
     const nq = await db.update('requests', q.id, patch);
+    if (u.role !== 'driver' && ['accepted', 'declined', 'done'].indexOf(to) !== -1) {
+      bg((async () => {
+        const [drv, st] = await Promise.all([db.find('users', 'id', nq.driver_id), db.find('stos', 'id', nq.sto_id)]);
+        if (!drv || !drv.tg_chat) return;
+        const money = nq.price ? Number(nq.price).toLocaleString('uk-UA') + ' грн' : '';
+        const m = to === 'accepted' ? { emoji: '✅', title: (st ? st.name : 'Сервіс') + ' прийняв заявку', intro: 'Покажіть код візиту в сервісі, коли приїдете.',
+            rows: [['Запрошують', nq.visit], ['Орієнтовна ціна', money], ['Код візиту', nq.code], ['Коментар', nq.sto_comment], ['Адреса', st ? st.address : ''], ['Телефон', st ? st.phone : '']] }
+          : to === 'declined' ? { emoji: '↩️', title: (st ? st.name : 'Сервіс') + ' не зможе взяти заявку', intro: 'Оберіть інший сервіс у застосунку.', rows: [['Причина', nq.sto_comment]] }
+          : { emoji: '🏁', title: 'Роботи виконано: ' + (st ? st.name : ''), intro: 'Підтвердіть виконання й оцініть сервіс: це допоможе іншим водіям.', rows: [['Що зроблено', nq.work_done], ['Сума', money]] };
+        await tgSend(drv.tg_chat, m, [{ text: 'Відкрити в АвтоХабі', url: APP_URL + '#/requests' }]);
+      })());
+    }
     if (to === 'done') {
       const [sto, car] = await Promise.all([db.find('stos', 'id', nq.sto_id), db.find('cars', 'id', nq.car_id)]);
       await db.insert('history', { id: id(), car_id: nq.car_id, user_id: nq.driver_id, date: today(), work: nq.work_done, place: sto ? sto.name : '',
@@ -797,6 +859,75 @@ export function makeApi(db, deps) {
     return { car: out };
   }
 
+  /* --- Telegram-бот: прив'язка акаунта й вебхук --- */
+  async function tgBot() {
+    const c = await kvGet('tg_bot');
+    if (c) return c;
+    const r = await deps.tg('getMe', {});
+    const name = r && r.result && r.result.username;
+    if (!name) fail('Telegram-бот не відповідає. Перевірте токен.');
+    await kvPut('tg_bot', name, 86400);
+    return name;
+  }
+  async function tgLink(r) {
+    const u = await auth(r);
+    if (!tgOn()) fail('Telegram-бот ще не налаштований');
+    const code = deps.uuid().replace(/-/g, '').slice(0, 16);
+    await kvPut('tglink_' + code, u.id, 1800);
+    return { url: 'https://t.me/' + (await tgBot()) + '?start=' + code };
+  }
+  async function tgUnlink(r) {
+    const u = await auth(r);
+    const real = await db.find('users', 'id', u.id);
+    if (real && real.tg_chat) { await db.update('users', u.id, { tg_chat: '' }); tgSend(real.tg_chat, { emoji: '👋', title: 'Сповіщення вимкнено', intro: 'Підключити знову можна в застосунку, розділ «Профіль».' }); }
+    return {};
+  }
+  async function tgUpdate(upd, meta) {
+    if (!tgOn() || !env.TG_SECRET || meta.tgSecret !== env.TG_SECRET) return {};
+    const msg = upd.message; if (!msg || !msg.chat) return {};
+    const chat = String(msg.chat.id), text = String(msg.text || '').trim();
+    const start = text.match(/^\/start(?:\s+([a-f0-9]{16}))?/);
+    if (start && start[1]) {
+      const uid = await kvGet('tglink_' + start[1]);
+      if (!uid) { await tgSend(chat, { emoji: '⌛', title: 'Посилання застаріло', intro: 'Відкрийте застосунок і натисніть «Підключити Telegram» ще раз.' }); return {}; }
+      await kvDel('tglink_' + start[1]);
+      (await db.where('users', 'tg_chat', chat)).forEach((o) => { if (o.id !== uid) db.update('users', o.id, { tg_chat: '' }); });
+      const u = await db.update('users', uid, { tg_chat: chat });
+      const what = u.role === 'sto' ? 'нові заявки від водіїв' : u.role === 'admin' ? 'нові заявки, анкети, сервіси на перевірці й спори' : 'відповіді сервісів на ваші заявки';
+      await tgSend(chat, { emoji: '🎉', title: 'Telegram підключено, ' + u.name, intro: 'Тепер сюди приходитимуть ' + what + '. Вимкнути: команда /stop або кнопка в застосунку.' }, [{ text: 'Відкрити АвтоХаб', url: APP_URL }]);
+      return {};
+    }
+    if (/^\/stop/.test(text)) {
+      for (const o of await db.where('users', 'tg_chat', chat)) await db.update('users', o.id, { tg_chat: '' });
+      await tgSend(chat, { emoji: '👋', title: 'Сповіщення вимкнено', intro: 'Підключити знову можна в застосунку, розділ «Профіль».' });
+      return {};
+    }
+    await tgSend(chat, { emoji: '🚗', title: 'Це бот АвтоХабу', intro: 'Він надсилає сповіщення про заявки. Щоб підключити, відкрийте застосунок → «Профіль» → «Підключити Telegram».' }, [{ text: 'Відкрити АвтоХаб', url: APP_URL }]);
+    return {};
+  }
+  async function adminTgSetup(r) {
+    await auth(r, 'admin');
+    if (!tgOn()) fail('Додайте TELEGRAM_BOT_TOKEN у Secrets Supabase і оновіть функцію');
+    await kvDel('tg_bot');
+    const bot = await tgBot();
+    const res = await deps.tg('setWebhook', { url: env.API_URL, secret_token: env.TG_SECRET, allowed_updates: ['message'], drop_pending_updates: true });
+    if (!res || !res.ok) fail('Telegram не прийняв вебхук: ' + ((res && res.description) || 'невідома помилка'));
+    await deps.tg('setMyCommands', { commands: [{ command: 'start', description: 'Підключити сповіщення' }, { command: 'stop', description: 'Вимкнути сповіщення' }] });
+    await deps.tg('setMyDescription', { description: 'Сповіщення АвтоХабу: нові заявки для сервісів і відповіді для водіїв. Кривий Ріг.' });
+    return { bot };
+  }
+  async function adminMailTest(r) {
+    const u = await auth(r, 'admin');
+    const to = s_(r.to);
+    if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(to)) fail('Вкажіть email');
+    if (!deps.mail) fail('Пошта не налаштована');
+    const res = await deps.mail(to, '[АвтоХаб] Тестовий лист', mailHtml({ emoji: '✉️', title: 'Тестовий лист АвтоХабу', intro: 'Так виглядатимуть листи сервісам про нові заявки.',
+      quote: 'Під час гальмування б\'є кермо, особливо на швидкості.', rows: [['Авто', 'Skoda Octavia 2016'], ['Пробіг', '148 000 км'], ['Коли зручно', 'Завтра після 17:00']],
+      cta: { text: 'Відкрити заявку', url: APP_URL + '#/sto' } }), 'Тестовий лист АвтоХабу');
+    if (!res || !res.ok) fail('Лист не надіслано: ' + ((res && res.error) || 'перевірте RELAY_SECRET'));
+    return { sentBy: u.name };
+  }
+
   /* --- анкети з лендингів і перегляди сторінок --- */
   const LEAD_KEYS = {
     driver: ['name', 'telegram', 'car', 'vin', 'plate', 'services', 'services_other', 'search_now', 'top_feature', 'fleet_size', 'wishes', 'utm', 'referrer'],
@@ -964,6 +1095,7 @@ export function makeApi(db, deps) {
     'sto.update': stoUpdate,
     'req.create': reqCreate, 'req.list': reqList, 'req.update': reqUpdate, 'req.visit': reqVisit, 'req.confirm': reqConfirm,
     'stats.public': statsPublic, 'ai.receipt': aiReceipt, 'vin.decode': vinDecode,
+    'tg.link': tgLink, 'tg.unlink': tgUnlink, 'admin.tg.setup': adminTgSetup, 'admin.mail.test': adminMailTest,
     'review.add': reviewAdd,
     'jobs.list': jobsList, 'jobs.add': jobsAdd, 'jobs.update': jobsUpdate, 'jobs.delete': jobsDelete,
     'history.list': async (r) => {
@@ -1015,6 +1147,7 @@ export function makeApi(db, deps) {
       // форми лендингів і лічильник переходів надсилають { type: driver | service | visit }
       if (req && !req.action && (req.type === 'driver' || req.type === 'service')) { const r0 = await leadAdd(req, meta); r0.ok = true; return r0; }
       if (req && !req.action && req.type === 'visit') { await visitAdd(req, meta); return { ok: true }; }
+      if (req && req.update_id !== undefined) { await tgUpdate(req, meta); return { ok: true }; }
       const fn = ACTIONS[req && req.action];
       if (!fn) return { ok: false, error: 'Невідома дія' };
       const res = (await fn(req)) || {};
