@@ -23,7 +23,10 @@ const PKG_CURRENT = '348dbb24-a545-4d8c-95d5-18d35c593ca1'; // ГСЦ МВС: п
 const KINDS = /ЛЕГКОВИЙ|ВАНТАЖНИЙ|СПЕЦІАЛІЗОВАНИЙ ЛЕГКОВИЙ/; // без мотоциклів, причепів, тракторів
 
 if (!KEY && !DRY) { console.error('Немає SUPABASE_SERVICE_KEY: додайте його в GitHub → Settings → Secrets → Actions. Поки що лише рахую.'); }
-const COUNT_ONLY = DRY || !KEY;
+// CHECK_VIN=... : лише знайти цей VIN у всіх файлах (без фільтра області) і показати записи
+const CHECK = String(process.env.CHECK_VIN || '').toUpperCase().replace(/\s+/g, '');
+const COUNT_ONLY = DRY || !KEY || !!CHECK;
+const found = [];
 
 async function resources(id) {
   const r = await fetch(API + id); const j = await r.json();
@@ -52,6 +55,7 @@ function take(f) {
   seen++;
   const vin = String(f.vin || '').toUpperCase().replace(/\s+/g, '');
   if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return;
+  if (CHECK) { if (vin === CHECK) { found.push(f); console.log('  ЗНАЙДЕНО:', JSON.stringify({ дата: f.dreg, марка: f.brand, модель: f.model, рік: f.year, колір: f.color, кузов: f.body, паливо: f.fuel, обʼєм: f.capacity, кВт: f.power, вид: (f.kind || '') + ' ' + (f.purpose || ''), КОАТУУ: f.koatuu })); } return; }
   if (REGION && !String(f.koatuu || '').startsWith(REGION)) return;
   // У старих архівах вид ТЗ у KIND, у нових — у purpose («ЛЕГКОВИЙ»), тож перевіряємо обидва.
   if ((f.kind || f.purpose) && !KINDS.test(String(f.kind || '') + ' ' + String(f.purpose || ''))) return;
@@ -119,6 +123,7 @@ for (const r of current) {
   console.log('  у вибірці VIN:', best.size);
 }
 console.log('Переглянуто записів:', seen, '· унікальних VIN у вибірці:', best.size);
+if (CHECK) { console.log(found.length ? 'VIN ' + CHECK + ' знайдено в офіційних даних МВС: ' + found.length + ' записів.' : 'VIN ' + CHECK + ' НЕ знайдено в офіційних даних МВС за 2021–2026 роки.'); process.exit(0); }
 if (COUNT_ONLY) { console.log('Режим підрахунку: у базу нічого не записано.'); process.exit(0); }
 
 // Завантаження пачками з оновленням існуючих рядків.

@@ -931,49 +931,16 @@ function makeApi(db, deps) {
   // Розшифровка VIN: vPIC (NHTSA, безкоштовно) → свій довідник виробників → за потреби Gemini для моделі.
   async function vinDecode(r) {
     const u = await auth(r, 'driver');
-    // Приймаємо VIN або український держномер (кирилиця переводиться в латинські двійники).
-    const CYR = { А: 'A', В: 'B', Е: 'E', І: 'I', К: 'K', М: 'M', Н: 'H', О: 'O', Р: 'P', С: 'C', Т: 'T', Х: 'X' };
-    const raw = s_(r.vin || r.plate).toUpperCase().replace(/[\s-]+/g, '');
+    const raw = s_(r.vin).toUpperCase().replace(/[\s-]+/g, '');
     const isVin = /^[A-HJ-NPR-Z0-9]{17}$/.test(raw);
-    const plate = isVin ? '' : raw.split('').map((c) => CYR[c] || c).join('');
-    if (!isVin && !/^[A-Z0-9]{4,10}$/.test(plate)) fail('Введіть VIN (17 символів) або держномер, наприклад AE1234KP');
+    if (!isVin) fail('VIN має містити 17 символів (латиниця й цифри, без I, O, Q)');
+    const plate = '';
     if (!(await rate('vin_' + u.id, 30, 3600))) fail('Забагато перевірок. Спробуйте за годину.');
     let vin = isVin ? raw : '';
     const out = { vin, plate, make: '', model: '', year: null, engine: null, fuel: '', power: null, gearbox: '', drive: '', body: '', color: '', stolen: false, source: [] };
     const tc = (x) => String(x).toLowerCase().replace(/(^|[\s-])([a-zа-яіїєґ])/g, (m0, a, b) => a + b.toUpperCase());
     const brandCase = (b) => /^(BMW|GMC|MINI|BYD|SEAT|ВАЗ|ЗАЗ|УАЗ|ГАЗ|DS|MG)$/i.test(b) ? String(b).toUpperCase() : tc(b);
     const modelCase = (m) => /^[A-Z0-9 .-]+$/.test(m) && /[A-Z]{3,}/.test(m) ? tc(m) : String(m || '');
-    // 0) Живий пошук у реєстрі МВС через baza-gai.com.ua (вся Україна, VIN — для реєстрацій з 2021 року). Відповідь кешуємо на 30 днів.
-    if (env.BAZA_GAI_KEY) {
-      const ck = 'bg_' + (isVin ? vin : plate);
-      let g = null;
-      const cached = await kvGet(ck);
-      if (cached) { try { g = JSON.parse(cached); } catch (e) { g = null; } }
-      else {
-        try {
-          const resp = await deps.fetch('https://baza-gai.com.ua/' + (isVin ? 'vin/' + vin : 'nomer/' + encodeURIComponent(plate)), { headers: { Accept: 'application/json', 'X-Api-Key': env.BAZA_GAI_KEY } });
-          if (resp.status === 200) { g = await resp.json(); await kvPut(ck, JSON.stringify(g), 30 * 86400); }
-          else if (resp.status === 404) { await kvPut(ck, 'null', 7 * 86400); }
-          else console.error('baza-gai', resp.status, String(await resp.text()).slice(0, 200));
-        } catch (e) { console.error('baza-gai', e); }
-      }
-      if (g && (g.vendor || (g.operations || []).length)) {
-        const ops = g.operations || [];
-        const last = ops.find((o) => o.is_last) || ops[0] || {};
-        out.make = brandCase(g.vendor || last.vendor || '');
-        out.model = modelCase(last.catalog_model_title || g.model || last.model || '');
-        out.year = int(g.model_year || last.model_year);
-        const cap = Number(last.displacement || (ops.find((o) => o.displacement) || {}).displacement); if (cap >= 500 && cap <= 8500) out.engine = Math.round(cap / 100) / 10;
-        out.color = String((last.color && last.color.ua) || '').toLowerCase();
-        const bd = String((last.body && last.body.ua) || '').toUpperCase();
-        out.body = /ПІКАП/.test(bd) ? 'Пікап' : /КАБРІОЛЕТ/.test(bd) ? 'Кабріолет' : /КУПЕ/.test(bd) ? 'Купе' : /УНІВЕРСАЛ/.test(bd) ? 'Універсал' : /ХЕТЧБЕК/.test(bd) ? 'Хетчбек' : /СЕДАН/.test(bd) ? 'Седан' : /МІНІВЕН/.test(bd) ? 'Мінівен' : /ФУРГОН/.test(bd) ? 'Фургон' : '';
-        if (!vin && /^[A-HJ-NPR-Z0-9]{17}$/.test(String(g.vin || ''))) vin = out.vin = g.vin;   // повний VIN, якщо сервіс його не маскує
-        if (!out.plate && /^[A-Z0-9]{4,10}$/.test(String(g.digits || ''))) out.plate = g.digits;
-        out.stolen = g.is_stolen === true;
-        out.source.push('реєстр МВС');
-      }
-    }
-    if (!vin && !out.make) fail('За цим номером авто не знайдено. Спробуйте VIN або заповніть дані вручну.');
     // 1) Відкритий реєстр МВС: авто, зареєстровані в Україні з 2021 року (Дніпропетровська область).
     let reg = null;
     if (vin) { try { reg = await db.find('vin_registry', 'vin', vin); } catch (e) { reg = null; } }
@@ -1432,7 +1399,7 @@ const api = makeApi(db, {
   uuid: () => crypto.randomUUID(),
   sha256hex: async (s) => hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))),
   env: { get GEMINI_API_KEY() { return Deno.env.get('GEMINI_API_KEY') || ''; }, get GEMINI_MODEL() { return Deno.env.get('GEMINI_MODEL') || ''; },
-    get BAZA_GAI_KEY() { return Deno.env.get('BAZA_GAI_KEY') || ''; }, TG_ON: !!TG_TOKEN, TG_SECRET, API_URL: Deno.env.get('SUPABASE_URL') + '/functions/v1/api' },
+    TG_ON: !!TG_TOKEN, TG_SECRET, API_URL: Deno.env.get('SUPABASE_URL') + '/functions/v1/api' },
   fetch: (u, o) => fetch(u, o),
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
   notify, storage, storagePub, b64decode, mail, tg, bg, tgCheck
