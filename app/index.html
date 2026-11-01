@@ -1826,7 +1826,13 @@ function renderAdmin() {
   loading();
   api('admin.stats').then(function (r) {
     var s = r.stats, tile = function (n, label, warn, href) { return '<' + (href ? 'a href="' + href + '" style="text-decoration:none;color:inherit"' : 'div') + ' class="tile' + (warn ? ' warn' : '') + '"><b>' + n + '</b><span>' + label + '</span></' + (href ? 'a' : 'div') + '>'; };
-    view.innerHTML = '<h1 style="margin-bottom:12px">Огляд</h1>' +
+    var T = r.tg || {};
+    var tgCardHtml = '<div class="card" id="tgAdm"><div class="between"><h2>Telegram-бот</h2>' + (T.hook ? '<span class="badge b-done">працює</span>' : '<span class="badge b-new">не налаштовано</span>') + '</div>' +
+      (T.hook ? '<p class="small" style="margin:6px 0 10px">Бот <a href="https://t.me/' + esc(T.bot) + '" target="_blank" rel="noopener">@' + esc(T.bot) + '</a>: реєстрація водіїв і сервісів, перехід з анкет, сповіщення. Після оновлення функції натисніть ще раз, щоб оновити кнопки й опис бота.</p>'
+        : T.token ? '<p class="small" style="margin:6px 0 10px">Токен додано. Залишилось підключити бота до сервера.</p>'
+        : '<p class="small" style="margin:6px 0 10px">1) Створіть бота в @BotFather і скопіюйте токен. 2) Supabase → Edge Functions → Secrets: додайте <b>TELEGRAM_BOT_TOKEN</b>. 3) Оновіть функцію (Deploy). 4) Поверніться сюди й натисніть кнопку.</p>') +
+      '<button class="btn sm dark" id="tgSetup2">' + (T.hook ? 'Оновити налаштування бота' : 'Налаштувати Telegram-бота') + '</button><div id="tgSetupR2"></div></div>';
+    view.innerHTML = '<h1 style="margin-bottom:12px">Огляд</h1>' + tgCardHtml +
       (s.pending ? '<a class="note warn" href="#/admin/sto" style="display:block;margin-bottom:12px;text-decoration:none;color:inherit"><b>' + s.pending + ' СТО чекають перевірки.</b> Відкрити й активувати →</a>' : '') +
       (!s.aiReady ? '<div class="note err" style="margin-bottom:12px">AI-помічник не налаштований: немає GEMINI_API_KEY у властивостях скрипту.</div>' : '') +
       '<div class="tiles">' + tile(s.drivers, 'водіїв') + tile(s.cars, 'авто в гаражах') + tile(s.partners, 'СТО-партнерів', false, '#/admin/sto') + tile(s.pending, 'СТО на перевірці', s.pending > 0, '#/admin/sto') +
@@ -1845,6 +1851,11 @@ function renderAdmin() {
       '<div class="card"><h2 style="margin-bottom:10px">Заявки за статусом</h2><dl class="kv">' + Object.keys(r.statuses).map(function (k) { return '<dt>' + esc(r.statuses[k]) + '</dt><dd>' + (s.byStatus[k] || 0) + '</dd>'; }).join('') + '</dl></div>' +
       '<div class="card"><h2 style="margin-bottom:6px">Довідник сервісів</h2><p class="small muted" style="margin:0 0 10px">' + s.listed + ' сервісів з відкритих каталогів показуються водіям для дзвінка. Без координат: ' + s.noCoords + '.</p>' +
       '<a class="btn sm ghost" href="#/admin/sto">Керувати СТО</a></div>';
+    $('#tgSetup2').onclick = function () {
+      var b = this; busy(b, true);
+      api('admin.tg.setup', {}, { admin: true }).then(function (x) { busy(b, false); $('#tgSetupR2').innerHTML = '<div class="note ok" style="margin-top:8px">Бот @' + esc(x.bot) + ' підключено: кнопки, команди й опис оновлено.</div>'; })
+        .catch(function (e) { busy(b, false); $('#tgSetupR2').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+    };
   }).catch(fail);
 }
 
@@ -2092,7 +2103,7 @@ function renderAdminUsers() {
 function renderProfile() {
   var u = state.user;
   view.innerHTML = '<h1 style="margin-bottom:12px">Профіль</h1><div class="card"><dl class="kv"><dt>Ім\'я</dt><dd>' + esc(u.name) + '</dd><dt>Телефон</dt><dd>' + esc(fmtPhone(u.phone)) + '</dd><dt>Тип</dt><dd>' + ({ sto: 'Сервіс', admin: 'Адміністратор' }[u.role] || 'Водій') + '</dd></dl></div>' +
-    '<div class="card" id="tgCard"></div>' + (u.role === 'admin' ? '<div class="card" id="admNotif"></div>' : '') +
+    '<div class="card" id="tgCard"></div>' + (u.role === 'admin' || u.isAdmin ? '<div class="card" id="admNotif"></div>' : '') +
     (u.role === 'driver' && !u.dual && !u.isAdmin ? '<div class="card"><h2>Маєте свій сервіс?</h2><p class="small" style="margin:6px 0 10px">Зареєструйте його під цим самим номером. Гараж водія й кабінет сервісу працюватимуть окремо, перемикач буде вгорі.</p><button class="btn sm dark" id="addSto">Додати мій сервіс</button></div>' : '') +
     '<div class="card small"><b>Пілотна версія.</b> Ми запускаємо АвтоХаб разом із першими водіями й сервісами Кривого Рогу. Ідеї та проблеми пишіть на <a href="mailto:info@autohubkr.com">info@autohubkr.com</a>.</div>' +
     '<button class="btn wide ghost" id="out">Вийти</button>';
