@@ -1103,11 +1103,11 @@ export function makeApi(db, deps) {
 
   /* --- AUTO.RIA (developers.ria.com): модифікації, комплектації, середня ціна. Довідники кешуємо, щоб не витрачати ліміт. --- */
   async function ria(path, ttl) {
-    if (!env.AUTO_RIA_KEY) fail('AUTO.RIA ще не підключено');
+    if (!env.AUTO_RIA_KEY) fail('Підбір модифікацій тимчасово недоступний');
     const ck = 'ria_' + path;
     const c = await kvGet(ck);
     if (c) return JSON.parse(c);
-    if (!(await rate('ria_hour', 28, 3600))) fail('Ліміт запитів AUTO.RIA на годину вичерпано. Спробуйте пізніше.');
+    if (!(await rate('ria_hour', 28, 3600))) fail('Забагато запитів за годину. Спробуйте пізніше.');
     const resp = await deps.fetch('https://developers.ria.com' + path + (path.indexOf('?') === -1 ? '?' : '&') + 'api_key=' + encodeURIComponent(env.AUTO_RIA_KEY));
     const txt = await resp.text();
     let j = null; try { j = JSON.parse(txt); } catch (e) { j = null; }
@@ -1118,11 +1118,11 @@ export function makeApi(db, deps) {
   const nrm = (x) => String(x || '').toLowerCase().replace(/[^0-9a-zа-яіїєґ]/g, '');
   async function riaIds(make, model) {
     const marks = await ria('/auto/categories/1/marks', 90 * 86400);
-    if (marks._err) fail('AUTO.RIA не відповідає');
+    if (marks._err) fail('Сервіс довідника не відповідає. Спробуйте пізніше.');
     const mk = marks.find((m) => nrm(m.name) === nrm(make));
     if (!mk) return null;
     const models = await ria('/auto/categories/1/marks/' + mk.value + '/models', 90 * 86400);
-    if (models._err) fail('AUTO.RIA не відповідає');
+    if (models._err) fail('Сервіс довідника не відповідає. Спробуйте пізніше.');
     const q = nrm(model);
     const md = models.find((m) => nrm(m.name) === q) || models.find((m) => q && (nrm(m.name).indexOf(q) === 0 || q.indexOf(nrm(m.name)) === 0));
     return md ? { mark: mk.value, model: md.value, modelName: md.name } : { mark: mk.value };
@@ -1140,7 +1140,7 @@ export function makeApi(db, deps) {
     await auth(r);
     const make = need(r.make, 'Оберіть марку'), model = need(r.model, 'Оберіть модель'), year = int(r.year);
     const ids = await riaIds(make, model);
-    if (!ids || !ids.model) return { mods: [], note: 'AUTO.RIA не знає такої моделі. Заповніть модифікацію вручну.' };
+    if (!ids || !ids.model) return { mods: [], note: 'Такої моделі немає в довіднику. Заповніть модифікацію вручну.' };
     const gens = await ria('/generations/by/models/' + ids.model + '/generations', 90 * 86400);
     const list = (Array.isArray(gens) ? gens : []).flatMap((x) => x.generations || []);
     const fit = list.filter((g) => !year || ((!g.yearFrom || g.yearFrom <= year) && (!g.yearTo || g.yearTo >= year)));
@@ -1166,13 +1166,13 @@ export function makeApi(db, deps) {
     const u = await auth(r, 'driver'); const c = await ownCar(u, r.car_id);
     if (!c.year) fail('Вкажіть рік випуску авто');
     const ids = await riaIds(c.make, c.model);
-    if (!ids || !ids.model) fail('AUTO.RIA не знає цієї моделі');
+    if (!ids || !ids.model) fail('Такої моделі немає в довіднику');
     const y = Number(c.year);
     let q = '/auto/average_price?marka_id=' + ids.mark + '&model_id=' + ids.model + '&yers=' + (y - 1) + '&yers=' + (y + 1);
     if (c.engine) q += '&engineVolume=' + c.engine;
     let res = await ria(q, 14 * 86400);
     if (res._err && c.engine) { q = q.replace(/&engineVolume=[\d.]+/, ''); res = await ria(q, 14 * 86400); }
-    if (res._err) fail(res._err === 400 ? 'Замало оголошень на AUTO.RIA для оцінки цього авто' : 'AUTO.RIA зараз не дає оцінку (' + res._err + ')');
+    if (res._err) fail(res._err === 400 ? 'Замало оголошень для оцінки цього авто' : 'Оцінка зараз недоступна. Спробуйте пізніше.');
     const pc = res.percentiles || {};
     const n = (v) => v ? Math.round(Number(v) / 100) * 100 : null;
     const out = { price: n(res.interQuartileMean || res.arithmeticMean), low: n(pc['25.0'] || pc['25']), high: n(pc['75.0'] || pc['75']), total: res.total || 0, years: (y - 1) + '–' + (y + 1), engine: !!(c.engine && q.indexOf('engineVolume') !== -1), at: today() };

@@ -749,7 +749,7 @@ function carDialog(car) {
       '<div><label class="f" for="cModel">Модель</label><input class="i" id="cModel" placeholder="Спершу оберіть марку" value="' + esc(car.model || '') + '"' + (car.make ? '' : ' disabled') + '></div>' +
       '<div class="grid2"><div><label class="f" for="cYear">Рік випуску</label><select class="i" id="cYear"></select></div><div><label class="f" for="cKm">Пробіг, км</label><input class="i" id="cKm" inputmode="numeric" placeholder="148000" value="' + esc(car.mileage || '') + '"></div></div>' +
       '<fieldset class="mod"><legend>Модифікація <span>необов\'язково, але план ТО буде точнішим</span></legend>' +
-        (M.ria ? '<div style="margin-bottom:10px"><button type="button" class="btn sm dark" id="cRia">Підібрати модифікацію з AUTO.RIA</button><div id="cRiaBox"></div></div>' : '') +
+        (M.ria ? '<div style="margin-bottom:10px"><button type="button" class="btn sm dark" id="cRia">Підібрати модифікацію</button><div id="cRiaBox"></div></div>' : '') +
         '<div class="grid2"><div><label class="f" for="cEng">Об\'єм, л</label><select class="i" id="cEng">' + opt(engines, car.engine ? Number(car.engine).toFixed(1) : '') + '</select></div>' +
         '<div><label class="f" for="cFuel">Паливо</label><select class="i" id="cFuel">' + opt(CO.fuels, car.fuel) + '</select></div></div>' +
         '<div class="grid2"><div><label class="f" for="cPow">Потужність, к.с.</label><input class="i" id="cPow" inputmode="numeric" placeholder="110" value="' + esc(car.power || '') + '"></div>' +
@@ -797,7 +797,7 @@ function carDialog(car) {
     sel.modification = car.modification || ''; sel.equipment = car.equipment || '';
     function riaDraw(mods) {
       var box = $('#cRiaBox');
-      if (!mods.length) { box.innerHTML = '<div class="note warn" style="margin-top:8px">AUTO.RIA не має модифікацій для цієї моделі й року. Заповніть поля нижче вручну.</div>'; return; }
+      if (!mods.length) { box.innerHTML = '<div class="note warn" style="margin-top:8px">Для цієї моделі й року модифікацій не знайшли. Заповніть поля нижче вручну.</div>'; return; }
       box.innerHTML = '<label class="f" for="cMod" style="margin-top:10px">Модифікація</label><select class="i" id="cMod"><option value="">Оберіть зі списку (' + mods.length + ')</option>' +
         mods.map(function (m, i) { return '<option value="' + i + '"' + (m.name === sel.modification ? ' selected' : '') + '>' + esc(m.name) + (m.years ? ' · ' + esc(m.years) : '') + '</option>'; }).join('') + '</select><div id="cEqBox"></div>';
       $('#cMod').onchange = function () {
@@ -981,10 +981,10 @@ function renderCar(id) {
     if ($('#editDocs')) $('#editDocs').onclick = function () { docsDialog(car); };
     if ($('#mkt')) {
       var drawMkt = function (mk) {
-        $('#mkt').innerHTML = '<div class="between"><h2>Ринкова ціна</h2><span class="mini">дані AUTO.RIA</span></div>' +
+        $('#mkt').innerHTML = '<div class="between"><h2>Ринкова ціна</h2></div>' +
           (mk && mk.price ? '<div class="exp-big">≈ $' + Number(mk.price).toLocaleString('uk-UA') + '</div>' +
             (mk.low && mk.high ? '<div class="small">Середина ринку: $' + Number(mk.low).toLocaleString('uk-UA') + ' – $' + Number(mk.high).toLocaleString('uk-UA') + '</div>' : '') +
-            '<div class="mini" style="margin-top:4px">За ' + mk.total + ' оголошеннями ' + esc(car.make + ' ' + car.model) + ' ' + esc(mk.years) + (mk.engine ? ', той самий об\'єм двигуна' : '') + '. Оцінено ' + esc(dt(mk.at)) + '.</div>'
+            '<div class="mini" style="margin-top:4px">За ' + mk.total + ' оголошеннями про продаж ' + esc(car.make + ' ' + car.model) + ' ' + esc(mk.years) + (mk.engine ? ', той самий об\'єм двигуна' : '') + '. Оцінено ' + esc(dt(mk.at)) + '.</div>'
             : '<p class="small muted" style="margin:6px 0 0">Дізнайтеся, скільки коштує ваше авто на ринку зараз.</p>') +
           '<button type="button" class="btn sm ghost" id="mktGo" style="margin-top:10px">' + (mk && mk.price ? 'Оновити оцінку' : 'Оцінити авто') + '</button><div id="mktErr"></div>';
         $('#mktGo').onclick = function () {
