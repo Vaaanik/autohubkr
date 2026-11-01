@@ -1365,7 +1365,7 @@ function renderAdmin() {
 
 function adminStoCard(s) {
   return '<div class="card" data-sid="' + esc(s.id) + '"><div class="between"><div><b>' + esc(s.name) + '</b><div class="mini">' + esc([s.district || 'район не вказано', s.address].filter(Boolean).join(' · ')) + '</div></div>' +
-    (s.owner ? (s.active ? '<span class="badge b-done">Партнер</span>' : '<span class="badge b-new">На перевірці</span>') : (s.active ? '<span class="badge b-declined">Довідник</span>' : '<span class="badge b-cancelled">Приховано</span>')) + '</div>' +
+    (s.owner ? (s.active ? '<span class="badge b-done">Партнер</span>' : '<span class="badge b-new">На перевірці</span>') : (s.active ? '<span class="badge b-declined">Довідник</span>' : s.source === 'анкета' ? '<span class="badge b-new">З анкети</span>' : '<span class="badge b-cancelled">Приховано</span>')) + '</div>' +
     '<div class="small" style="margin-top:6px">' + (s.phone ? '<a href="' + esc(telHref(s.phone)) + '">' + esc(fmtPhone(s.phone)) + '</a>' : '<span class="muted">без телефону</span>') +
     (s.owner ? ' · власник: ' + esc(s.owner.name) + (s.owner.phone && s.owner.phone !== s.phone ? ', <a href="' + esc(telHref(s.owner.phone)) + '">' + esc(fmtPhone(s.owner.phone)) + '</a>' : '') : '') + '</div>' +
     (s.services.length ? '<div class="mini" style="margin-top:2px">' + esc(s.services.join(', ')) + '</div>' : '') +
@@ -1380,7 +1380,8 @@ function renderAdminSto() {
   loading();
   Promise.all([meta(), api('admin.stos')]).then(function (res) {
     var M = res[0], all = res[1].stos, tab = store('ah_admin_sto_tab') || 'pending', q = '';
-    var groups = { pending: function (s) { return s.owner && !s.active; }, partners: function (s) { return s.owner && s.active; }, listed: function (s) { return !s.owner; }, map: function () { return true; } };
+    var fromLead = function (s) { return !s.owner && !s.active && s.source === 'анкета'; };
+    var groups = { pending: function (s) { return (s.owner && !s.active) || fromLead(s); }, partners: function (s) { return s.owner && s.active; }, listed: function (s) { return !s.owner && !fromLead(s); }, map: function () { return true; } };
     var noGeo = all.filter(function (s) { return !s.geo && s.address; }).length, notFound = all.filter(function (s) { return s.geo === 'not_found'; }).length;
     view.innerHTML = '<div class="between" style="margin-bottom:12px"><h1>СТО</h1><span class="mini">' + all.length + ' усього</span></div>' +
       '<div class="seg" id="aTabs" style="margin-bottom:12px">' + [['pending', 'Перевірка'], ['partners', 'Партнери'], ['listed', 'Довідник'], ['map', 'Карта']].map(function (t) {
@@ -1529,7 +1530,8 @@ function renderAdminLeads() {
         return '<div class="card" data-lid="' + esc(l.id) + '"><div class="between"><div><h3>' + esc(l.name) + '</h3><div class="mini">' + esc(dt(l.created)) + '</div></div>' +
           '<select class="i" data-st style="width:auto;min-height:36px;padding:4px 8px;font-size:13px">' + Object.keys(LEAD_ST).map(function (k) { return '<option value="' + k + '"' + (k === l.status ? ' selected' : '') + '>' + LEAD_ST[k] + '</option>'; }).join('') + '</select></div>' +
           '<div class="small" style="margin:6px 0 8px">' + (href ? '<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(l.contact) + '</a>' : esc(l.contact)) + '</div>' +
-          (l.kind === 'service' && l.sto_id !== undefined ? '<div style="margin:0 0 10px">' + (l.sto_id ? '<span class="vtag">Уже в каталозі</span> <button type="button" class="link" data-tosto="' + esc(l.id) + '">Відкрити картку</button>'
+          (l.kind === 'service' && l.sto_id !== undefined ? '<div style="margin:0 0 10px">' + (l.sto_id && l.sto_active ? '<span class="vtag">Уже в каталозі</span> <button type="button" class="link" data-tosto="' + esc(l.id) + '">Відкрити картку</button>'
+            : l.sto_id ? '<span class="vtag no">Картку створено, чекає перевірки</span> <button type="button" class="btn sm" data-tosto="' + esc(l.id) + '">Показати в каталозі</button>'
             : '<button type="button" class="btn sm" data-tosto="' + esc(l.id) + '">Додати в каталог СТО</button>') + '</div>' : '') +
           '<dl class="kv">' + l.fields.filter(function (f) { return ["Ім'я", 'Назва сервісу', 'Telegram або телефон', 'Звідки прийшов'].indexOf(f[0]) === -1 && !(f[0] === 'Джерело (UTM)' && f[1] === '{}'); }).map(function (f) { return '<dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd>'; }).join('') + '</dl></div>';
       }).join('') : '<div class="card empty"><b>Анкет поки немає</b>Поділіться посиланням на лендинг, і нові анкети з\'являться тут, а на пошту прийде лист.</div>';
@@ -1542,10 +1544,10 @@ function renderAdminLeads() {
         var M = res[0], x = res[1];
         return (x.sto ? Promise.resolve(x.sto) : api('admin.stos', {}, { admin: true }).then(function (rr) { return rr.stos.filter(function (s) { return s.id === x.sto_id; })[0]; })).then(function (sto) {
           busy(b, false);
-          r.leads.forEach(function (l) { if (l.id === b.dataset.tosto) { l.sto_id = x.sto_id; if (l.status === 'new') l.status = 'contacted'; } });
+          r.leads.forEach(function (l) { if (l.id === b.dataset.tosto) { l.sto_id = x.sto_id; l.sto_active = true; if (l.status === 'new') l.status = 'contacted'; } });
           draw();
           if (!sto) return toast('Картку створено');
-          if (!x.existed) toast('Картку створено й показано водіям. Допишіть адресу й графік.');
+          toast('Картку показано водіям. Допишіть адресу й графік.');
           adminStoDialog(M, sto, function () { toast('Картку оновлено'); });
         });
       }).catch(function (e2) { busy(b, false); fail(e2); });
