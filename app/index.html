@@ -327,6 +327,7 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
 .set-key{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line2)}.set-key small{display:block;color:var(--soft);font-size:12px;margin-top:2px}
 .set-key code,.set-link code{font-size:12px;background:var(--paper,#F3F6FA);padding:2px 6px;border-radius:6px;word-break:break-all}
 .set-link{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0}.vtag.off{opacity:.45}
+.tg-btn{background:#229ED9;color:#fff;border-color:#229ED9}
 .km-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .km-row:first-of-type{border-top:0}.km-row small{display:block;color:var(--soft);font-size:12px}
 </style>
@@ -742,6 +743,8 @@ function renderLogin() {
     view.innerHTML =
       '<div class="login-hero"><img src="logo-full.webp" width="720" height="373" alt="AutoHubKR — навігатор автопослуг"><p>Гараж з історією ремонтів, заявки в перевірені СТО Кривого Рогу й чесні відгуки.</p></div>' +
       '<div class="login-sheet">' +
+      (!TG && state.meta && state.meta.tgLogin ? '<div class="card tg-one" style="margin-bottom:12px"><h2 style="margin-bottom:4px">Увійти через Telegram</h2><p class="small" style="margin:0 0 12px">Без PIN-коду: підтвердіть вхід у боті АвтоХабу. Немає акаунта? Бот зареєструє вас за хвилину.</p>' +
+        '<button type="button" class="btn wide tg-btn" id="tgLogin">✈ Увійти через Telegram</button><div id="tgLoginR"></div><p class="mini" style="margin:12px 0 0;text-align:center">або з номером і PIN-кодом нижче</p></div>' : '') +
       (TG && TG.requestContact ? '<div class="card tg-one" style="margin-bottom:12px"><h2 style="margin-bottom:4px">Увійти одним натиском</h2><p class="small" style="margin:0 0 12px">Telegram передасть ваш номер, і акаунт буде готовий. Без паролів.</p>' +
         '<div class="stack"><button type="button" class="btn wide" data-quick="driver">🚗 Я водій</button><button type="button" class="btn wide ghost" data-quick="sto">🔧 У мене автосервіс</button></div><div id="quickErr"></div>' +
         '<p class="mini" style="margin:12px 0 0;text-align:center">або з номером і PIN-кодом нижче</p></div>' : '') +
@@ -761,6 +764,7 @@ function renderLogin() {
       '</form></div><p class="login-foot">Пілотна версія для Кривого Рогу · <a href="../">Про АвтоХаб</a> · <a href="../privacy/">Конфіденційність</a></p>';
     $$('[data-m]').forEach(function (b) { b.onclick = function () { mode = b.dataset.m; draw(); }; });
     $$('[data-quick]').forEach(function (b) { b.onclick = function () { tgQuick(b.dataset.quick, b); }; });
+    if ($('#tgLogin')) $('#tgLogin').onclick = function () { tgWebLogin(this); };
     var sp = TG && TG.initDataUnsafe ? TG.initDataUnsafe.start_param : '';
     if (sp === 'sto' && $('[data-quick=sto]')) { $('[data-quick=sto]').classList.remove('ghost'); $('[data-quick=driver]').classList.add('ghost'); }
     if ($('#forgot')) $('#forgot').onclick = function () { pinResetDialog($('#phone').value); };
@@ -795,6 +799,31 @@ function renderLogin() {
   meta().then(draw, function (e) { draw(); fail(e); });
 }
 
+// Браузер: «Увійти через Telegram» → бот питає «Це ви?» → тут чекаємо підтвердження
+function tgWebLogin(btn) {
+  var box = $('#tgLoginR'), w = null;
+  try { w = window.open('', '_blank'); } catch (e) { w = null; }
+  var ua = navigator.userAgent, dev = (/iPhone|iPad/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : 'браузер') + (/Edg\//.test(ua) ? ', Edge' : /Chrome\//.test(ua) ? ', Chrome' : /Firefox\//.test(ua) ? ', Firefox' : /Safari\//.test(ua) ? ', Safari' : '');
+  busy(btn, true);
+  api('tg.login', { device: dev }).then(function (r) {
+    if (w) w.location.href = r.url; else location.href = r.url;
+    busy(btn, false); btn.textContent = 'Чекаємо підтвердження в Telegram…'; btn.disabled = true;
+    box.innerHTML = '<p class="small" style="margin:10px 0 0">Натисніть у боті <b>«Так, увійти»</b>. Якщо Telegram не відкрився, <a href="' + esc(r.url) + '" target="_blank" rel="noopener">відкрийте бота тут</a>.</p>';
+    var n = 0, stop = false, check = function () {
+      if (stop) return;
+      api('tg.login.check', { nonce: r.nonce }).then(function (x) {
+        if (x.token) {
+          stop = true; document.removeEventListener('visibilitychange', onVis);
+          state.token = x.token; state.user = x.user; store('ah_token', x.token); store('ah_user', JSON.stringify(x.user)); return boot();
+        }
+        if (++n < 150) setTimeout(check, 2000); else { stop = true; btn.disabled = false; btn.textContent = '✈ Увійти через Telegram'; box.innerHTML = '<div class="note err" style="margin-top:8px">Час минув. Спробуйте ще раз.</div>'; }
+      }).catch(function (e) { stop = true; btn.disabled = false; btn.textContent = '✈ Увійти через Telegram'; box.innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+    };
+    var onVis = function () { if (!document.hidden && !stop) { n = Math.max(0, n - 1); } };
+    document.addEventListener('visibilitychange', onVis);
+    setTimeout(check, 2500);
+  }).catch(function (e) { if (w) w.close(); busy(btn, false); box.innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+}
 // Міні-застосунок: роль → Telegram надсилає боту номер → бот створює акаунт → тут чекаємо на вхід
 function tgQuick(role, btn) {
   var err = function (m) { $('#quickErr').innerHTML = m ? '<div class="note err" style="margin-top:10px">' + esc(m) + '</div>' : ''; };
