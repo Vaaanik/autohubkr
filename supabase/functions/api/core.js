@@ -88,7 +88,7 @@ export function makeApi(db, deps) {
   const notify = (subject, body) => { if (deps.notify) deps.notify(subject, body); };
 
   /* --- облікові записи --- */
-  const pubUser = (u) => ({ id: u.id, role: u.role, name: u.name, phone: u.phone });
+  const pubUser = (u) => { const p = { id: u.id, role: u.role, name: u.name, phone: u.phone }; if (u.isAdmin || u.role === 'admin') p.isAdmin = true; return p; };
   const CAR_KEYS = ['id', 'make', 'model', 'year', 'plate', 'vin', 'mileage', 'engine', 'fuel', 'power', 'gearbox', 'drive', 'body'];
   const pubCar = (c, urls) => { const p = pick(c, CAR_KEYS); p.photo = c.photo && urls ? (urls[c.photo] || '') : ''; return p; };
   // Перевірка й нормалізація полів авто (спільна для додавання й редагування).
@@ -131,8 +131,18 @@ export function makeApi(db, deps) {
   async function auth(r, role) {
     const s = r.token ? await db.find('sessions', 'token', String(r.token)) : null;
     if (!s || s.expires < today()) throw new UserError('Увійдіть знову', true);
-    const u = await db.find('users', 'id', s.user_id);
+    let u = await db.find('users', 'id', s.user_id);
     if (!u) throw new UserError('Увійдіть знову', true);
+    // Адміністратор може переглядати застосунок як водій (r.as = 'driver') або як обраний сервіс (r.as = 'sto', r.as_sto = id).
+    if (u.role === 'admin' && (r.as === 'driver' || r.as === 'sto')) {
+      let stoId = '';
+      if (r.as === 'sto') {
+        const st = await db.find('stos', 'id', String(r.as_sto || ''));
+        if (!st || !st.owner_id) fail('Оберіть сервіс для перегляду');
+        stoId = st.id;
+      }
+      u = Object.assign({}, u, { role: r.as, sto_id: stoId, isAdmin: true });
+    }
     if (role && u.role !== role) fail('Ця дія недоступна для вашого типу акаунта');
     return u;
   }
@@ -650,6 +660,16 @@ export function makeApi(db, deps) {
     },
     'ai.diagnose': aiDiagnose,
     'admin.stats': adminStats, 'admin.stos': adminStos, 'admin.sto.set': adminStoSet, 'admin.requests': adminRequests, 'admin.users': adminUsers,
+    // тестовий сервіс адміністратора: щоб перевіряти режим «Сервіс», не чіпаючи справжніх партнерів
+    'admin.sto.test': async (r) => {
+      const u = await auth(r, 'admin');
+      const mine = (await db.where('stos', 'owner_id', u.id))[0];
+      if (mine) return { sto: pubSto(mine, true) };
+      const st = { id: id(), owner_id: u.id, name: 'Тестовий сервіс (адмін)', district: DISTRICTS[0], address: 'тест', phone: u.phone,
+        services: CATEGORIES.join(', '), hours: '', about: 'Службовий сервіс для перевірки. Поки не активний, водії його не бачать.', active: false, created: now(), source: 'тест', geo: '' };
+      await db.insert('stos', st);
+      return { sto: pubSto(st, true) };
+    },
     'admin.leads': adminLeads, 'admin.lead.set': adminLeadSet,
     'admin.geocode': async (r) => { await auth(r, 'admin'); return geocodeBatch(Math.min(Number(r.limit) || 25, 40), r.retry === true); }
   };
