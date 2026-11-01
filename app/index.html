@@ -318,6 +318,15 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
 .info-specs{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin:6px 0 8px}.info-specs small{display:block;color:var(--soft);font-size:12px}.info-specs b{font-size:14px}
 .info-ul{margin:6px 0 4px;padding-left:18px;font-size:14px}.info-ul li{margin:3px 0}
 .fn-t{width:100%;border-collapse:collapse;font-size:14px}.fn-t th{text-align:left;color:var(--soft);font-weight:600;padding:4px 0}.fn-t td{padding:5px 0;border-top:1px solid var(--line2)}
+.set-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line2);cursor:pointer}.set-row:first-of-type{border-top:0}
+.set-row b{display:block;font-size:15px}.set-row small{display:block;color:var(--soft);font-size:13px;margin-top:2px}
+.set-sw{appearance:none;-webkit-appearance:none;width:46px;height:28px;border-radius:14px;background:var(--line);position:relative;flex:none;cursor:pointer;transition:background .15s}
+.set-sw::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s}
+.set-sw:checked{background:var(--volt)}.set-sw:checked::after{left:21px}
+.set-ch{font-size:13px;color:var(--soft);padding-top:8px;border-top:1px solid var(--line2)}
+.set-key{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line2)}.set-key small{display:block;color:var(--soft);font-size:12px;margin-top:2px}
+.set-key code,.set-link code{font-size:12px;background:var(--paper,#F3F6FA);padding:2px 6px;border-radius:6px;word-break:break-all}
+.set-link{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0}.vtag.off{opacity:.45}
 .km-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .km-row:first-of-type{border-top:0}.km-row small{display:block;color:var(--soft);font-size:12px}
 </style>
@@ -449,6 +458,7 @@ function logoutLocal() { store('ah_view', null); store('ah_as_sto', null); state
 
 /* ---------- іконки ---------- */
 var IC = {
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   car: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14v-5l-2-5H7l-2 5z"/><path d="M5 12h14"/><circle cx="8" cy="17" r="1.8"/><circle cx="16" cy="17" r="1.8"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
@@ -469,7 +479,7 @@ function setTabs(items, active) {
   }).join('');
 }
 var DRIVER_TABS = [['/garage', 'Гараж', 'car'], ['/new', 'Заявка', 'plus'], ['/requests', 'Мої заявки', 'list'], ['/profile', 'Профіль', 'user']];
-var ADMIN_TABS = [['/admin', 'Огляд', 'chart'], ['/admin/sto', 'СТО', 'shop'], ['/admin/req', 'Заявки', 'list'], ['/admin/leads', 'Анкети', 'inbox'], ['/admin/users', 'Люди', 'user']];
+var ADMIN_TABS = [['/admin', 'Огляд', 'chart'], ['/admin/sto', 'СТО', 'shop'], ['/admin/req', 'Заявки', 'list'], ['/admin/leads', 'Анкети', 'inbox'], ['/admin/users', 'Люди', 'user'], ['/admin/settings', 'Налаштування', 'gear']];
 var STO_TABS = [['/sto', 'Заявки', 'wrench'], ['/sto/jobs', 'Журнал', 'list'], ['/sto/profile', 'Мій сервіс', 'shop'], ['/profile', 'Профіль', 'user']];
 
 function route() {
@@ -499,6 +509,7 @@ function route() {
     if (h === '/admin/req') return renderAdminReq();
     if (h === '/admin/users') return renderAdminUsers();
     if (h === '/admin/leads') return renderAdminLeads();
+    if (h === '/admin/settings') return renderAdminSettings();
     if (h === '/profile') return renderProfile();
     return go('/admin');
   }
@@ -650,6 +661,75 @@ function pinResetDialog(phone0) {
       }).catch(function (e) { err(e.message); });
     });
   };
+}
+/* ---------- адмінка: налаштування застосунку ---------- */
+function renderAdminSettings() {
+  loading();
+  api('admin.settings', {}, { admin: true }).then(function (r) {
+    var S = r.settings, T = r.tg, O = r.otp, u = state.user;
+    var sw = function (k, label, hint) { return '<label class="set-row"><span><b>' + label + '</b>' + (hint ? '<small>' + hint + '</small>' : '') + '</span><input type="checkbox" class="set-sw" data-k="' + k + '"' + (S[k] ? ' checked' : '') + '></label>'; };
+    var num = function (k, label, hint) { return '<label class="set-row"><span><b>' + label + '</b>' + (hint ? '<small>' + hint + '</small>' : '') + '</span><input class="i set-num" inputmode="numeric" data-k="' + k + '" value="' + esc(S[k]) + '" style="width:90px;text-align:center"></label>'; };
+    var ok = function (on) { return on ? '<span class="vtag">✓</span>' : '<span class="vtag off">—</span>'; };
+    var link = function (role) { return T.bot ? 'https://t.me/' + T.bot + '?start=' + role : ''; };
+    view.innerHTML = '<h1 style="margin-bottom:12px">Налаштування</h1>' +
+      // 1. Telegram-бот
+      '<div class="card"><div class="between"><h2>Telegram-бот</h2>' + (T.hook ? '<span class="badge b-done">працює</span>' : '<span class="badge b-new">не налаштовано</span>') + '</div>' +
+        (T.hook ? '<p class="small" style="margin:6px 0 10px">Єдиний бот для водіїв і сервісів: <a href="https://t.me/' + esc(T.bot) + '" target="_blank" rel="noopener">@' + esc(T.bot) + '</a>. Реєстрація з вибором ролі, перехід з анкет сайту, сповіщення й міні-застосунок.</p>'
+          : T.token ? '<p class="small" style="margin:6px 0 10px">Токен додано. Натисніть кнопку, щоб підключити бота до сервера.</p>'
+          : '<ol class="small" style="margin:6px 0 10px;padding-left:18px"><li>У Telegram відкрийте @BotFather → /newbot (або візьміть токен наявного бота).</li><li>Supabase → Edge Functions → Secrets: додайте <b>TELEGRAM_BOT_TOKEN</b>.</li><li>Оновіть функцію api (Deploy updates).</li><li>Поверніться сюди й натисніть кнопку нижче.</li></ol>') +
+        '<button class="btn sm dark" id="tgSetup">' + (T.hook ? 'Оновити налаштування бота' : 'Налаштувати Telegram-бота') + '</button><div id="tgSetupR"></div>' +
+        (T.bot ? '<div class="lbl" style="margin-top:14px">Посилання для реклами</div><p class="mini" style="margin:2px 0 8px">Додайте до посилання <b>_джерело</b> (наприклад _insta), щоб бачити його у воронці.</p>' +
+          [['driver', 'Для водіїв'], ['sto', 'Для сервісів']].map(function (x) { return '<div class="set-link"><span class="small">' + x[1] + '</span><code>' + esc(link(x[0])) + '</code><button type="button" class="link" data-copy="' + esc(link(x[0])) + '">Копіювати</button></div>'; }).join('') : '') +
+      '</div>' +
+      // 2. Мій Telegram
+      '<div class="card" id="tgCard"></div>' +
+      // 3. Реєстрація
+      '<div class="card"><h2 style="margin-bottom:8px">Реєстрація й вхід</h2>' +
+        sw('otp_required', 'Підтверджувати номер при реєстрації', 'Через бота, код у Telegram або SMS. Без підключених каналів реєстрація йде без перевірки.') +
+        '<div class="set-ch">Канали: ' + ['Telegram-бот (безкоштовно) ' + ok(O.bot), 'код у Telegram ' + ok(O.telegram), 'SMS ' + ok(O.sms), 'Viber ' + ok(O.viber)].join(' · ') + '</div></div>' +
+      // 4. Сайт і анкети
+      '<div class="card"><h2 style="margin-bottom:8px">Сайт і анкети</h2>' +
+        sw('lead_to_tg', 'Після анкети переводити в Telegram-бота', 'Людина одразу реєструється в боті, анкета й картка сервісу прив\'язуються до акаунта.') +
+        num('counter_min', 'Показувати лічильник учасників від', 'Щоб на сайті не було «2 з 300». Нуль: показувати завжди.') + '</div>' +
+      // 5. Сповіщення
+      '<div class="card"><h2 style="margin-bottom:8px">Сповіщення адміністратору</h2>' +
+        sw('notify_tg', 'У Telegram', 'Нові анкети, сервіси на перевірці, спори, реєстрації через бота.') + sw('notify_mail', 'На пошту', 'Через Google Apps Script (потрібен RELAY_SECRET).') +
+        '<label class="f" for="mtTo" style="margin-top:10px">Тестовий лист</label><div class="row"><input class="i" id="mtTo" type="email" placeholder="ваш email"><button class="btn sm ghost" id="mtGo">Надіслати</button></div><div id="mtR"></div></div>' +
+      // 6. AI
+      '<div class="card"><h2 style="margin-bottom:8px">AI-помічник</h2>' +
+        num('ai_limit', 'Запитів AI на людину за 6 годин', 'Підказки несправностей, чеки, поліси, опис авто. Нуль: вимкнути.') + '</div>' +
+      // 7. Ключі й інтеграції
+      '<div class="card"><h2 style="margin-bottom:4px">Ключі й інтеграції</h2><p class="mini" style="margin:0 0 8px">Додаються в Supabase → Edge Functions → Secrets, після чого функцію треба оновити (Deploy updates). Значення ключів тут не показуються.</p>' +
+        r.keys.map(function (k) { return '<div class="set-key"><div><code>' + esc(k.name) + '</code><small>' + esc(k.what) + '</small></div>' + ok(k.on) + '</div>'; }).join('') + '</div>' +
+      // 8. Обслуговування
+      '<div class="card"><h2 style="margin-bottom:8px">Обслуговування</h2><p class="mini" style="margin:0 0 8px">Кеші оновлюються самі. Очищайте, якщо дані застаріли або змінився довідник.</p><div class="row" style="flex-wrap:wrap;gap:8px">' +
+        '<button class="btn sm ghost" data-cache="ria">Кеш AUTO.RIA</button><button class="btn sm ghost" data-cache="carinfo">AI-описи авто</button><button class="btn sm ghost" data-cache="stats">Лічильники сайту</button></div><div id="cacheR"></div></div>' +
+      // 9. Акаунт
+      '<div class="card"><h2 style="margin-bottom:6px">Мій акаунт</h2><dl class="kv"><dt>Ім\'я</dt><dd>' + esc(u.name) + '</dd><dt>Телефон</dt><dd>' + esc(fmtPhone(u.phone)) + '</dd></dl></div>' +
+      '<button class="btn wide ghost" id="out">Вийти</button>';
+    drawTg();
+    var save = function (patch, el) {
+      api('admin.settings.set', { patch: patch }, { admin: true }).then(function (x) { S = x.settings; toast('Збережено'); })
+        .catch(function (e) { fail(e); if (el && el.type === 'checkbox') el.checked = !el.checked; else if (el) el.value = S[el.dataset.k]; });
+    };
+    $$('.set-sw').forEach(function (el) { el.onchange = function () { var p = {}; p[el.dataset.k] = el.checked; save(p, el); }; });
+    $$('.set-num').forEach(function (el) { el.onchange = function () { var p = {}; p[el.dataset.k] = el.value; save(p, el); }; });
+    $$('[data-copy]').forEach(function (b) { b.onclick = function () { try { navigator.clipboard.writeText(b.dataset.copy); toast('Скопійовано'); } catch (e) { toast(b.dataset.copy); } }; });
+    $('#tgSetup').onclick = function () {
+      var b = this; busy(b, true);
+      api('admin.tg.setup', {}, { admin: true }).then(function () { toast('Бота підключено'); renderAdminSettings(); })
+        .catch(function (e) { busy(b, false); $('#tgSetupR').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+    };
+    $('#mtGo').onclick = function () {
+      var b = this; busy(b, true);
+      api('admin.mail.test', { to: $('#mtTo').value }, { admin: true }).then(function () { busy(b, false); $('#mtR').innerHTML = '<div class="note ok" style="margin-top:8px">Лист надіслано, перевірте пошту (і «Спам»).</div>'; })
+        .catch(function (e) { busy(b, false); $('#mtR').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(/Застосунок оновлено/.test(e.message) ? 'Скрипт Google ще старий: оновіть його розгортання.' : e.message) + '</div>'; });
+    };
+    $$('[data-cache]').forEach(function (b) {
+      b.onclick = function () { busy(b, true); api('admin.cache.clear', { kind: b.dataset.cache }, { admin: true }).then(function () { busy(b, false); toast('Кеш очищено'); }).catch(function (e) { busy(b, false); fail(e); }); };
+    });
+    $('#out').onclick = function () { api('logout').catch(function () {}).then(function () { logoutLocal(); go('/login'); }); };
+  }).catch(function (e) { view.innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
 }
 /* ---------- вхід і реєстрація ---------- */
 function renderLogin() {
@@ -1827,11 +1907,7 @@ function renderAdmin() {
   api('admin.stats').then(function (r) {
     var s = r.stats, tile = function (n, label, warn, href) { return '<' + (href ? 'a href="' + href + '" style="text-decoration:none;color:inherit"' : 'div') + ' class="tile' + (warn ? ' warn' : '') + '"><b>' + n + '</b><span>' + label + '</span></' + (href ? 'a' : 'div') + '>'; };
     var T = r.tg || {};
-    var tgCardHtml = '<div class="card" id="tgAdm"><div class="between"><h2>Telegram-бот</h2>' + (T.hook ? '<span class="badge b-done">працює</span>' : '<span class="badge b-new">не налаштовано</span>') + '</div>' +
-      (T.hook ? '<p class="small" style="margin:6px 0 10px">Бот <a href="https://t.me/' + esc(T.bot) + '" target="_blank" rel="noopener">@' + esc(T.bot) + '</a>: реєстрація водіїв і сервісів, перехід з анкет, сповіщення. Після оновлення функції натисніть ще раз, щоб оновити кнопки й опис бота.</p>'
-        : T.token ? '<p class="small" style="margin:6px 0 10px">Токен додано. Залишилось підключити бота до сервера.</p>'
-        : '<p class="small" style="margin:6px 0 10px">1) Створіть бота в @BotFather і скопіюйте токен. 2) Supabase → Edge Functions → Secrets: додайте <b>TELEGRAM_BOT_TOKEN</b>. 3) Оновіть функцію (Deploy). 4) Поверніться сюди й натисніть кнопку.</p>') +
-      '<button class="btn sm dark" id="tgSetup2">' + (T.hook ? 'Оновити налаштування бота' : 'Налаштувати Telegram-бота') + '</button><div id="tgSetupR2"></div></div>';
+    var tgCardHtml = T.hook ? '' : '<a class="note warn" href="#/admin/settings" style="display:block;margin-bottom:12px;text-decoration:none;color:inherit"><b>Telegram-бот не налаштовано.</b> Відкрийте «Налаштування», щоб увімкнути реєстрацію через бота й перехід з анкет.</a>';
     view.innerHTML = '<h1 style="margin-bottom:12px">Огляд</h1>' + tgCardHtml +
       (s.pending ? '<a class="note warn" href="#/admin/sto" style="display:block;margin-bottom:12px;text-decoration:none;color:inherit"><b>' + s.pending + ' СТО чекають перевірки.</b> Відкрити й активувати →</a>' : '') +
       (!s.aiReady ? '<div class="note err" style="margin-bottom:12px">AI-помічник не налаштований: немає GEMINI_API_KEY у властивостях скрипту.</div>' : '') +
@@ -1851,11 +1927,6 @@ function renderAdmin() {
       '<div class="card"><h2 style="margin-bottom:10px">Заявки за статусом</h2><dl class="kv">' + Object.keys(r.statuses).map(function (k) { return '<dt>' + esc(r.statuses[k]) + '</dt><dd>' + (s.byStatus[k] || 0) + '</dd>'; }).join('') + '</dl></div>' +
       '<div class="card"><h2 style="margin-bottom:6px">Довідник сервісів</h2><p class="small muted" style="margin:0 0 10px">' + s.listed + ' сервісів з відкритих каталогів показуються водіям для дзвінка. Без координат: ' + s.noCoords + '.</p>' +
       '<a class="btn sm ghost" href="#/admin/sto">Керувати СТО</a></div>';
-    $('#tgSetup2').onclick = function () {
-      var b = this; busy(b, true);
-      api('admin.tg.setup', {}, { admin: true }).then(function (x) { busy(b, false); $('#tgSetupR2').innerHTML = '<div class="note ok" style="margin-top:8px">Бот @' + esc(x.bot) + ' підключено: кнопки, команди й опис оновлено.</div>'; })
-        .catch(function (e) { busy(b, false); $('#tgSetupR2').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
-    };
   }).catch(fail);
 }
 

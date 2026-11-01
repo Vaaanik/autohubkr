@@ -28,6 +28,7 @@
     .then(function (r) { return r.json(); })
     .then(function (s) {
       if (!s || !s.ok) return;
+      if (typeof s.counterMin === 'number' && typeof CFG.counterMin !== 'number') min = s.counterMin;
       if (meter && kind) {
         var total = CFG[kind + 'Total'] || (kind === 'drivers' ? 300 : 30), n = Math.min(s[kind], total);
         if (n < min) return;
