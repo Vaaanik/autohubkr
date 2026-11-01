@@ -391,7 +391,7 @@ function setTabs(items, active) {
 }
 var DRIVER_TABS = [['/garage', 'Гараж', 'car'], ['/new', 'Заявка', 'plus'], ['/requests', 'Мої заявки', 'list'], ['/profile', 'Профіль', 'user']];
 var ADMIN_TABS = [['/admin', 'Огляд', 'chart'], ['/admin/sto', 'СТО', 'shop'], ['/admin/req', 'Заявки', 'list'], ['/admin/leads', 'Анкети', 'inbox'], ['/admin/users', 'Люди', 'user']];
-var STO_TABS = [['/sto', 'Заявки', 'wrench'], ['/sto/profile', 'Мій сервіс', 'shop'], ['/profile', 'Профіль', 'user']];
+var STO_TABS = [['/sto', 'Заявки', 'wrench'], ['/sto/jobs', 'Журнал', 'list'], ['/sto/profile', 'Мій сервіс', 'shop'], ['/profile', 'Профіль', 'user']];
 
 function route() {
   var h = location.hash.replace(/^#/, '').split('?')[0] || '/';
@@ -426,6 +426,7 @@ function route() {
   setTabs(STO_TABS, h);
   if (h === '/sto') return renderStoRequests();
   if (h === '/sto/profile') return renderStoProfile();
+  if (h === '/sto/jobs') return renderStoJobs();
   if (h === '/profile') return renderProfile();
   return go('/sto');
 }
@@ -1275,6 +1276,95 @@ function stoAction(act, q) {
     }).catch(function (e) { busy(btn, false); showErr(e.message); });
   };
   function showErr(m) { $('#aErr').innerHTML = '<div class="note err" style="margin-top:10px">' + esc(m) + '</div>'; }
+}
+
+/* ---------- СТО: журнал робіт (власні клієнти й роботи через АвтоХаб) ---------- */
+var jobsFilter = 'all', jobsQ = '';
+function renderStoJobs() {
+  loading();
+  api('jobs.list').then(function (r) {
+    var all = r.jobs, month = new Date().toISOString().slice(0, 7);
+    var inMonth = all.filter(function (j) { return j.date.slice(0, 7) === month && j.status === 'done'; });
+    var sum = inMonth.reduce(function (a, j) { return a + (Number(j.price) || 0); }, 0);
+    var inWork = all.filter(function (j) { return j.status === 'in_work'; }).length;
+    var clients = {}; all.forEach(function (j) { var k = j.plate || j.client_phone || j.client_name; if (k) clients[k] = 1; });
+    view.innerHTML = '<div class="page-head"><h1>Журнал робіт</h1><button class="btn sm" id="jAdd">Додати роботу</button></div>' +
+      '<div class="tiles" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px"><div class="tile"><b>' + inMonth.length + '</b><span>робіт цього місяця</span></div>' +
+        '<div class="tile"><b>' + esc(sum ? Math.round(sum).toLocaleString('uk-UA') : '0') + '</b><span>грн цього місяця</span></div><div class="tile' + (inWork ? ' warn' : '') + '"><b>' + inWork + '</b><span>в роботі зараз</span></div></div>' +
+      '<input class="i search" id="jQ" type="search" placeholder="Пошук: номер авто, телефон, ім\'я, марка" value="' + esc(jobsQ) + '">' +
+      '<div class="seg" id="jF" style="margin:10px 0 12px">' + [['all', 'Усі'], ['in_work', 'В роботі'], ['done', 'Виконані'], ['autohub', 'Через АвтоХаб']].map(function (t) {
+        return '<button type="button" data-f="' + t[0] + '" class="' + (jobsFilter === t[0] ? 'on' : '') + '">' + t[1] + '</button>'; }).join('') + '</div>' +
+      '<div id="jSum"></div><div id="jL"></div>' +
+      '<p class="mini" style="margin-top:10px">Записуйте всі роботи, навіть клієнтів, які прийшли не через АвтоХаб: за номером авто знайдете всю історію клієнта. Клієнтів у журналі: ' + Object.keys(clients).length + '.</p>';
+    function draw() {
+      var q = norm(jobsQ);
+      var list = all.filter(function (j) {
+        if (jobsFilter === 'in_work' && j.status !== 'in_work') return false;
+        if (jobsFilter === 'done' && j.status !== 'done') return false;
+        if (jobsFilter === 'autohub' && j.source !== 'АвтоХаб') return false;
+        return !q || norm([j.plate, j.client_phone, j.client_name, j.car, j.vin, j.work].join(' ')).indexOf(q) !== -1;
+      });
+      // точний збіг номера: короткий підсумок по авто клієнта
+      var plateHit = q && list.length && list.every(function (j) { return norm(j.plate) === q; });
+      $('#jSum').innerHTML = plateHit ? '<div class="note info" style="margin-bottom:10px"><b>' + esc(list[0].plate) + '</b> · ' + esc(list[0].car || '') + ': ' + list.length + ' ' + (list.length === 1 ? 'візит' : list.length < 5 ? 'візити' : 'візитів') +
+        ', разом ' + esc(money(list.reduce(function (a, j) { return a + (Number(j.price) || 0); }, 0)) || '0 грн') + (list[0].client_name ? ' · ' + esc(list[0].client_name) : '') + '</div>' : '';
+      $('#jL').innerHTML = list.length ? list.map(function (j) {
+        return '<div class="card" data-jid="' + esc(j.id) + '" style="cursor:pointer"><div class="between"><div><b>' + esc(j.car || 'Авто не вказано') + '</b>' + (j.plate ? ' ' + plateHtml(j.plate) : '') +
+          '<div class="mini">' + esc(dt(j.date)) + (j.mileage ? ' · ' + esc(km(j.mileage)) : '') + '</div></div>' +
+          (j.status === 'in_work' ? '<span class="badge b-in_work">В роботі</span>' : j.source === 'АвтоХаб' ? '<span class="badge b-done">АвтоХаб</span>' : '<span class="badge b-accepted">Виконано</span>') + '</div>' +
+          '<div style="margin:8px 0 4px">' + esc(j.work) + '</div>' +
+          '<div class="between"><span class="small muted">' + esc(j.client_name || '') + (j.client_phone ? ' · <a href="' + esc(telHref(j.client_phone)) + '">' + esc(fmtPhone(j.client_phone)) + '</a>' : '') + '</span><b>' + esc(money(j.price)) + '</b></div></div>';
+      }).join('') : '<div class="card empty"><b>' + (all.length ? 'Нічого не знайдено' : 'Журнал порожній') + '</b>' + (all.length ? 'Спробуйте інший номер чи телефон.' : 'Додайте першу роботу: клієнт, авто, що зробили й скільки коштувало. Виконані заявки з АвтоХабу потрапляють сюди самі.') + '</div>';
+    }
+    $('#jQ').oninput = function () { jobsQ = this.value; draw(); };
+    $('#jF').onclick = function (e) { var b = e.target.closest('[data-f]'); if (!b) return; jobsFilter = b.dataset.f; $$('#jF button').forEach(function (x) { x.classList.toggle('on', x === b); }); draw(); };
+    $('#jL').onclick = function (e) {
+      if (e.target.closest('a')) return;
+      var c = e.target.closest('[data-jid]'); if (!c) return;
+      jobDialog(all.filter(function (j) { return j.id === c.dataset.jid; })[0], all);
+    };
+    $('#jAdd').onclick = function () { jobDialog(null, all); };
+    draw();
+  }).catch(fail);
+}
+
+function jobDialog(j, all) {
+  var edit = !!j, ro = edit && j.source === 'АвтоХаб'; j = j || { date: new Date().toISOString().slice(0, 10), status: 'done' };
+  var f = function (id, label, val, extra) { return '<div><label class="f" for="' + id + '">' + label + '</label><input class="i" id="' + id + '" value="' + esc(val == null ? '' : val) + '"' + (extra || '') + (ro ? ' disabled' : '') + '></div>'; };
+  openDialog('<h2 style="margin-bottom:12px">' + (edit ? (ro ? 'Робота через АвтоХаб' : 'Запис у журналі') : 'Нова робота') + '</h2><form class="stack" id="jForm" novalidate>' +
+    (ro ? '<p class="mini" style="margin:-6px 0 4px">Цей запис створено із заявки водія. Змінити можна лише нотатку.</p>' : '') +
+    '<div class="grid2">' + f('jPlate', 'Номер авто', j.plate, ' placeholder="AE1234KP" autocapitalize="characters"') + f('jCar', 'Авто', j.car, ' placeholder="Skoda Octavia 2016"') + '</div>' +
+    '<div class="grid2">' + f('jName', 'Клієнт', j.client_name, ' placeholder="Ім\'я"') + f('jPhone', 'Телефон', j.client_phone ? fmtPhone(j.client_phone) : '', ' inputmode="tel" placeholder="067…"') + '</div>' +
+    '<div><label class="f" for="jWork">Що зробили</label><textarea class="i" id="jWork" placeholder="Заміна передніх колодок і дисків"' + (ro ? ' disabled' : '') + '>' + esc(j.work || '') + '</textarea></div>' +
+    '<div class="grid2">' + f('jPrice', 'Сума, грн', j.price, ' inputmode="numeric"') + f('jKm', 'Пробіг, км', j.mileage, ' inputmode="numeric"') + '</div>' +
+    '<div class="grid2">' + f('jDate', 'Дата', j.date, ' type="date" max="' + new Date().toISOString().slice(0, 10) + '"') +
+      '<div><label class="f" for="jSt">Статус</label><select class="i" id="jSt"' + (ro ? ' disabled' : '') + '><option value="done"' + (j.status === 'done' ? ' selected' : '') + '>Виконано</option><option value="in_work"' + (j.status === 'in_work' ? ' selected' : '') + '>В роботі</option></select></div></div>' +
+    '<div><label class="f" for="jNote">Нотатка <span>видна лише вам</span></label><input class="i" id="jNote" value="' + esc(j.note || '') + '" placeholder="Наступного разу замінити задні колодки"></div>' +
+    '<div id="jErr"></div><div class="row">' + (edit && !ro ? '<button type="button" class="btn sm danger" id="jDel">Видалити</button>' : '') +
+    '<button type="button" class="btn ghost" data-close>Скасувати</button><button class="btn" style="flex:1" id="jSave">Зберегти</button></div></form>');
+  // знайомий номер: підставляємо клієнта й авто з попередніх візитів
+  if (!edit) $('#jPlate').onchange = function () {
+    var p = norm(this.value), prev = all.filter(function (x) { return norm(x.plate) === p; })[0];
+    if (!prev) return;
+    if (!$('#jCar').value) $('#jCar').value = prev.car || '';
+    if (!$('#jName').value) $('#jName').value = prev.client_name || '';
+    if (!$('#jPhone').value && prev.client_phone) $('#jPhone').value = fmtPhone(prev.client_phone);
+    toast('Знайомий клієнт: підставили дані з попереднього візиту');
+  };
+  $('#jForm').onsubmit = function (e) {
+    e.preventDefault();
+    var data = ro ? { note: $('#jNote').value } : { plate: $('#jPlate').value, car: $('#jCar').value, client_name: $('#jName').value, client_phone: $('#jPhone').value, work: $('#jWork').value,
+      price: $('#jPrice').value, mileage: $('#jKm').value, date: $('#jDate').value, status: $('#jSt').value, note: $('#jNote').value };
+    if (!ro && !data.work.trim()) { $('#jErr').innerHTML = '<div class="note err">Опишіть, що зробили</div>'; return; }
+    if (edit) data.id = j.id;
+    var btn = $('#jSave'); busy(btn, true);
+    api(edit ? 'jobs.update' : 'jobs.add', data).then(function () { closeDialog(); toast(edit ? 'Збережено' : 'Роботу додано в журнал'); renderStoJobs(); })
+      .catch(function (e2) { busy(btn, false); $('#jErr').innerHTML = '<div class="note err">' + esc(e2.message) + '</div>'; });
+  };
+  if ($('#jDel')) $('#jDel').onclick = function () {
+    if (!confirm('Видалити запис із журналу?')) return;
+    api('jobs.delete', { id: j.id }).then(function () { closeDialog(); toast('Запис видалено'); renderStoJobs(); }).catch(fail);
+  };
 }
 
 /* ---------- СТО: профіль ---------- */
