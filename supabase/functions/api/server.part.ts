@@ -52,6 +52,7 @@ Deno.serve(async (req) => {
   let body = {};
   if (req.method === 'POST') { try { body = JSON.parse(await req.text() || '{}'); } catch (_) { body = {}; } }
   else body = { action: 'meta' };
-  const res = await api(body);
+  const ip = (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || req.headers.get('cf-connecting-ip') || '';
+  const res = await api(body, { ip });
   return new Response(JSON.stringify(res), { headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8' } });
 });
