@@ -34,6 +34,19 @@ function notify(subject, body) {
   try { EdgeRuntime.waitUntil(p); } catch (_) { /* поза Supabase */ }
 }
 
+// Фото авто: приватний кошик car-photos, посилання для перегляду підписані на 7 днів.
+const BUCKET = 'car-photos';
+const storage = {
+  put: async (path, bytes, type) => { const { error } = await sb.storage.from(BUCKET).upload(path, bytes, { contentType: type, upsert: true }); if (error) throw new Error(error.message); },
+  remove: async (paths) => { await sb.storage.from(BUCKET).remove(paths); },
+  sign: async (paths) => {
+    const { data, error } = await sb.storage.from(BUCKET).createSignedUrls(paths, 7 * 86400);
+    if (error) { console.error('sign', error.message); return {}; }
+    const out = {}; (data || []).forEach((x) => { if (x.signedUrl) out[x.path] = x.signedUrl; }); return out;
+  }
+};
+const b64decode = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+
 const hex = (buf) => Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
 const api = makeApi(db, {
   uuid: () => crypto.randomUUID(),
@@ -41,7 +54,7 @@ const api = makeApi(db, {
   env: { get GEMINI_API_KEY() { return Deno.env.get('GEMINI_API_KEY') || ''; }, get GEMINI_MODEL() { return Deno.env.get('GEMINI_MODEL') || ''; } },
   fetch: (u, o) => fetch(u, o),
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-  notify
+  notify, storage, b64decode
 });
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS',

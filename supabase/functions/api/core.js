@@ -6,6 +6,41 @@ export const CATEGORIES = ['Діагностика', 'Двигун', 'Ходов
 export const DISTRICTS = ['Центрально-Міський', 'Металургійний', 'Саксаганський', 'Довгинцівський', 'Покровський', 'Тернівський', 'Інгулецький'];
 export const STATUS = { new: 'Нова', accepted: 'Прийнята', declined: 'Відхилена', in_work: 'У роботі', done: 'Виконана', cancelled: 'Скасована' };
 export const URGENCY = ['Можна планувати', 'Варто не відкладати', 'Небезпечно їхати'];
+// Характеристики авто (крок «Модифікація»)
+export const CAR_OPTS = {
+  fuels: ['Бензин', 'Дизель', 'Газ/бензин', 'Гібрид', 'Електро'],
+  gearboxes: ['Механіка', 'Автомат', 'Робот', 'Варіатор'],
+  drives: ['Передній', 'Задній', 'Повний'],
+  bodies: ['Седан', 'Хетчбек', 'Універсал', 'Ліфтбек', 'Кросовер', 'Позашляховик', 'Мінівен', 'Купе', 'Кабріолет', 'Пікап', 'Фургон']
+};
+// Довідник робіт для історії й плану ТО: [код, назва, група, інтервал км, інтервал місяців, лише для пального]
+// Інтервали орієнтовні; точні — у регламенті виробника.
+export const SERVICE_GROUPS = ['ТО і рідини', 'Двигун і ГРМ', 'Гальма', 'Ходова і кермо', 'Трансмісія', 'Електрика', 'Шини', 'Кузов і салон', 'Інше'];
+export const SERVICES = [
+  ['oil', 'Заміна оливи двигуна й фільтра', 0, 10000, 12], ['air_filter', 'Повітряний фільтр', 0, 20000, 24], ['cabin_filter', 'Салонний фільтр', 0, 15000, 12],
+  ['fuel_filter', 'Паливний фільтр', 0, 40000, 48], ['spark_plugs', 'Свічки запалювання', 0, 40000, 48, 'petrol'], ['glow_plugs', 'Свічки розжарювання', 0, 100000, 0, 'diesel'],
+  ['brake_fluid', 'Гальмівна рідина', 0, 40000, 24], ['coolant', 'Антифриз', 0, 60000, 48], ['mt_oil', 'Олива в механічній КПП', 0, 90000, 0],
+  ['at_oil', 'Олива в АКПП / варіаторі', 0, 60000, 0], ['diff_oil', 'Олива в редукторах і роздатці', 0, 60000, 0], ['ps_fluid', 'Рідина гідропідсилювача', 0, 80000, 0],
+  ['ac_service', 'Обслуговування кондиціонера', 0, 0, 24], ['gas_service', 'ТО газового обладнання (ГБО)', 0, 10000, 12, 'lpg'],
+  ['timing_belt', 'Ремінь ГРМ з роликами', 1, 80000, 60], ['water_pump', 'Помпа', 1, 80000, 0], ['timing_chain', 'Ланцюг ГРМ', 1, 180000, 0],
+  ['aux_belt', 'Приводний ремінь', 1, 60000, 48], ['valves', 'Регулювання клапанів', 1, 80000, 0], ['engine_mounts', 'Подушки двигуна', 1, 120000, 0],
+  ['injectors', 'Форсунки (чистка або ремонт)', 1, 100000, 0], ['throttle', 'Чистка дросельної заслінки', 1, 40000, 0], ['egr_dpf', 'EGR / сажовий фільтр', 1, 150000, 0, 'diesel'],
+  ['lambda', 'Лямбда-зонд', 1, 150000, 0], ['turbo', 'Турбіна', 1, 200000, 0], ['engine_repair', 'Ремонт двигуна', 1, 0, 0],
+  ['pads_front', 'Передні гальмівні колодки', 2, 30000, 0], ['pads_rear', 'Задні гальмівні колодки', 2, 50000, 0], ['discs_front', 'Передні гальмівні диски', 2, 60000, 0],
+  ['discs_rear', 'Задні диски або барабани', 2, 90000, 0], ['calipers', 'Обслуговування супортів', 2, 60000, 0], ['handbrake', 'Ручне гальмо', 2, 0, 0],
+  ['shocks_front', 'Передні амортизатори', 3, 80000, 0], ['shocks_rear', 'Задні амортизатори', 3, 100000, 0], ['strut_mounts', 'Опори амортизаторів', 3, 80000, 0],
+  ['springs', 'Пружини', 3, 0, 0], ['bushings', 'Сайлентблоки важелів', 3, 100000, 0], ['ball_joints', 'Кульові опори', 3, 80000, 0],
+  ['stab_links', 'Стійки стабілізатора', 3, 50000, 0], ['tie_rods', 'Рульові тяги й наконечники', 3, 60000, 0], ['steering_rack', 'Рульова рейка', 3, 150000, 0],
+  ['wheel_bearings', 'Ступичні підшипники', 3, 120000, 0], ['cv_joints', 'ШРУСи й пильники', 3, 120000, 0], ['alignment', 'Розвал-сходження', 3, 20000, 12],
+  ['clutch', 'Зчеплення (комплект)', 4, 120000, 0], ['flywheel', 'Маховик', 4, 180000, 0], ['driveshaft', 'Карданний вал / підвісний підшипник', 4, 150000, 0], ['gearbox_repair', 'Ремонт КПП', 4, 0, 0],
+  ['battery', 'Акумулятор', 5, 0, 60], ['alternator', 'Генератор', 5, 200000, 0], ['starter', 'Стартер', 5, 200000, 0], ['lights', 'Лампи й фари', 5, 0, 0], ['diagnostics', "Комп'ютерна діагностика", 5, 0, 0],
+  ['tires_season', 'Сезонна заміна шин', 6, 0, 6], ['tires_new', 'Нові шини', 6, 50000, 72], ['balancing', 'Балансування коліс', 6, 0, 0], ['tire_repair', 'Ремонт шини', 6, 0, 0],
+  ['body_repair', 'Кузовний ремонт / фарбування', 7, 0, 0], ['glass', 'Заміна скла', 7, 0, 0], ['wipers', 'Щітки склоочисника', 7, 0, 12], ['antirust', 'Антикорозійна обробка', 7, 0, 36], ['detailing', 'Мийка, хімчистка, полірування', 7, 0, 0],
+  ['other', 'Інше', 8, 0, 0]
+];
+const SERVICE_CODES = SERVICES.map((x) => x[0]);
+const PHOTO_MAX = 1600000; // байтів після стиснення в браузері
+
 const GEMINI_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-2.5-flash']; // перша — та, що відповідає на безкоштовному тарифі
 const AI_LIMIT = 15;            // підказок AI на водія за 6 годин
 const SESSION_DAYS = 60;
@@ -54,7 +89,28 @@ export function makeApi(db, deps) {
 
   /* --- облікові записи --- */
   const pubUser = (u) => ({ id: u.id, role: u.role, name: u.name, phone: u.phone });
-  const pubCar = (c) => pick(c, ['id', 'make', 'model', 'year', 'plate', 'vin', 'mileage']);
+  const CAR_KEYS = ['id', 'make', 'model', 'year', 'plate', 'vin', 'mileage', 'engine', 'fuel', 'power', 'gearbox', 'drive', 'body'];
+  const pubCar = (c, urls) => { const p = pick(c, CAR_KEYS); p.photo = c.photo && urls ? (urls[c.photo] || '') : ''; return p; };
+  // Перевірка й нормалізація полів авто (спільна для додавання й редагування).
+  function carFields(r, partial) {
+    const f = {};
+    const has = (k) => !partial || r[k] !== undefined;
+    if (has('make')) f.make = need(r.make, 'Вкажіть марку').slice(0, 60);
+    if (has('model')) f.model = need(r.model, 'Вкажіть модель').slice(0, 80);
+    if (has('year')) { const y = int(r.year); if (y && (y < 1950 || y > new Date().getFullYear() + 1)) fail('Перевірте рік випуску'); f.year = y; }
+    if (has('mileage')) { const m = int(r.mileage); if (m && m > 2000000) fail('Перевірте пробіг'); f.mileage = m; }
+    if (has('plate')) f.plate = s_(r.plate).toUpperCase().replace(/\s+/g, '').slice(0, 12);
+    if (has('vin')) { const v = s_(r.vin).toUpperCase().replace(/\s+/g, ''); if (v && !/^[A-HJ-NPR-Z0-9]{11,17}$/.test(v)) fail('VIN має містити 17 символів (латиниця й цифри)'); f.vin = v; }
+    if (has('engine')) { const e = Number(String(r.engine || '').replace(',', '.')); if (r.engine && !(e >= 0.5 && e <= 8.5)) fail("Перевірте об'єм двигуна"); f.engine = r.engine ? Math.round(e * 10) / 10 : null; }
+    if (has('power')) { const pw = int(r.power); if (pw && pw > 1500) fail('Перевірте потужність'); f.power = pw; }
+    const opt = (k, list) => { if (has(k)) f[k] = r[k] ? oneOf(r[k], list) : ''; };
+    opt('fuel', CAR_OPTS.fuels); opt('gearbox', CAR_OPTS.gearboxes); opt('drive', CAR_OPTS.drives); opt('body', CAR_OPTS.bodies);
+    return f;
+  }
+  async function signPhotos(cars) {
+    const paths = cars.map((c) => c.photo).filter(Boolean);
+    return paths.length && deps.storage ? await deps.storage.sign(paths) : {};
+  }
   function pubSto(s, own) {
     const p = pick(s, ['id', 'name', 'district', 'address', 'phone', 'hours', 'about']);
     if (s.lat && s.lng) { p.lat = Number(s.lat); p.lng = Number(s.lng); }
@@ -122,7 +178,11 @@ export function makeApi(db, deps) {
   }
 
   /* --- авто --- */
-  const myCars = async (u) => (await db.where('cars', 'user_id', u.id)).filter((c) => !c.deleted).sort((a, b) => a.created < b.created ? -1 : 1).map(pubCar);
+  const myCars = async (u) => {
+    const rows = (await db.where('cars', 'user_id', u.id)).filter((c) => !c.deleted).sort((a, b) => a.created < b.created ? -1 : 1);
+    const urls = await signPhotos(rows);
+    return rows.map((c) => pubCar(c, urls));
+  };
   async function ownCar(u, cid) {
     const c = await db.find('cars', 'id', String(cid || ''));
     if (!c || c.user_id !== u.id || c.deleted) fail('Авто не знайдено');
@@ -513,8 +573,11 @@ export function makeApi(db, deps) {
     return {};
   }
 
+  const META = { categories: CATEGORIES, districts: DISTRICTS, statuses: STATUS, urgency: URGENCY, car: CAR_OPTS, services: SERVICES, serviceGroups: SERVICE_GROUPS };
+  const histOut = (h) => { const p = pick(h, ['id', 'date', 'work', 'place', 'price', 'mileage', 'request_id']); p.services = String(h.services || '').split(',').filter(Boolean); return p; };
+
   const ACTIONS = {
-    meta: async () => ({ categories: CATEGORIES, districts: DISTRICTS, statuses: STATUS, urgency: URGENCY }),
+    meta: async () => META,
     register, login,
     logout: async (r) => { if (r.token) await db.removeWhere('sessions', 'token', String(r.token)); return {}; },
     me: async (r) => { const u = await auth(r); const sto = u.sto_id ? await db.find('stos', 'id', u.sto_id) : null; return { user: pubUser(u), sto: sto ? pubSto(sto, true) : null }; },
@@ -522,18 +585,36 @@ export function makeApi(db, deps) {
     boot: async (r) => {
       const u = await auth(r);
       const [sto, cars] = await Promise.all([u.sto_id ? db.find('stos', 'id', u.sto_id) : null, u.role === 'driver' ? myCars(u) : []]);
-      return { user: pubUser(u), sto: sto ? pubSto(sto, true) : null, cars, meta: { categories: CATEGORIES, districts: DISTRICTS, statuses: STATUS, urgency: URGENCY } };
+      return { user: pubUser(u), sto: sto ? pubSto(sto, true) : null, cars, meta: META };
     },
     'cars.list': async (r) => ({ cars: await myCars(await auth(r, 'driver')) }),
     'cars.add': async (r) => {
       const u = await auth(r, 'driver');
-      if ((await myCars(u)).length >= 10) fail('Можна додати до 10 авто');
-      const year = int(r.year);
-      if (year && (year < 1950 || year > new Date().getFullYear() + 1)) fail('Перевірте рік випуску');
-      const c = { id: id(), user_id: u.id, make: need(r.make, 'Вкажіть марку'), model: need(r.model, 'Вкажіть модель'), year,
-        plate: s_(r.plate).toUpperCase(), vin: s_(r.vin).toUpperCase(), mileage: int(r.mileage), created: now(), deleted: '' };
+      if ((await db.where('cars', 'user_id', u.id)).filter((c) => !c.deleted).length >= 10) fail('Можна додати до 10 авто');
+      const c = Object.assign({ id: id(), user_id: u.id, created: now(), deleted: '', photo: '' }, carFields(r, false));
       await db.insert('cars', c);
-      return { car: pubCar(c) };
+      return { car: pubCar(c, {}) };
+    },
+    'cars.update': async (r) => {
+      const u = await auth(r, 'driver'); const c = await ownCar(u, r.id);
+      const upd = await db.update('cars', c.id, carFields(r, true));
+      return { car: pubCar(upd, await signPhotos([upd])) };
+    },
+    // Фото авто: браузер стискає до ~1280 px JPEG і надсилає як data URL; зберігаємо в приватному сховищі.
+    'cars.photo': async (r) => {
+      const u = await auth(r, 'driver'); const c = await ownCar(u, r.id);
+      if (!deps.storage) fail('Фото тимчасово недоступні');
+      if (r.remove) { if (c.photo) await deps.storage.remove([c.photo]); await db.update('cars', c.id, { photo: '' }); return { photo: '' }; }
+      const m = String(r.image || '').match(/^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/);
+      if (!m) fail('Надішліть фото у форматі JPEG');
+      const bytes = deps.b64decode(m[1]);
+      if (bytes.length > PHOTO_MAX) fail('Фото завелике');
+      if (!(bytes[0] === 0xFF && bytes[1] === 0xD8)) fail('Це не схоже на фото JPEG');
+      const path = u.id + '/' + c.id + '-' + deps.uuid().slice(0, 8) + '.jpg';
+      await deps.storage.put(path, bytes, 'image/jpeg');
+      if (c.photo) await deps.storage.remove([c.photo]).catch(() => {});
+      await db.update('cars', c.id, { photo: path });
+      return { photo: (await deps.storage.sign([path]))[path] || '' };
     },
     'cars.delete': async (r) => { const u = await auth(r, 'driver'); const c = await ownCar(u, r.id); await db.update('cars', c.id, { deleted: 'так' }); return {}; },
     'sto.catalog': catalog,
@@ -544,15 +625,28 @@ export function makeApi(db, deps) {
       const u = await auth(r, 'driver'); const c = await ownCar(u, r.car_id);
       const rows = await db.where('history', 'car_id', c.id);
       rows.sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : (a.created < b.created ? 1 : -1));
-      return { history: rows.map((h) => pick(h, ['id', 'date', 'work', 'place', 'price', 'mileage', 'request_id'])) };
+      return { history: rows.map(histOut) };
     },
     'history.add': async (r) => {
       const u = await auth(r, 'driver'); const c = await ownCar(u, r.car_id);
-      const row = { id: id(), car_id: c.id, user_id: u.id, date: date_(r.date) || today(), work: need(r.work, 'Опишіть роботи'), place: s_(r.place),
+      const services = [...new Set(list_(r.services, SERVICE_CODES))];
+      const work = s_(r.work);
+      if (!services.length && !work) fail('Оберіть виконані роботи або опишіть їх');
+      const date = date_(r.date) || today();
+      if (date > today()) fail('Дата не може бути в майбутньому');
+      const row = { id: id(), car_id: c.id, user_id: u.id, date, work, services: services.join(','), place: s_(r.place).slice(0, 120),
         price: num(r.price), mileage: int(r.mileage), request_id: '', created: now() };
       await db.insert('history', row);
       if (row.mileage) await bumpMileage(c, row.mileage);
-      return { id: row.id };
+      return { record: histOut(row) };
+    },
+    'history.delete': async (r) => {
+      const u = await auth(r, 'driver');
+      const h = await db.find('history', 'id', String(r.id || ''));
+      if (!h || h.user_id !== u.id) fail('Запис не знайдено');
+      if (h.request_id) fail('Запис із виконаної заявки видалити не можна');
+      await db.removeWhere('history', 'id', h.id);
+      return {};
     },
     'ai.diagnose': aiDiagnose,
     'admin.stats': adminStats, 'admin.stos': adminStos, 'admin.sto.set': adminStoSet, 'admin.requests': adminRequests, 'admin.users': adminUsers,
