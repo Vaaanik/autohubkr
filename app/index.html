@@ -715,7 +715,7 @@ function carDialog(car) {
     var engines = []; for (var v = 6; v <= 70; v++) engines.push((v / 10).toFixed(1));
     openDialog('<h2 style="margin-bottom:4px">' + (edit ? 'Редагувати авто' : 'Нове авто') + '</h2><p class="mini" style="margin:0 0 12px">Почніть вводити марку: шукає й латиницею, й кирилицею.</p>' +
       '<form class="stack" id="carForm" novalidate>' +
-      '<div><label class="f" for="cVin">VIN <span>' + (M.carDocs ? 'введіть, і ми заповнимо решту' : 'необов\'язково') + '</span></label><div class="row"><input class="i" id="cVin" maxlength="17" autocomplete="off" autocapitalize="characters" placeholder="17 символів, є в техпаспорті" value="' + esc(car.vin || '') + '" style="flex:1;text-transform:uppercase">' +
+      '<div><label class="f" for="cVin">' + (M.carDocs ? 'VIN або держномер <span>введіть, і ми заповнимо решту</span>' : 'VIN <span>необов\'язково</span>') + '</label><div class="row"><input class="i" id="cVin" maxlength="17" autocomplete="off" autocapitalize="characters" placeholder="VIN з техпаспорта або AE1234KP" value="' + esc(car.vin || '') + '" style="flex:1;text-transform:uppercase">' +
         (M.carDocs ? '<button type="button" class="btn sm dark" id="cVinGo">Заповнити</button>' : '') + '</div><div id="cVinNote"></div></div>' +
       '<div><label class="f" for="cMake">Марка</label><input class="i" id="cMake" placeholder="Skoda, Toyota, ЗАЗ…" value="' + esc(car.make || '') + '"></div>' +
       '<div><label class="f" for="cModel">Модель</label><input class="i" id="cModel" placeholder="Спершу оберіть марку" value="' + esc(car.model || '') + '"' + (car.make ? '' : ' disabled') + '></div>' +
@@ -767,9 +767,9 @@ function carDialog(car) {
     // Заповнення за VIN
     var setSel = function (id, v) { var el = $(id); if (!v || !el) return false; var o = Array.prototype.filter.call(el.options, function (x) { return x.value === String(v) || x.text === String(v); })[0]; if (!o) return false; el.value = o.value; return true; };
     if ($('#cVinGo')) $('#cVinGo').onclick = function () {
-      var btn = this, vin = $('#cVin').value.trim().toUpperCase().replace(/\s+/g, '');
-      if (vin.length !== 17) { $('#cVinNote').innerHTML = '<div class="note err" style="margin-top:8px">VIN має містити 17 символів. Зараз: ' + vin.length + '.</div>'; return; }
-      busy(btn, true); $('#cVinNote').innerHTML = '<div class="mini" style="margin-top:6px">Шукаємо дані за VIN…</div>';
+      var btn = this, vin = $('#cVin').value.trim().toUpperCase().replace(/[\s-]+/g, '');
+      if (vin.length < 4) { $('#cVinNote').innerHTML = '<div class="note err" style="margin-top:8px">Введіть VIN (17 символів) або держномер.</div>'; return; }
+      busy(btn, true); $('#cVinNote').innerHTML = '<div class="mini" style="margin-top:6px">Шукаємо в реєстрі…</div>';
       api('vin.decode', { vin: vin }).then(function (r) {
         busy(btn, false);
         var c = r.car, got = [];
@@ -788,9 +788,12 @@ function carDialog(car) {
         if (setSel('#cBox', c.gearbox)) got.push('коробку');
         if (setSel('#cDrive', c.drive)) got.push('привід');
         if (setSel('#cBody', c.body)) got.push('кузов');
-        $('#cVin').value = c.vin;
+        $('#cVin').value = c.vin || '';
+        if (c.plate && !$('#cPlate').value) $('#cPlate').value = c.plate;
         var src = (c.source || []).indexOf('реєстр МВС') !== -1 ? ' Дані з відкритого реєстру МВС' + (c.color ? ', колір: ' + esc(c.color) : '') + '.' : '';
-        $('#cVinNote').innerHTML = '<div class="note ' + (c.model && !c.modelGuess ? 'ok' : 'warn') + '" style="margin-top:8px">Заповнили: ' + got.join(', ') + '.' + src +
+        $('#cVinNote').innerHTML = (c.stolen ? '<div class="note err" style="margin-top:8px"><b>Увага:</b> за даними МВС це авто числиться в розшуку.</div>' : '') +
+          (c.plate && !c.vin ? '<div class="note info" style="margin-top:8px">VIN за номером не відкривається. Якщо потрібен VIN, впишіть його з техпаспорта.</div>' : '') +
+          '<div class="note ' + (c.model && !c.modelGuess ? 'ok' : 'warn') + '" style="margin-top:8px">Заповнили: ' + got.join(', ') + '.' + src +
           (!c.model ? ' Модель за цим VIN у відкритих базах не знайшли, оберіть її зі списку.' : c.modelGuess ? ' Модель підказав AI, перевірте її.' : '') + ' Перевірте дані перед збереженням.</div>';
         if (!c.model) setTimeout(function () { $('#cModel').focus(); }, 30);
       }).catch(function (e) { busy(btn, false); $('#cVinNote').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
@@ -813,6 +816,8 @@ function carDialog(car) {
       if (err) { $('#carErr').innerHTML = '<div class="note err">' + esc(err) + '</div>'; return; }
       var data = { make: make, model: model, year: $('#cYear').value, mileage: $('#cKm').value, engine: $('#cEng').value, fuel: $('#cFuel').value, power: $('#cPow').value,
         gearbox: $('#cBox').value, drive: $('#cDrive').value, body: $('#cBody').value, plate: $('#cPlate').value, vin: $('#cVin').value };
+      // у поле VIN могли вписати держномер: переносимо його в «Номер»
+      if (data.vin && data.vin.replace(/[\s-]/g, '').length !== 17) { if (!data.plate) data.plate = data.vin; data.vin = ''; }
       if (edit) data.id = car.id;
       var btn = $('#carSave'); busy(btn, true);
       api(edit ? 'cars.update' : 'cars.add', data).then(function (r) {

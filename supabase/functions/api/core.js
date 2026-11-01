@@ -626,29 +626,66 @@ export function makeApi(db, deps) {
   // Розшифровка VIN: vPIC (NHTSA, безкоштовно) → свій довідник виробників → за потреби Gemini для моделі.
   async function vinDecode(r) {
     const u = await auth(r, 'driver');
-    const vin = s_(r.vin).toUpperCase().replace(/\s+/g, '');
-    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) fail('VIN має містити 17 символів (латиниця й цифри, без I, O, Q)');
+    // Приймаємо VIN або український держномер (кирилиця переводиться в латинські двійники).
+    const CYR = { А: 'A', В: 'B', Е: 'E', І: 'I', К: 'K', М: 'M', Н: 'H', О: 'O', Р: 'P', С: 'C', Т: 'T', Х: 'X' };
+    const raw = s_(r.vin || r.plate).toUpperCase().replace(/[\s-]+/g, '');
+    const isVin = /^[A-HJ-NPR-Z0-9]{17}$/.test(raw);
+    const plate = isVin ? '' : raw.split('').map((c) => CYR[c] || c).join('');
+    if (!isVin && !/^[A-Z0-9]{4,10}$/.test(plate)) fail('Введіть VIN (17 символів) або держномер, наприклад AE1234KP');
     if (!(await rate('vin_' + u.id, 30, 3600))) fail('Забагато перевірок. Спробуйте за годину.');
-    const out = { vin, make: '', model: '', year: null, engine: null, fuel: '', power: null, gearbox: '', drive: '', body: '', source: [] };
+    let vin = isVin ? raw : '';
+    const out = { vin, plate, make: '', model: '', year: null, engine: null, fuel: '', power: null, gearbox: '', drive: '', body: '', color: '', stolen: false, source: [] };
+    const tc = (x) => String(x).toLowerCase().replace(/(^|[\s-])([a-zа-яіїєґ])/g, (m0, a, b) => a + b.toUpperCase());
+    const brandCase = (b) => /^(BMW|GMC|MINI|BYD|SEAT|ВАЗ|ЗАЗ|УАЗ|ГАЗ|DS|MG)$/i.test(b) ? String(b).toUpperCase() : tc(b);
+    const modelCase = (m) => /^[A-Z0-9 .-]+$/.test(m) && /[A-Z]{3,}/.test(m) ? tc(m) : String(m || '');
+    // 0) Живий пошук у реєстрі МВС через baza-gai.com.ua (вся Україна, VIN — для реєстрацій з 2021 року). Відповідь кешуємо на 30 днів.
+    if (env.BAZA_GAI_KEY) {
+      const ck = 'bg_' + (isVin ? vin : plate);
+      let g = null;
+      const cached = await kvGet(ck);
+      if (cached) { try { g = JSON.parse(cached); } catch (e) { g = null; } }
+      else {
+        try {
+          const resp = await deps.fetch('https://baza-gai.com.ua/' + (isVin ? 'vin/' + vin : 'nomer/' + encodeURIComponent(plate)), { headers: { Accept: 'application/json', 'X-Api-Key': env.BAZA_GAI_KEY } });
+          if (resp.status === 200) { g = await resp.json(); await kvPut(ck, JSON.stringify(g), 30 * 86400); }
+          else if (resp.status === 404) { await kvPut(ck, 'null', 7 * 86400); }
+          else console.error('baza-gai', resp.status, String(await resp.text()).slice(0, 200));
+        } catch (e) { console.error('baza-gai', e); }
+      }
+      if (g && (g.vendor || (g.operations || []).length)) {
+        const ops = g.operations || [];
+        const last = ops.find((o) => o.is_last) || ops[0] || {};
+        out.make = brandCase(g.vendor || last.vendor || '');
+        out.model = modelCase(last.catalog_model_title || g.model || last.model || '');
+        out.year = int(g.model_year || last.model_year);
+        const cap = Number(last.displacement || (ops.find((o) => o.displacement) || {}).displacement); if (cap >= 500 && cap <= 8500) out.engine = Math.round(cap / 100) / 10;
+        out.color = String((last.color && last.color.ua) || '').toLowerCase();
+        const bd = String((last.body && last.body.ua) || '').toUpperCase();
+        out.body = /ПІКАП/.test(bd) ? 'Пікап' : /КАБРІОЛЕТ/.test(bd) ? 'Кабріолет' : /КУПЕ/.test(bd) ? 'Купе' : /УНІВЕРСАЛ/.test(bd) ? 'Універсал' : /ХЕТЧБЕК/.test(bd) ? 'Хетчбек' : /СЕДАН/.test(bd) ? 'Седан' : /МІНІВЕН/.test(bd) ? 'Мінівен' : /ФУРГОН/.test(bd) ? 'Фургон' : '';
+        if (!vin && /^[A-HJ-NPR-Z0-9]{17}$/.test(String(g.vin || ''))) vin = out.vin = g.vin;   // повний VIN, якщо сервіс його не маскує
+        if (!out.plate && /^[A-Z0-9]{4,10}$/.test(String(g.digits || ''))) out.plate = g.digits;
+        out.stolen = g.is_stolen === true;
+        out.source.push('реєстр МВС');
+      }
+    }
+    if (!vin && !out.make) fail('За цим номером авто не знайдено. Спробуйте VIN або заповніть дані вручну.');
     // 1) Відкритий реєстр МВС: авто, зареєстровані в Україні з 2021 року (Дніпропетровська область).
     let reg = null;
-    try { reg = await db.find('vin_registry', 'vin', vin); } catch (e) { reg = null; }
+    if (vin) { try { reg = await db.find('vin_registry', 'vin', vin); } catch (e) { reg = null; } }
     if (reg && reg.brand) {
-      const tc = (x) => String(x).toLowerCase().replace(/(^|[\s-])([a-zа-яіїєґ])/g, (m0, a, b) => a + b.toUpperCase());
-      out.make = /^(BMW|GMC|MINI|BYD|SEAT|ВАЗ|ЗАЗ|УАЗ|ГАЗ|DS|MG)$/i.test(reg.brand) ? String(reg.brand).toUpperCase() : tc(reg.brand);
-      out.model = /^[A-Z0-9 -]+$/.test(reg.model) && /[A-Z]{3,}/.test(reg.model) ? tc(reg.model) : String(reg.model || '');
-      if (reg.year) out.year = Number(reg.year);
-      const cap = Number(reg.capacity); if (cap >= 500 && cap <= 8500) out.engine = Math.round(cap / 100) / 10;
+      if (!out.make) { out.make = brandCase(reg.brand); out.model = modelCase(reg.model); }
+      if (reg.year && !out.year) out.year = Number(reg.year);
+      const cap = Number(reg.capacity); if (cap >= 500 && cap <= 8500 && !out.engine) out.engine = Math.round(cap / 100) / 10;
       const kw = Number(reg.power_kw); if (kw > 0 && kw < 1100) out.power = Math.round(kw * 1.36);
       const f = String(reg.fuel || '').toUpperCase();
       out.fuel = /ЕЛЕКТР/.test(f) && /БЕНЗИН|ДИЗЕЛ/.test(f) ? 'Гібрид' : /ЕЛЕКТР/.test(f) ? 'Електро' : /ГАЗ/.test(f) ? 'Газ/бензин' : /ДИЗЕЛ/.test(f) ? 'Дизель' : /БЕНЗИН/.test(f) ? 'Бензин' : '';
       const b = String(reg.body || '').toUpperCase();
-      out.body = /ПІКАП/.test(b) ? 'Пікап' : /КАБРІОЛЕТ/.test(b) ? 'Кабріолет' : /КУПЕ/.test(b) ? 'Купе' : /УНІВЕРСАЛ/.test(b) ? 'Універсал' : /ЛІФТБЕК/.test(b) ? 'Ліфтбек' :
+      if (!out.body) out.body = /ПІКАП/.test(b) ? 'Пікап' : /КАБРІОЛЕТ/.test(b) ? 'Кабріолет' : /КУПЕ/.test(b) ? 'Купе' : /УНІВЕРСАЛ/.test(b) ? 'Універсал' : /ЛІФТБЕК/.test(b) ? 'Ліфтбек' :
         /ХЕТЧБЕК/.test(b) ? 'Хетчбек' : /СЕДАН/.test(b) ? 'Седан' : /МІНІВЕН/.test(b) ? 'Мінівен' : /ФУРГОН/.test(b) ? 'Фургон' : /ПОЗАШЛЯХ|КРОСОВЕР/.test(b) ? 'Позашляховик' : '';
-      out.color = String(reg.color || '').toLowerCase();
-      out.source.push('реєстр МВС');
+      if (!out.color) out.color = String(reg.color || '').toLowerCase();
+      if (out.source.indexOf('реєстр МВС') === -1) out.source.push('реєстр МВС');
     }
-    if (!out.make || !out.model) try {
+    if (vin && (!out.make || !out.model)) try {
       const resp = await deps.fetch('https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/' + vin + '?format=json');
       const v = resp.status === 200 ? (((await resp.json()).Results) || [])[0] || {} : {};
       if (v.Make && !out.make) {
@@ -675,7 +712,7 @@ export function makeApi(db, deps) {
     const ly = vinYear(vin);
     if (ly && !reg && (!out.year || (out.year + 30 === ly))) out.year = ly;
     if (!out.make) fail('Не вдалося розпізнати цей VIN. Заповніть дані вручну.');
-    if (!out.model && env.GEMINI_API_KEY) {
+    if (vin && !out.model && env.GEMINI_API_KEY) {
       const ck = 'ai_' + u.id, used = Number(await kvGet(ck) || 0);
       if (used < AI_LIMIT) {
         await kvPut(ck, used + 1, 21600);
