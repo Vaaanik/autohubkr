@@ -142,7 +142,8 @@ function makeApi(db, deps) {
     const p = pick(s, ['id', 'name', 'district', 'address', 'phone', 'hours', 'about']);
     if (s.lat && s.lng) { p.lat = Number(s.lat); p.lng = Number(s.lng); }
     p.services = String(s.services || '').split(', ').filter(String);
-    p.listed = !s.owner_id;
+    p.listed = !s.owner_id && s.partner !== true;
+    if (!s.owner_id && s.partner === true) p.managed = true;   // партнер без власного акаунта: заявки веде зв'язковий
     if (own) p.active = isActive(s);
     return p;
   }
@@ -165,7 +166,7 @@ function makeApi(db, deps) {
       let stoId = '';
       if (r.as === 'sto') {
         const st = await db.find('stos', 'id', String(r.as_sto || ''));
-        if (!st || !st.owner_id) fail('Оберіть сервіс для перегляду');
+        if (!st || !(st.owner_id || st.partner === true)) fail('Оберіть сервіс для перегляду');
         stoId = st.id;
       }
       u = Object.assign({}, u, { role: r.as, sto_id: stoId, isAdmin: true });
@@ -279,13 +280,13 @@ function makeApi(db, deps) {
     const car = await ownCar(u, r.car_id);
     const sto = await db.find('stos', 'id', String(r.sto_id || ''));
     if (!sto || !isActive(sto)) fail('Сервіс недоступний');
-    if (!sto.owner_id) fail('Цей сервіс ще не підключений до АвтоХабу. Зателефонуйте йому напряму.');
+    if (!sto.owner_id && sto.partner !== true) fail('Цей сервіс ще не підключений до АвтоХабу. Зателефонуйте йому напряму.');
     const open = (await db.where('requests', 'driver_id', u.id)).filter((q) => q.status === 'new');
     if (open.length >= 5) fail('У вас уже 5 нових заявок. Дочекайтеся відповіді сервісів.');
     const q = { id: id(), driver_id: u.id, car_id: car.id, sto_id: sto.id, category: oneOf(r.category, CATEGORIES), description: need(r.description, 'Опишіть проблему'),
       preferred: s_(r.preferred), status: 'new', sto_comment: '', price: null, visit: '', work_done: '', mileage: null, created: now(), updated: now() };
     await db.insert('requests', q);
-    notify('Нова заявка в АвтоХабі → ' + sto.name,
+    notify((sto.owner_id ? 'Нова заявка в АвтоХабі → ' : 'Заявка для зв\'язкового: зателефонуйте → ') + sto.name,
       'СТО: ' + sto.name + ' (' + sto.phone + ')\nАвто: ' + carTitle(car) + '\nКатегорія: ' + q.category +
       '\nОпис: ' + q.description + '\nБажаний час: ' + (q.preferred || '—') + '\nВодій: ' + u.name + ', ' + u.phone);
     return { request: pubReq(q) };
@@ -416,10 +417,10 @@ function makeApi(db, deps) {
       const p = pubSto(s, true);
       p.owner = null;
       if (s.owner_id) { const o = users.find((u) => u.id === s.owner_id); p.owner = o ? { name: o.name, phone: o.phone } : { name: '—', phone: '' }; }
-      p.source = s.source; p.created = s.created; p.geo = geoOf(s);
+      p.source = s.source; p.created = s.created; p.geo = geoOf(s); p.partner = s.partner === true;
       return p;
     });
-    const rank = (s) => (s.owner && !s.active) || (!s.owner && !s.active && s.source === 'анкета') ? 0 : s.owner ? 1 : 2;
+    const rank = (s) => (s.owner && !s.active) || (!s.owner && !s.active && s.source === 'анкета') ? 0 : (s.owner || s.partner) ? 1 : 2;
     list.sort((a, b) => rank(a) - rank(b) || (a.created < b.created ? 1 : -1) || (a.name < b.name ? -1 : 1));
     return { stos: list };
   }
@@ -430,6 +431,7 @@ function makeApi(db, deps) {
     if (!sto) fail('Сервіс не знайдено');
     const f = r.fields || {}, patch = {};
     if (r.active !== undefined) patch.active = r.active === true;
+    if (r.partner !== undefined) { patch.partner = r.partner === true; if (patch.partner) patch.active = true; }
     if (f.name !== undefined) patch.name = need(f.name, 'Вкажіть назву');
     if (f.district !== undefined) patch.district = f.district ? oneOf(f.district, DISTRICTS) : '';
     if (f.address !== undefined) { patch.address = s_(f.address); if (patch.address !== sto.address) { patch.lat = null; patch.lng = null; patch.geo = ''; } }
@@ -451,7 +453,7 @@ function makeApi(db, deps) {
         if (g && !g.notFound) upd = await db.update('stos', upd.id, { lat: g.lat, lng: g.lng, geo: 'ok', district: upd.district || g.district });
       } catch (e) { console.error(e); }
     }
-    const p = pubSto(upd, true); p.source = upd.source; p.geo = geoOf(upd);
+    const p = pubSto(upd, true); p.source = upd.source; p.geo = geoOf(upd); p.partner = upd.partner === true;
     return { sto: p };
   }
 
@@ -465,7 +467,7 @@ function makeApi(db, deps) {
     const by = (arr, k, v) => arr.find((x) => x[k] === v) || null;
     return { requests: top.map((q) => {
       const p = pubReq(q), car = by(cars, 'id', q.car_id), sto = by(stos, 'id', q.sto_id), d = by(users, 'id', q.driver_id), rv = by(reviews, 'request_id', q.id);
-      p.car = car ? carTitle(car) : ''; p.sto = sto ? { name: sto.name, phone: sto.phone } : null;
+      p.car = car ? carTitle(car) : ''; p.sto = sto ? { id: sto.id, name: sto.name, phone: sto.phone, managed: !sto.owner_id } : null;
       p.driver = d ? { name: d.name, phone: d.phone } : null; p.review = rv ? { rating: rv.rating, text: rv.text } : null;
       p.admin_note = q.admin_note || ''; p.code = q.code || '';
       return p;
