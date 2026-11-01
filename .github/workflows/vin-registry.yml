@@ -2,7 +2,18 @@
 # Потрібен секрет SUPABASE_SERVICE_KEY (Settings → Secrets and variables → Actions). Без нього лише рахує записи.
 name: Реєстр VIN (МВС)
 on:
-  workflow_dispatch:   # лише ручний запуск: основний пошук тепер живий (baza-gai.com.ua)
+  schedule:
+    - cron: '41 4 20 * *'   # 20-го числа щомісяця: ГСЦ оновлює файл у середині місяця
+  workflow_dispatch:
+    inputs:
+      region:
+        description: Префікс КОАТУУ (12 — Дніпропетровська, порожньо — вся Україна)
+        default: '12'
+        required: false
+      dry:
+        description: Лише порахувати (1) чи записати в базу (0)
+        default: '0'
+        required: false
 concurrency:
   group: vin-registry
   cancel-in-progress: false
@@ -18,4 +29,5 @@ jobs:
       - run: node scripts/import-vin-registry.mjs
         env:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          REGION_PREFIX: '12'
+          REGION_PREFIX: ${{ github.event_name == 'workflow_dispatch' && inputs.region || '12' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry || '0' }}
