@@ -1,9 +1,9 @@
 /* Налаштування сайту АвтоХаб. Змінюйте лише значення в лапках, решту не чіпайте. */
 window.AUTOHUB_CONFIG = {
-  // Адреса веб-застосунку Google Apps Script (інструкція в README.md). Поки порожньо, форми не відправляють заявки.
-  formEndpoint: "https://script.google.com/macros/s/AKfycbx1u_c42CSht90TSYOYSZ0bSXzQHrKEIgbvSXo6o5JUj2nDutfFp1ldkzwZ8KJBUIpA/exec",
+  // Куди надсилаються анкети з лендингів і перегляди сторінок (сервер Supabase)
+  formEndpoint: "https://uukjizyksppxeakafsua.supabase.co/functions/v1/api",
 
-  // Адреса сервера застосунку autohubkr.com/app/ (Apps Script таблиці «АвтоХаб MVP: дані застосунку»)
+  // Адреса сервера застосунку autohubkr.com/app/ (Supabase Edge Function api)
   appEndpoint: "https://uukjizyksppxeakafsua.supabase.co/functions/v1/api",
 
   // Посилання на Telegram-групи, куди переходить людина після заявки
