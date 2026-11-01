@@ -117,6 +117,15 @@ input.i::placeholder,textarea.i::placeholder{color:#9AA8B8}
 .note.ok{background:var(--ok-bg);color:#0F5534}
 .note.err{background:var(--stop-bg);color:#9A1C17}
 .note.info{background:var(--volt-bg);color:#123F82}
+.sto-logo{width:44px;height:44px;border-radius:12px;object-fit:cover;flex:none;background:var(--line2)}
+.sto-head{display:flex;gap:10px;align-items:center}
+.ph-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.ph-grid figure{margin:0;position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--line2)}
+.ph-grid img{width:100%;height:100%;object-fit:cover;display:block}
+.ph-grid button{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:50%;border:0;background:rgba(6,17,31,.7);color:#fff;font-size:15px;line-height:1;cursor:pointer}
+.logo-pick{display:flex;align-items:center;gap:12px}
+.logo-pick .ph{width:72px;height:72px;border-radius:16px;background:var(--line2);display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--soft);font-size:26px;flex:none}
+.logo-pick .ph img{width:100%;height:100%;object-fit:cover}
 .dash-alert{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px}
 .dash-alert span{font-size:12px;font-weight:700;border-radius:99px;padding:4px 10px;background:rgba(255,198,41,.16);color:#FFD866}
 .dash-alert span.over{background:rgba(212,43,38,.22);color:#FFB3AF}
@@ -314,12 +323,14 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
 <nav class="tabs" id="tabs" hidden><div class="in" id="tabsIn"></div></nav>
 <dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
 
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="../assets/config.js?v=5"></script>
 <script>
 (function () {
 'use strict';
 var CFG = window.AUTOHUB_CONFIG || {};
 var API = CFG.appEndpoint || '';
+var TG = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) ? window.Telegram.WebApp : null; // відкрито як міні-застосунок у Telegram
 var view = document.getElementById('view');
 var state = { token: null, user: null, sto: null, meta: null, cars: null };
 
@@ -481,6 +492,7 @@ function renderLogin() {
       '<div class="login-hero"><img src="logo-full.webp" width="720" height="373" alt="AutoHubKR — навігатор автопослуг"><p>Гараж з історією ремонтів, заявки в перевірені СТО Кривого Рогу й чесні відгуки.</p></div>' +
       '<div class="login-sheet"><div class="seg" role="tablist"><button type="button" data-m="login" class="' + (mode === 'login' ? 'on' : '') + '">Увійти</button><button type="button" data-m="reg" class="' + (mode === 'reg' ? 'on' : '') + '">Реєстрація</button></div>' +
       '<form class="card stack" id="authForm" novalidate>' +
+        (state.tgHint ? '<div class="note info">Ви в Telegram 👋 Увійдіть або зареєструйтеся один раз, далі АвтоХаб відкриватиметься тут без входу, а сповіщення приходитимуть у цей чат.</div>' : '') +
         (mode === 'reg' ? '<div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Хто ви?</span><div class="seg"><button type="button" data-r="driver" class="' + (role === 'driver' ? 'on' : '') + '">Я водій</button><button type="button" data-r="sto" class="' + (role === 'sto' ? 'on' : '') + '">Я сервіс / майстер</button></div></div>' +
           '<div><label class="f" for="name">Ваше ім\'я</label><input class="i" id="name" autocomplete="name" required></div>' : '') +
         '<div><label class="f" for="phone">Телефон</label><input class="i" id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380 67 123 45 67" required></div>' +
@@ -1077,7 +1089,7 @@ function renderNew() {
           (withGeo < r.stos.length ? '<div class="mini" style="margin-bottom:8px">На карті ' + withGeo + ' з ' + r.stos.length + ' сервісів, решта поки без точної адреси.</div>' : '') + '</div>' +
           '<div id="stoListWrap" ' + (sel.view === 'map' ? 'hidden' : '') + '>' + (partners.length ? '' : '<div class="note info" style="margin-bottom:10px">Партнерів АвтоХабу для «' + esc(sel.category) + '» поки немає. Нижче інші сервіси міста: зв\'яжіться з ними напряму.</div>') +
           partners.map(function (s) {
-          return '<div class="sto-pick" role="radio" tabindex="0" aria-checked="false" data-id="' + esc(s.id) + '"><div class="between"><b>' + esc(s.name) + '</b>' +
+          return '<div class="sto-pick" role="radio" tabindex="0" aria-checked="false" data-id="' + esc(s.id) + '"><div class="between"><span class="sto-head">' + (s.logo ? '<img class="sto-logo" src="' + esc(s.logo) + '" alt="" loading="lazy">' : '') + '<b>' + esc(s.name) + '</b></span>' +
             (s.rating ? '<span class="small">' + stars(s.rating) + ' ' + esc(s.rating) + ' <span class="muted">(' + s.reviews + ')</span></span>' : '<span class="tag">новий партнер</span>') + '</div>' +
             '<div class="small muted">' + esc([s.district, s.address].filter(Boolean).join(' · ')) + '</div>' +
             (s.hours ? '<div class="small muted">' + esc(s.hours) + '</div>' : '') +
@@ -1376,7 +1388,9 @@ function renderStoProfile() {
     var s = state.sto || {};
     view.innerHTML = '<h1 style="margin-bottom:12px">Мій сервіс</h1>' +
       (s.active ? '<div class="note ok" style="margin-bottom:12px">Сервіс показується водіям у каталозі.</div>' : '<div class="note warn" style="margin-bottom:12px">Сервіс на перевірці й поки не показується в каталозі.</div>') +
+      '<div class="card" id="stoPh"></div>' +
       '<form class="card stack" id="spForm" novalidate>' + stoFields(s) + '<div id="spErr"></div><button class="btn wide" id="spSave">Зберегти</button></form>';
+    stoPhotosBlock($('#stoPh'), s, function (body) { return api('sto.photo', body); }, function (sto) { state.sto = sto; });
     bindChips(view);
     $('#spForm').onsubmit = function (e) {
       e.preventDefault();
@@ -1388,6 +1402,36 @@ function renderStoProfile() {
         .catch(function (e2) { busy(btn, false); $('#spErr').innerHTML = '<div class="note err">' + esc(e2.message) + '</div>'; });
     };
   }).catch(fail);
+}
+
+/* Логотип і фото робіт/цеху сервісу (використовують кабінет сервісу й адмін-панель) */
+function stoPhotosBlock(box, s, call, onSaved) {
+  function draw() {
+    box.innerHTML = '<h2 style="margin-bottom:8px">Логотип і фото</h2>' +
+      '<div class="logo-pick"><div class="ph">' + (s.logo ? '<img src="' + esc(s.logo) + '" alt="Логотип">' : '🔧') + '</div><div>' +
+        '<label class="btn sm ghost">' + (s.logo ? 'Змінити логотип' : 'Додати логотип') + '<input type="file" accept="image/*" class="sr" id="lgF"></label>' +
+        (s.logo ? ' <button type="button" class="link" id="lgDel" style="color:var(--soft)">Прибрати</button>' : '') +
+        '<div class="mini" style="margin-top:4px">Квадратне зображення, показується водіям у каталозі.</div></div></div>' +
+      '<div class="between" style="margin-top:16px"><b>Фото робіт і цеху</b><span class="mini">' + (s.photos || []).length + ' з 8</span></div>' +
+      '<div class="ph-grid">' + (s.photos || []).map(function (u) { return '<figure><img src="' + esc(u) + '" alt="Фото сервісу" loading="lazy"><button type="button" data-del="' + esc(u) + '" aria-label="Видалити фото">×</button></figure>'; }).join('') +
+        ((s.photos || []).length < 8 ? '<figure style="display:flex;align-items:center;justify-content:center"><label style="cursor:pointer;font-size:28px;color:var(--soft);width:100%;height:100%;display:flex;align-items:center;justify-content:center" aria-label="Додати фото">+<input type="file" accept="image/*" class="sr" id="phF" multiple></label></figure>' : '') + '</div>' +
+      '<div class="mini" style="margin-top:8px">Фото виконаних робіт, цеху й обладнання допомагають водіям обрати вас.</div><div id="phErr"></div>';
+    $('#lgF', box).onchange = function () { upload(this.files[0], 'logo'); };
+    if ($('#lgDel', box)) $('#lgDel', box).onclick = function () { run({ kind: 'logo', remove: true }); };
+    if ($('#phF', box)) $('#phF', box).onchange = function () { var fs = Array.prototype.slice.call(this.files, 0, 8 - (s.photos || []).length); var chain = Promise.resolve(); fs.forEach(function (f) { chain = chain.then(function () { return upload(f, 'photo', true); }); }); };
+    $$('[data-del]', box).forEach(function (b) { b.onclick = function () { run({ kind: 'photo', remove: b.dataset.del }); }; });
+  }
+  function run(body, quiet) {
+    $('#phErr', box).innerHTML = '<div class="mini" style="margin-top:6px">Зберігаю…</div>';
+    return call(body).then(function (r) { s = r.sto; if (onSaved) onSaved(r.sto); draw(); if (!quiet) toast('Збережено'); })
+      .catch(function (e) { $('#phErr', box).innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+  }
+  function upload(file, kind, quiet) {
+    if (!file) return Promise.resolve();
+    $('#phErr', box).innerHTML = '<div class="mini" style="margin-top:6px">Завантажую фото…</div>';
+    return shrinkPhoto(file).then(function (d) { return run({ kind: kind, image: d }, quiet); }).catch(function (e) { $('#phErr', box).innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+  }
+  draw();
 }
 
 /* ---------- карта (OpenStreetMap + Leaflet) ---------- */
@@ -1455,7 +1499,7 @@ function renderAdmin() {
 }
 
 function adminStoCard(s) {
-  return '<div class="card" data-sid="' + esc(s.id) + '"><div class="between"><div><b>' + esc(s.name) + '</b><div class="mini">' + esc([s.district || 'район не вказано', s.address].filter(Boolean).join(' · ')) + '</div></div>' +
+  return '<div class="card" data-sid="' + esc(s.id) + '"><div class="between"><div class="sto-head">' + (s.logo ? '<img class="sto-logo" src="' + esc(s.logo) + '" alt="">' : '') + '<div><b>' + esc(s.name) + '</b><div class="mini">' + esc([s.district || 'район не вказано', s.address].filter(Boolean).join(' · ')) + '</div></div></div>' +
     (s.owner ? (s.active ? '<span class="badge b-done">Партнер</span>' : '<span class="badge b-new">На перевірці</span>') : s.partner && s.active ? '<span class="badge b-done">Партнер через зв\'язкового</span>' : (s.active ? '<span class="badge b-declined">Довідник</span>' : s.source === 'анкета' ? '<span class="badge b-new">З анкети</span>' : '<span class="badge b-cancelled">Приховано</span>')) + '</div>' +
     '<div class="small" style="margin-top:6px">' + (s.phone ? '<a href="' + esc(telHref(s.phone)) + '">' + esc(fmtPhone(s.phone)) + '</a>' : '<span class="muted">без телефону</span>') +
     (s.owner ? ' · власник: ' + esc(s.owner.name) + (s.owner.phone && s.owner.phone !== s.phone ? ', <a href="' + esc(telHref(s.owner.phone)) + '">' + esc(fmtPhone(s.owner.phone)) + '</a>' : '') : '') + '</div>' +
@@ -1551,8 +1595,9 @@ function adminStoDialog(M, s, done) {
     '<div><label class="f" for="aeH">Графік</label><input class="i" id="aeH" value="' + esc(s.hours) + '"></div>' +
     '<div><label class="f" for="aeB">Про сервіс</label><textarea class="i" id="aeB">' + esc(s.about) + '</textarea></div>' +
     '<div><label class="f">Координати <span>з Google Maps: правий клік по точці → скопіювати числа</span></label><div class="grid2"><input class="i" id="aeLa" placeholder="47.91" inputmode="decimal" value="' + esc(s.lat || '') + '"><input class="i" id="aeLn" placeholder="33.39" inputmode="decimal" value="' + esc(s.lng || '') + '"></div></div>' +
-    '<div id="aeE"></div><div class="row"><button class="btn" id="aeSave" style="flex:1">Зберегти</button><button class="btn ghost" data-close>Скасувати</button></div></form>');
+    '<div id="aeE"></div><div class="row"><button class="btn" id="aeSave" style="flex:1">Зберегти</button><button class="btn ghost" data-close>Скасувати</button></div></form><div id="aePh" style="margin-top:16px"></div>');
   bindChips($('#aeS'));
+  if ($('#aePh')) stoPhotosBlock($('#aePh'), s, function (body) { body.id = s.id; return api('admin.sto.photo', body, { admin: true }); }, function (sto) { s.logo = sto.logo; s.photos = sto.photos; });
   $('#aeLa').oninput = function () { var m = this.value.match(/(-?\d+[.,]\d+)\s*[,; ]\s*(-?\d+[.,]\d+)/); if (m) { this.value = m[1].replace(',', '.'); $('#aeLn').value = m[2].replace(',', '.'); } };
   $('#aeF').onsubmit = function (e) {
     e.preventDefault();
@@ -1767,14 +1812,21 @@ function boot() {
   }).then(function (r) {
     state.user = r.user; state.sto = r.sto; state.meta = r.meta; if (r.user.role === 'driver') state.cars = r.cars;
     store('ah_user', JSON.stringify(r.user));
+    // у міні-застосунку Telegram: тихо прив'язуємо акаунт, щоб наступного разу вхід був автоматичним і йшли сповіщення
+    if (TG && !r.user.tg) api('tg.bind', { initData: TG.initData }).then(function () { state.user.tg = true; store('ah_user', JSON.stringify(state.user)); }).catch(function () {});
     route();
   });
 }
 window.addEventListener('hashchange', route);
 state.token = store('ah_token');
+if (TG) { try { TG.ready(); TG.expand(); document.body.classList.add('in-tg'); } catch (e) {} }
 try { state.user = JSON.parse(store('ah_user') || 'null'); } catch (e) {}
 if (!API) { view.innerHTML = '<div class="card note warn">Застосунок ще не підключено до сервера. Зверніться до адміністратора.</div>'; return; }
 if (state.token) boot().catch(function (e) { if (!state.token) return; route(); fail(e); });
+else if (TG) api('tg.auth', { initData: TG.initData }).then(function (r) {
+  if (r.token) { state.token = r.token; state.user = r.user; store('ah_token', r.token); store('ah_user', JSON.stringify(r.user)); return boot(); }
+  state.tgHint = true; route();
+}).catch(function () { route(); });
 else route();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () {});
 })();

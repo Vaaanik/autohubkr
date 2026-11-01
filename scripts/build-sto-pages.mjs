@@ -55,6 +55,8 @@ const head = (title, desc, canon, depth) => `<!doctype html>
 .sto-rv{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px}
 .sto-cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
 .crumbs{font-size:14px;color:var(--ink-soft);margin-bottom:10px}.crumbs a{color:inherit}
+.sto-logo{width:48px;height:48px;border-radius:12px;object-fit:cover;float:right;margin-left:10px}
+.sto-gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:12px}.sto-gal img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;display:block}
 </style>
 </head>
 <body>
@@ -77,7 +79,7 @@ const foot = (depth) => `</main>
 `;
 
 const card = (s) => `<a class="sto-card" href="${esc(s.slug)}/" data-svc="${esc(s.services.join('|'))}" data-dist="${esc(s.district || '')}">
-  ${s.listed ? '' : '<span class="sto-badge">Партнер АвтоХабу</span>'}
+  ${s.logo ? `<img class="sto-logo" src="${esc(s.logo)}" alt="" loading="lazy">` : ''}${s.listed ? '' : '<span class="sto-badge">Партнер АвтоХабу</span>'}
   <h3>${esc(s.name)}</h3>
   <p>${esc([s.district, s.address].filter(Boolean).join(' · '))}</p>
   ${s.rating ? `<p style="margin-top:6px">${stars(s.rating)} ${esc(s.rating)} (${s.reviews})</p>` : ''}
@@ -117,7 +119,7 @@ for (const s of stos) {
   const appLink = `../../app/#/new?sto=${encodeURIComponent(s.id)}${s.services[0] ? '&cat=' + encodeURIComponent(s.services[0]) : ''}`;
   const ld = { '@context': 'https://schema.org', '@type': 'AutoRepair', name: s.name, url: `${SITE}/sto/${s.slug}/`,
     address: { '@type': 'PostalAddress', streetAddress: s.address || undefined, addressLocality: 'Кривий Ріг', addressRegion: 'Дніпропетровська область', addressCountry: 'UA' },
-    telephone: s.phone || undefined, openingHours: s.hours || undefined,
+    telephone: s.phone || undefined, openingHours: s.hours || undefined, image: s.logo || (s.photos && s.photos[0]) || undefined,
     geo: s.lat ? { '@type': 'GeoCoordinates', latitude: s.lat, longitude: s.lng } : undefined,
     aggregateRating: s.rating ? { '@type': 'AggregateRating', ratingValue: s.rating, reviewCount: s.reviews } : undefined };
   const maps = s.lat ? `https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.name + ', ' + (s.address ? s.address + ', ' : '') + 'Кривий Ріг')}`;
@@ -126,7 +128,7 @@ for (const s of stos) {
 <section style="padding:20px 0 40px"><div class="wrap" style="max-width:760px">
   <div class="crumbs"><a href="../">Автосервіси Кривого Рогу</a> › ${esc(s.district || 'Кривий Ріг')}</div>
   ${s.listed ? '' : '<span class="sto-badge">Партнер АвтоХабу</span>'}
-  <h1>${esc(s.name)}</h1>
+  <h1>${s.logo ? `<img src="${esc(s.logo)}" alt="Логотип ${esc(s.name)}" style="width:56px;height:56px;border-radius:14px;object-fit:cover;vertical-align:middle;margin-right:10px">` : ''}${esc(s.name)}</h1>
   ${s.rating ? `<p style="font-size:17px;margin:8px 0 0">${stars(s.rating)} ${esc(s.rating)} · ${s.reviews} ${s.reviews === 1 ? 'відгук' : s.reviews < 5 ? 'відгуки' : 'відгуків'} після робіт через АвтоХаб</p>` : ''}
   <div class="sto-info">
     ${s.address ? `<div><b>Адреса</b>${esc(s.address)}, Кривий Ріг${s.district ? ' (' + esc(s.district) + ' район)' : ''} · <a href="${esc(maps)}" target="_blank" rel="noopener">на карті</a></div>` : ''}
@@ -140,6 +142,7 @@ for (const s of stos) {
     <a class="btn dark" href="../../app/">Гараж і план ТО для вашого авто</a>
   </div>
   ${s.listed ? `<p class="req-note" style="margin-top:14px">Цей сервіс ще не підключений до АвтоХабу, дані з відкритих каталогів. Ви власник? <a href="../../services/">Підключіть сервіс безкоштовно</a> і отримуйте заявки від водіїв.</p>` : ''}
+  ${s.photos && s.photos.length ? `<h2 style="margin-top:30px">Фото робіт і цеху</h2><div class="sto-gal">${s.photos.map((u) => `<img src="${esc(u)}" alt="Фото ${esc(s.name)}" loading="lazy">`).join('')}</div>` : ''}
   ${s.lastReviews && s.lastReviews.length ? `<h2 style="margin-top:30px">Відгуки водіїв</h2>${s.lastReviews.map((v) => `<div class="sto-rv">${stars(v.rating)} <span style="color:var(--ink-soft);font-size:14px">${esc(v.date)}</span><div>${esc(v.text || 'Без коментаря')}</div></div>`).join('')}` : ''}
 </div></section>
 <script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>

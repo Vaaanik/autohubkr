@@ -45,6 +45,13 @@ const storage = {
     const out = {}; (data || []).forEach((x) => { if (x.signedUrl) out[x.path] = x.signedUrl; }); return out;
   }
 };
+// Фото сервісів (логотип, фото робіт і цеху): публічний кошик sto-photos — їх бачать усі водії й сторінки сайту.
+const PUB_BUCKET = 'sto-photos';
+const storagePub = {
+  put: async (path, bytes, type) => { const { error } = await sb.storage.from(PUB_BUCKET).upload(path, bytes, { contentType: type, upsert: true }); if (error) throw new Error(error.message); },
+  remove: async (paths) => { await sb.storage.from(PUB_BUCKET).remove(paths); },
+  url: (path) => Deno.env.get('SUPABASE_URL') + '/storage/v1/object/public/' + PUB_BUCKET + '/' + path
+};
 const b64decode = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 const bg = (p) => { try { EdgeRuntime.waitUntil(p); } catch (_) { /* поза Supabase */ } };
 
@@ -69,6 +76,20 @@ async function tg(method, payload) {
 }
 
 const hex = (buf) => Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+// Перевірка initData міні-застосунку Telegram (HMAC за токеном бота). Повертає користувача Telegram або null.
+async function tgCheck(initData) {
+  if (!TG_TOKEN || !initData) return null;
+  const p = new URLSearchParams(String(initData)); const hash = p.get('hash'); if (!hash) return null; p.delete('hash');
+  const check = [...p.entries()].map(([k, v]) => k + '=' + v).sort().join('\n');
+  const enc = new TextEncoder();
+  const k1 = await crypto.subtle.importKey('raw', enc.encode('WebAppData'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const secret = await crypto.subtle.sign('HMAC', k1, enc.encode(TG_TOKEN));
+  const k2 = await crypto.subtle.importKey('raw', secret, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = Array.from(new Uint8Array(await crypto.subtle.sign('HMAC', k2, enc.encode(check)))).map((b) => b.toString(16).padStart(2, '0')).join('');
+  if (sig !== hash) return null;
+  if (Date.now() / 1000 - Number(p.get('auth_date') || 0) > 86400) return null;
+  try { return JSON.parse(p.get('user') || 'null'); } catch (_) { return null; }
+}
 const hex2 = (buf) => Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
 const TG_SECRET = TG_TOKEN ? hex2(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('autohub-webhook:' + TG_TOKEN))).slice(0, 48) : '';
 const api = makeApi(db, {
@@ -78,7 +99,7 @@ const api = makeApi(db, {
     get BAZA_GAI_KEY() { return Deno.env.get('BAZA_GAI_KEY') || ''; }, TG_ON: !!TG_TOKEN, TG_SECRET, API_URL: Deno.env.get('SUPABASE_URL') + '/functions/v1/api' },
   fetch: (u, o) => fetch(u, o),
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-  notify, storage, b64decode, mail, tg, bg
+  notify, storage, storagePub, b64decode, mail, tg, bg, tgCheck
 });
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS',
