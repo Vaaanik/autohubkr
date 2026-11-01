@@ -788,10 +788,31 @@ function makeApi(db, deps) {
     const top = (o) => Object.keys(o).map((k) => [k, o[k]]).sort((a, b) => b[1] - a[1]).slice(0, 8);
     const week = fmt(new Date(Date.now() - 7 * 864e5)).slice(0, 10);
     return { leads: leads.map((l) => ({ id: l.id, kind: l.kind, created: l.created, name: l.name, contact: l.contact, status: l.status,
-        fields: LEAD_KEYS[l.kind].filter((k) => l.data && l.data[k]).map((k) => [LEAD_LABELS[k], l.data[k]]) })),
+        sto_id: (l.data && l.data.sto_id) || '', fields: LEAD_KEYS[l.kind].filter((k) => l.data && l.data[k]).map((k) => [LEAD_LABELS[k], l.data[k]]) })),
       visits: { total: visits.length, unique: uniq.size, week: visits.filter((v) => String(v.created) >= week).length,
         days: Array.from({ length: 14 }, (_, i) => { const d = fmt(new Date(Date.now() - (13 - i) * 864e5)).slice(0, 10); return [d, days[d] || 0]; }),
         sources: top(sources), pages: top(pages) } };
+  }
+
+  // Анкета сервісу з лендингу → картка в каталозі (довідкова, без власника; власник зможе зареєструватися пізніше).
+  const LEAD_SVC = { 'Шиномонтаж': 'Шини', 'Діагностика': 'Діагностика', 'Ремонт ходової': 'Ходова', 'Двигун і КПП': 'Двигун', 'Автоелектрика': 'Електрика',
+    'Кузовний ремонт і ЛКП': 'Кузов і фарбування', 'Кондиціонери': 'Кондиціонер', 'Скло й тонування': 'Скло' };
+  async function adminLeadToSto(r) {
+    await auth(r, 'admin');
+    const l = await db.find('leads', 'id', String(r.id || ''));
+    if (!l || l.kind !== 'service') fail('Анкету сервісу не знайдено');
+    const data = l.data || {};
+    if (data.sto_id && await db.find('stos', 'id', data.sto_id)) return { sto_id: data.sto_id, existed: true };
+    const svc = [...new Set(String(data.services || '').split(';').map((x) => LEAD_SVC[x.trim()] || (x.trim() ? 'Інше' : '')).filter(Boolean))];
+    const digits = String(l.contact || '').replace(/\D/g, '');
+    let phone = '';
+    if (digits.length >= 9) { try { phone = phone_(l.contact); } catch (e) { phone = ''; } }
+    const st = { id: id(), owner_id: '', name: l.name, district: DISTRICTS.indexOf(data.district) !== -1 ? data.district : '', address: '', phone,
+      services: svc.join(', '), hours: '', about: '', active: true, created: now(), source: 'анкета', geo: '' };
+    await db.insert('stos', st);
+    await db.update('leads', l.id, { data: Object.assign({}, data, { sto_id: st.id }), status: l.status === 'new' ? 'contacted' : l.status });
+    const p = pubSto(st, true); p.source = st.source; p.geo = geoOf(st);
+    return { sto: p, sto_id: st.id };
   }
 
   async function adminLeadSet(r) {
@@ -891,7 +912,7 @@ function makeApi(db, deps) {
       await db.insert('stos', st);
       return { sto: pubSto(st, true) };
     },
-    'admin.leads': adminLeads, 'admin.lead.set': adminLeadSet,
+    'admin.leads': adminLeads, 'admin.lead.set': adminLeadSet, 'admin.lead.tosto': adminLeadToSto,
     'admin.geocode': async (r) => { await auth(r, 'admin'); return geocodeBatch(Math.min(Number(r.limit) || 25, 40), r.retry === true); }
   };
 
