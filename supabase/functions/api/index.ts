@@ -251,6 +251,92 @@ function makeApi(db, deps) {
     return u;
   }
 
+  /* --- підтвердження номера: код у Telegram (Telegram Gateway), Viber/SMS (TurboSMS) або безкоштовно через бота (поділитися контактом) --- */
+  const otpCh = () => ({ telegram: !!env.TG_GATEWAY_TOKEN, sms: !!env.TURBOSMS_TOKEN, viber: !!(env.TURBOSMS_TOKEN && env.TURBOSMS_VIBER_SENDER), bot: tgOn() });
+  const otpOn = () => { const c = otpCh(); return c.telegram || c.sms || c.bot; };
+  async function otpTarget(r) {
+    const phone = phone_(r.phone), purpose = r.purpose === 'reset' ? 'reset' : 'register';
+    const exists = await db.find('users', 'phone', phone);
+    if (purpose === 'register' && exists) fail('Цей номер уже зареєстровано. Увійдіть або відновіть PIN.');
+    if (purpose === 'reset' && !exists) fail('Акаунта з таким номером немає. Зареєструйтеся.');
+    return { phone, purpose };
+  }
+  async function otpSend(r, meta) {
+    const { phone, purpose } = await otpTarget(r);
+    if (await kvGet('otp_wait_' + phone)) fail('Код уже надіслано. Новий можна отримати за хвилину.');
+    if (!(await rate('otp_ip_' + (meta.ip || '-'), 12, 3600)) || !(await rate('otp_ph_' + phone, 5, 3600))) fail('Забагато спроб. Спробуйте за годину.');
+    const code = String(1000 + parseInt(deps.uuid().replace(/-/g, '').slice(0, 8), 16) % 9000);
+    const text = code + ' — код підтвердження АвтоХаб. Нікому його не повідомляйте.';
+    let via = '';
+    if (r.channel !== 'sms' && env.TG_GATEWAY_TOKEN) {
+      try {
+        const res = await deps.fetch('https://gatewayapi.telegram.org/sendVerificationMessage', { method: 'POST',
+          headers: { Authorization: 'Bearer ' + env.TG_GATEWAY_TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ phone_number: phone, code, ttl: 300 }) });
+        const j = await res.json().catch(() => ({}));
+        if (j && j.ok) via = 'telegram'; else console.error('tg gateway', JSON.stringify(j).slice(0, 300));
+      } catch (e) { console.error('tg gateway', e); }
+    }
+    if (!via && env.TURBOSMS_TOKEN) {
+      const body = { recipients: [phone.slice(1)], sms: { sender: env.TURBOSMS_SENDER || 'TurboSMS', text, hybrid_ttl: 120 } };
+      if (env.TURBOSMS_VIBER_SENDER) body.viber = { sender: env.TURBOSMS_VIBER_SENDER, text, ttl: 120 };
+      if (!env.TURBOSMS_VIBER_SENDER) delete body.sms.hybrid_ttl;
+      try {
+        const res = await deps.fetch('https://api.turbosms.ua/message/send.json', { method: 'POST',
+          headers: { Authorization: 'Bearer ' + env.TURBOSMS_TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const j = await res.json().catch(() => ({}));
+        const one = Array.isArray(j.response_result) ? j.response_result[0] : null;
+        if (one ? one.message_id : [0, 800, 801, 802].indexOf(Number(j.response_code)) !== -1) via = env.TURBOSMS_VIBER_SENDER ? 'viber' : 'sms';
+        else console.error('turbosms', JSON.stringify(j).slice(0, 300));
+      } catch (e) { console.error('turbosms', e); }
+    }
+    if (!via) fail(otpCh().bot ? 'Не вдалося надіслати код. Підтвердіть номер через Telegram-бота.' : 'Не вдалося надіслати код. Спробуйте пізніше.');
+    await kvPut('otp_' + purpose + '_' + phone, JSON.stringify({ h: await hash(code, phone), n: 0 }), 600);
+    await kvPut('otp_wait_' + phone, 1, 60);
+    return { via };
+  }
+  // Безкоштовний шлях: бот просить «Поділитися номером», Telegram віддає власний номер користувача.
+  async function otpBot(r) {
+    const { phone, purpose } = await otpTarget(r);
+    if (!tgOn()) fail('Telegram-бот ще не налаштований');
+    const nonce = deps.uuid().replace(/-/g, '').slice(0, 20);
+    await kvPut('otpb_' + nonce, JSON.stringify({ phone, purpose, ok: false }), 900);
+    return { nonce, url: 'https://t.me/' + (await tgBot()) + '?start=v_' + nonce };
+  }
+  async function otpBotCheck(r) {
+    const b = JSON.parse(await kvGet('otpb_' + s_(r.nonce)) || 'null');
+    if (!b) fail('Час підтвердження минув. Почніть ще раз.');
+    return { confirmed: !!b.ok, error: b.err || '' };
+  }
+  async function otpVerify(phone, purpose, r) {
+    if (!otpOn()) return {};
+    if (r.otp_nonce) {
+      const k = 'otpb_' + s_(r.otp_nonce), b = JSON.parse(await kvGet(k) || 'null');
+      if (!b || !b.ok || b.phone !== phone || b.purpose !== purpose) fail('Номер ще не підтверджено в Telegram');
+      await kvDel(k);
+      return { chat: b.chat || '' };
+    }
+    const k = 'otp_' + purpose + '_' + phone, rec = JSON.parse(await kvGet(k) || 'null');
+    if (!rec) fail('Підтвердіть номер: отримайте код');
+    if (rec.n >= 5) { await kvDel(k); fail('Забагато невдалих спроб. Отримайте новий код.'); }
+    if ((await hash(String(r.otp_code || '').replace(/\D/g, ''), phone)) !== rec.h) { rec.n++; await kvPut(k, JSON.stringify(rec), 600); fail('Невірний код'); }
+    await kvDel(k);
+    return {};
+  }
+  async function pinReset(r) {
+    const phone = phone_(r.phone), pin = String(r.pin || '');
+    if (!/^\d{4,6}$/.test(pin)) fail('PIN має бути з 4–6 цифр');
+    const u = await db.find('users', 'phone', phone);
+    if (!u) fail('Акаунта з таким номером немає');
+    if (!otpOn()) fail('Відновлення PIN тимчасово недоступне. Напишіть на info@autohubkr.com');
+    const v = await otpVerify(phone, 'reset', r);
+    const salt = deps.uuid();
+    const patch = { pin_hash: await hash(pin, salt), salt };
+    if (v.chat) patch.tg_chat = v.chat;
+    const upd = await db.update('users', u.id, patch);
+    await db.removeWhere('sessions', 'user_id', u.id).catch(() => {});
+    return session(upd);
+  }
+
   async function register(r) {
     const role = r.role === 'sto' ? 'sto' : 'driver';
     const phone = phone_(r.phone);
@@ -265,8 +351,10 @@ function makeApi(db, deps) {
         phone: phone_(st.phone || phone), services: list_(st.services, CATEGORIES).join(', '), hours: s_(st.hours), about: s_(st.about), active: false, created: now(), source: 'реєстрація', geo: '' };
       const em = s_(st.email).toLowerCase(); if (em) { if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/.test(em)) fail('Перевірте email'); sto.email = em; }
     }
+    const ver = await otpVerify(phone, 'register', r);
     const salt = deps.uuid();
-    const user = { id: id(), role, name, phone, pin_hash: await hash(pin, salt), salt, sto_id: sto ? sto.id : '', created: now() };
+    const user = { id: id(), role, name, phone, pin_hash: await hash(pin, salt), salt, sto_id: sto ? sto.id : '', created: now(), phone_ok: otpOn() };
+    if (ver.chat) { for (const o of await db.where('users', 'tg_chat', ver.chat)) await db.update('users', o.id, { tg_chat: '' }); user.tg_chat = ver.chat; }
     try { await db.insert('users', user); } catch (e) { if (String(e.message || e).indexOf('duplicate') !== -1) fail('Цей номер уже зареєстровано. Увійдіть або зверніться до підтримки.'); throw e; }
     if (sto) {
       sto.owner_id = user.id;
@@ -1164,6 +1252,31 @@ function makeApi(db, deps) {
     if (!tgOn() || !env.TG_SECRET || meta.tgSecret !== env.TG_SECRET) return {};
     const msg = upd.message; if (!msg || !msg.chat) return {};
     const chat = String(msg.chat.id), text = String(msg.text || '').trim();
+    const ver = text.match(/^\/start\s+v_([a-f0-9]{20})$/);
+    if (ver) {
+      const b = JSON.parse(await kvGet('otpb_' + ver[1]) || 'null');
+      if (!b) { await tgSend(chat, { emoji: '⌛', title: 'Посилання застаріло', intro: 'Поверніться в застосунок і почніть підтвердження ще раз.' }); return {}; }
+      await kvPut('otpbchat_' + chat, ver[1], 900);
+      await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml({ emoji: '📱', title: 'Підтвердіть номер', intro: 'Натисніть кнопку <b>«Поділитися номером»</b> внизу. Telegram передасть номер, прив\'язаний до вашого акаунта.' }),
+        reply_markup: { keyboard: [[{ text: '📱 Поділитися номером', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true } });
+      return {};
+    }
+    if (msg.contact) {
+      const nonce = await kvGet('otpbchat_' + chat);
+      if (!nonce) { await tgKeyboard(chat, 'Щоб підтвердити номер, почніть у застосунку АвтоХаб.'); return {}; }
+      const k = 'otpb_' + nonce, b = JSON.parse(await kvGet(k) || 'null');
+      if (!b) { await tgSend(chat, { emoji: '⌛', title: 'Час минув', intro: 'Почніть підтвердження в застосунку ще раз.' }); return {}; }
+      if (!msg.from || String(msg.contact.user_id) !== String(msg.from.id)) { await tgSend(chat, { emoji: '⚠️', title: 'Це чужий контакт', intro: 'Натисніть саме кнопку «Поділитися номером».' }); return {}; }
+      let got = ''; try { got = phone_(msg.contact.phone_number); } catch (e) { got = ''; }
+      if (got !== b.phone) {
+        b.err = 'Номер у Telegram (' + (got || msg.contact.phone_number) + ') не збігається з указаним у застосунку'; await kvPut(k, JSON.stringify(b), 900);
+        await tgKeyboard(chat, tgHtml({ emoji: '⚠️', title: 'Номер не збігається', intro: 'У Telegram ваш номер ' + (got || msg.contact.phone_number) + ', а в застосунку вказано ' + b.phone + '. Виправте номер у застосунку або отримайте код в SMS.' }));
+        return {};
+      }
+      b.ok = true; b.chat = chat; delete b.err; await kvPut(k, JSON.stringify(b), 900); await kvDel('otpbchat_' + chat);
+      await tgKeyboard(chat, tgHtml({ emoji: '✅', title: 'Номер підтверджено', intro: 'Поверніться в застосунок: реєстрація продовжиться сама. Сповіщення АвтоХабу приходитимуть у цей чат.' }));
+      return {};
+    }
     const start = text.match(/^\/start(?:\s+([a-f0-9]{16}))?/);
     if (start && start[1]) {
       const uid = await kvGet('tglink_' + start[1]);
@@ -1419,15 +1532,15 @@ function makeApi(db, deps) {
   const histOut = (h) => { const p = pick(h, ['id', 'date', 'work', 'place', 'price', 'mileage', 'request_id', 'confirmed']); p.services = String(h.services || '').split(',').filter(Boolean); return p; };
 
   const ACTIONS = {
-    meta: async () => Object.assign({ ria: !!env.AUTO_RIA_KEY }, META),
-    register, login,
+    meta: async () => Object.assign({ ria: !!env.AUTO_RIA_KEY, otp: otpOn() ? otpCh() : null }, META),
+    register, login, 'otp.send': otpSend, 'otp.bot': otpBot, 'otp.bot.check': otpBotCheck, 'pin.reset': pinReset,
     logout: async (r) => { if (r.token) await db.removeWhere('sessions', 'token', String(r.token)); return {}; },
     me: async (r) => { const u = await auth(r); const sto = u.sto_id ? await db.find('stos', 'id', u.sto_id) : null; return { user: pubUser(u), sto: sto ? pubSto(sto, true) : null }; },
     // одним запитом: користувач, довідники й авто (для швидкого старту застосунку)
     boot: async (r) => {
       const u = await auth(r);
       const [sto, cars] = await Promise.all([u.sto_id ? db.find('stos', 'id', u.sto_id) : null, u.role === 'driver' ? myCars(u) : []]);
-      return { user: pubUser(u), sto: sto ? pubSto(sto, true) : null, cars, meta: Object.assign({ ria: !!env.AUTO_RIA_KEY }, META) };
+      return { user: pubUser(u), sto: sto ? pubSto(sto, true) : null, cars, meta: Object.assign({ ria: !!env.AUTO_RIA_KEY, otp: otpOn() ? otpCh() : null }, META) };
     },
     'cars.list': async (r) => ({ cars: await myCars(await auth(r, 'driver')) }),
     'cars.add': async (r) => {
@@ -1548,7 +1661,7 @@ function makeApi(db, deps) {
       if (req && req.update_id !== undefined) { await tgUpdate(req, meta); return { ok: true }; }
       const fn = ACTIONS[req && req.action];
       if (!fn) return { ok: false, error: 'Невідома дія' };
-      const res = (await fn(req)) || {};
+      const res = (await fn(req, meta)) || {};
       res.ok = res.ok !== false;
       return res;
     } catch (err) {
@@ -1660,7 +1773,8 @@ const api = makeApi(db, {
   uuid: () => crypto.randomUUID(),
   sha256hex: async (s) => hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))),
   env: { get GEMINI_API_KEY() { return Deno.env.get('GEMINI_API_KEY') || ''; }, get GEMINI_MODEL() { return Deno.env.get('GEMINI_MODEL') || ''; },
-    get AUTO_RIA_KEY() { return Deno.env.get('AUTO_RIA_KEY') || ''; }, TG_ON: !!TG_TOKEN, TG_SECRET, API_URL: Deno.env.get('SUPABASE_URL') + '/functions/v1/api' },
+    get AUTO_RIA_KEY() { return Deno.env.get('AUTO_RIA_KEY') || ''; }, get TG_GATEWAY_TOKEN() { return Deno.env.get('TG_GATEWAY_TOKEN') || ''; },
+    get TURBOSMS_TOKEN() { return Deno.env.get('TURBOSMS_TOKEN') || ''; }, get TURBOSMS_SENDER() { return Deno.env.get('TURBOSMS_SENDER') || ''; }, get TURBOSMS_VIBER_SENDER() { return Deno.env.get('TURBOSMS_VIBER_SENDER') || ''; }, TG_ON: !!TG_TOKEN, TG_SECRET, API_URL: Deno.env.get('SUPABASE_URL') + '/functions/v1/api' },
   fetch: (u, o) => fetch(u, o),
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
   notify, storage, storagePub, b64decode, mail, tg, bg, tgCheck, vinShard
