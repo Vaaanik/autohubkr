@@ -870,9 +870,32 @@ function makeApi(db, deps) {
     }, tg: { token: tgOn(), hook: !!(await kvGet('tg_hook')), bot: await botName() }, funnel: await (async () => { const o = {}; for (const st of FUNNEL) for (const rl of ['driver', 'sto']) o[st + '_' + rl] = Number(await kvGet('fn_' + st + '_' + rl) || 0); o.start_x = Number(await kvGet('fn_start_x') || 0); return o; })(), statuses: STATUS };
   }
 
+  // Видалення сервісу адміністратором: спершу dry (що зачепить), потім із підтвердженням назвою.
+  async function adminStoDelete(r) {
+    await auth(r, 'admin');
+    const st = await db.find('stos', 'id', String(r.id || ''));
+    if (!st || st.deleted === true) fail('Сервіс не знайдено');
+    const [reqs, jobs, revs] = await Promise.all([db.where('requests', 'sto_id', st.id), db.where('jobs', 'sto_id', st.id), db.where('reviews', 'sto_id', st.id)]);
+    const open = reqs.filter((q) => ['new', 'accepted', 'in_work'].indexOf(q.status) !== -1);
+    const owner = st.owner_id ? await db.find('users', 'id', st.owner_id) : null;
+    const info = { requests: reqs.length, open: open.length, jobs: jobs.length, reviews: revs.length, owner: owner ? owner.name + ', ' + owner.phone : '' };
+    if (r.dry) return { info };
+    if (s_(r.confirm).toLowerCase() !== s_(st.name).toLowerCase()) fail('Назва не збігається. Сервіс не видалено.');
+    for (const q of open) await db.update('requests', q.id, { status: q.status === 'new' ? 'declined' : 'cancelled', sto_comment: 'Сервіс більше не працює в АвтоХабі. Оберіть інший сервіс.', updated: now() });
+    if (owner) { const patch = { sto_id: '' }; if (owner.role === 'sto') patch.role = 'driver'; await db.update('users', owner.id, patch); }
+    const pics = [st.logo].concat(Array.isArray(st.photos) ? st.photos : []).filter(Boolean);
+    if (pics.length && deps.storagePub) await deps.storagePub.remove(pics).catch(() => {});
+    const keep = reqs.length || jobs.length || revs.length;
+    if (keep) await db.update('stos', st.id, { deleted: true, active: false, partner: false, owner_id: '', logo: '', photos: [] });
+    else await db.removeWhere('stos', 'id', st.id);
+    await kvDel('stats_public');
+    notify('Сервіс видалено: ' + st.name, 'Видалив адміністратор. Відкритих заявок закрито: ' + open.length + (owner ? '\nВласник ' + owner.name + ' лишився з акаунтом водія.' : '') + (keep ? '\nІсторію заявок збережено для водіїв.' : ''));
+    return { deleted: true, archived: !!keep, info };
+  }
   async function adminStos(r) {
     await auth(r, 'admin');
-    const [stos, users] = await Promise.all([db.all('stos'), db.where('users', 'role', 'sto')]);
+    const [stos0, users] = await Promise.all([db.all('stos'), db.where('users', 'role', 'sto')]);
+    const stos = stos0.filter((s) => s.deleted !== true);
     const list = stos.map((s) => {
       const p = pubSto(s, true);
       p.owner = null;
@@ -1274,14 +1297,27 @@ function makeApi(db, deps) {
   async function tgGroup(chat, u, role) {
     const r0 = role || (u.sto_id ? 'sto' : 'driver');
     const url = r0 === 'sto' ? SET.group_services : SET.group_drivers;
-    if (!url || !chat || !u) return;
+    if (!url || !chat || !u) return false;
     const k = 'grp_' + r0 + '_' + u.id;
-    if (await kvGet(k)) return;
+    if (await kvGet(k)) return false;
     await kvPut(k, 1, 20 * 365 * 86400);
     await tgSend(chat, r0 === 'sto'
       ? { emoji: '🤝', title: 'Група партнерів АвтоХабу', intro: 'Новини для сервісів, умови партнерства й зв\'язок з командою. Тут же можна запропонувати функції, яких вам бракує.' }
       : { emoji: '👥', title: 'Автоспільнота Кривого Рогу', intro: 'Група учасників АвтоХабу: перші новини, нові функції й поради від водіїв міста.' },
       [{ text: r0 === 'sto' ? 'Приєднатися до групи партнерів' : 'Приєднатися до групи', url }]);
+    return true;
+  }
+  // Разова розсилка посилань на групи всім, хто вже підключив бота (кому ще не надсилали)
+  async function adminGroupsSend(r) {
+    await auth(r, 'admin');
+    if (!(await botReady())) fail('Спершу налаштуйте Telegram-бота');
+    if (!SET.group_drivers && !SET.group_services) fail('Вкажіть посилання хоча б на одну групу');
+    let sent = 0, had = 0;
+    for (const u of (await db.all('users')).filter((x) => x.tg_chat && x.role !== 'admin')) {
+      const roles = u.sto_id ? ['sto', 'driver'] : [u.role === 'sto' ? 'sto' : 'driver'];
+      for (const rl of roles) { if (await tgGroup(u.tg_chat, u, rl)) sent++; else had++; }
+    }
+    return { sent, had };
   }
   /* --- воронка в Telegram-боті: роль → «Поділитися номером» → акаунт створено → міні-застосунок --- */
   const FUNNEL = ['start', 'role', 'contact', 'reg', 'sto_card'];
@@ -1694,7 +1730,7 @@ function makeApi(db, deps) {
     let phone = '';
     if (digits.length >= 9) { try { phone = phone_(l.contact); } catch (e) { phone = ''; } }
     const key = (x) => String(x || '').toLowerCase().replace(/сто|авто|auto|service|сервіс|сервис|[^0-9a-zа-яіїєґ]/g, '');
-    const all = await db.all('stos');
+    const all = (await db.all('stos')).filter((x) => x.deleted !== true);
     const dup = all.find((x) => (phone && x.phone === phone) || (key(x.name) && key(x.name) === key(l.name)));
     if (dup) {
       await db.update('leads', l.id, { data: Object.assign({}, data, { sto_id: dup.id }) });
@@ -1883,7 +1919,7 @@ function makeApi(db, deps) {
       return { sto: pubSto(st, true) };
     },
     'admin.leads': adminLeads, 'admin.lead.set': adminLeadSet, 'admin.lead.tosto': adminLeadToSto,
-    'admin.settings': adminSettings, 'admin.settings.set': adminSettingsSet, 'admin.cache.clear': adminCacheClear,
+    'admin.settings': adminSettings, 'admin.sto.delete': adminStoDelete, 'admin.groups.send': adminGroupsSend, 'admin.settings.set': adminSettingsSet, 'admin.cache.clear': adminCacheClear,
     'admin.geocode': async (r) => { await auth(r, 'admin'); return geocodeBatch(Math.min(Number(r.limit) || 25, 40), r.retry === true); }
   };
 
