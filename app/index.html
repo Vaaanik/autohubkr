@@ -660,6 +660,7 @@ function shrinkPhoto(file) {
 
 function carSpec(c) {
   var bits = [];
+  if (c.equipment) bits.push(c.equipment);
   if (c.engine || c.fuel) bits.push([c.engine ? Number(c.engine).toFixed(1) : '', c.fuel ? c.fuel.toLowerCase() : ''].filter(Boolean).join(' '));
   if (c.power) bits.push(c.power + ' к.с.');
   if (c.gearbox) bits.push(c.gearbox.toLowerCase());
@@ -748,6 +749,7 @@ function carDialog(car) {
       '<div><label class="f" for="cModel">Модель</label><input class="i" id="cModel" placeholder="Спершу оберіть марку" value="' + esc(car.model || '') + '"' + (car.make ? '' : ' disabled') + '></div>' +
       '<div class="grid2"><div><label class="f" for="cYear">Рік випуску</label><select class="i" id="cYear"></select></div><div><label class="f" for="cKm">Пробіг, км</label><input class="i" id="cKm" inputmode="numeric" placeholder="148000" value="' + esc(car.mileage || '') + '"></div></div>' +
       '<fieldset class="mod"><legend>Модифікація <span>необов\'язково, але план ТО буде точнішим</span></legend>' +
+        (M.ria ? '<div style="margin-bottom:10px"><button type="button" class="btn sm dark" id="cRia">Підібрати модифікацію з AUTO.RIA</button><div id="cRiaBox"></div></div>' : '') +
         '<div class="grid2"><div><label class="f" for="cEng">Об\'єм, л</label><select class="i" id="cEng">' + opt(engines, car.engine ? Number(car.engine).toFixed(1) : '') + '</select></div>' +
         '<div><label class="f" for="cFuel">Паливо</label><select class="i" id="cFuel">' + opt(CO.fuels, car.fuel) + '</select></div></div>' +
         '<div class="grid2"><div><label class="f" for="cPow">Потужність, к.с.</label><input class="i" id="cPow" inputmode="numeric" placeholder="110" value="' + esc(car.power || '') + '"></div>' +
@@ -791,8 +793,36 @@ function carDialog(car) {
       onPick: function (v) { sel.model = v || ''; if (v) { setModelRange(v); setTimeout(function () { $('#cYear').focus(); }, 30); } }
     });
     if (car.model) setModelRange(car.model); else years();
-    // Заповнення за VIN
     var setSel = function (id, v) { var el = $(id); if (!v || !el) return false; var o = Array.prototype.filter.call(el.options, function (x) { return x.value === String(v) || x.text === String(v); })[0]; if (!o) return false; el.value = o.value; return true; };
+    sel.modification = car.modification || ''; sel.equipment = car.equipment || '';
+    function riaDraw(mods) {
+      var box = $('#cRiaBox');
+      if (!mods.length) { box.innerHTML = '<div class="note warn" style="margin-top:8px">AUTO.RIA не має модифікацій для цієї моделі й року. Заповніть поля нижче вручну.</div>'; return; }
+      box.innerHTML = '<label class="f" for="cMod" style="margin-top:10px">Модифікація</label><select class="i" id="cMod"><option value="">Оберіть зі списку (' + mods.length + ')</option>' +
+        mods.map(function (m, i) { return '<option value="' + i + '"' + (m.name === sel.modification ? ' selected' : '') + '>' + esc(m.name) + (m.years ? ' · ' + esc(m.years) : '') + '</option>'; }).join('') + '</select><div id="cEqBox"></div>';
+      $('#cMod').onchange = function () {
+        var m = mods[+this.value]; if (!m) return;
+        sel.modification = m.name; sel.equipment = '';
+        if (m.engine) setSel('#cEng', Number(m.engine).toFixed(1));
+        if (m.power) $('#cPow').value = m.power;
+        setSel('#cFuel', m.fuel); setSel('#cBox', m.gearbox); setSel('#cDrive', m.drive);
+        $('#cEqBox').innerHTML = '<div class="mini" style="margin-top:6px">Шукаємо комплектації…</div>';
+        api('ria.equips', { modification: m.id, year: $('#cYear').value }).then(function (r) {
+          if (!r.equips.length) { $('#cEqBox').innerHTML = ''; return; }
+          $('#cEqBox').innerHTML = '<label class="f" for="cEq" style="margin-top:10px">Комплектація</label><select class="i" id="cEq"><option value="">Не знаю / інша</option>' +
+            r.equips.map(function (e) { return '<option' + (e === sel.equipment ? ' selected' : '') + '>' + esc(e) + '</option>'; }).join('') + '</select>';
+          $('#cEq').onchange = function () { sel.equipment = this.value; };
+        }).catch(function () { $('#cEqBox').innerHTML = ''; });
+      };
+    }
+    if ($('#cRia')) $('#cRia').onclick = function () {
+      var make = sel.make || $('#cMake').value.trim(), model = sel.model || $('#cModel').value.trim();
+      if (!make || !model) { $('#cRiaBox').innerHTML = '<div class="note err" style="margin-top:8px">Спершу оберіть марку й модель</div>'; return; }
+      var b = this; busy(b, true);
+      api('ria.mods', { make: make, model: model, year: $('#cYear').value }).then(function (r) { busy(b, false); riaDraw(r.mods); })
+        .catch(function (e) { busy(b, false); $('#cRiaBox').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+    };
+    // Заповнення за VIN
     if ($('#cVinGo')) $('#cVinGo').onclick = function () {
       var btn = this, vin = $('#cVin').value.trim().toUpperCase().replace(/[\s-]+/g, '');
       if (vin.length !== 17) { $('#cVinNote').innerHTML = '<div class="note err" style="margin-top:8px">VIN має містити 17 символів. Зараз: ' + vin.length + '.</div>'; return; }
@@ -842,7 +872,8 @@ function carDialog(car) {
       $$('#cMake,#cModel').forEach(function (i) { i.classList.toggle('bad', (i.id === 'cMake' && !make) || (i.id === 'cModel' && make && !model)); });
       if (err) { $('#carErr').innerHTML = '<div class="note err">' + esc(err) + '</div>'; return; }
       var data = { make: make, model: model, year: $('#cYear').value, mileage: $('#cKm').value, engine: $('#cEng').value, fuel: $('#cFuel').value, power: $('#cPow').value,
-        gearbox: $('#cBox').value, drive: $('#cDrive').value, body: $('#cBody').value, plate: $('#cPlate').value, vin: $('#cVin').value };
+        gearbox: $('#cBox').value, drive: $('#cDrive').value, body: $('#cBody').value, plate: $('#cPlate').value, vin: $('#cVin').value,
+        modification: sel.modification || '', equipment: sel.equipment || '' };
       // у поле VIN могли вписати держномер: переносимо його в «Номер»
       if (data.vin && data.vin.replace(/[\s-]/g, '').length !== 17) { if (!data.plate) data.plate = data.vin; data.vin = ''; }
       if (edit) data.id = car.id;
@@ -920,7 +951,7 @@ function renderCar(id) {
     view.innerHTML = '<a href="#/garage" class="back">‹ Гараж</a>' +
       '<div class="dash' + (car.photo ? ' has-photo' : '') + '">' + (car.photo ? '<div class="dash-photo"><img src="' + esc(car.photo) + '" alt="Фото ' + esc(car.make + ' ' + car.model) + '"></div>' : '') +
       '<h1 style="color:#fff;font-size:22px">' + esc(car.make + ' ' + car.model) + (car.year ? '<span class="yr" style="font-size:18px">' + esc(car.year) + '</span>' : '') + '</h1>' +
-      (spec ? '<div class="spec">' + esc(spec) + '</div>' : '') +
+      (spec ? '<div class="spec">' + esc(spec) + '</div>' : '') + (car.modification ? '<div class="spec" style="opacity:.8">' + esc(car.modification) + '</div>' : '') +
       '<div class="dash-row"><div>' + plateHtml(car.plate) + '</div><div><div class="odo-l">Пробіг</div>' + odoHtml(car.mileage) + '</div></div>' +
       (car.vin ? '<div class="vin">VIN ' + esc(car.vin) + '</div>' : '') +
       '<div class="acts"><a class="btn sm" href="#/new?car=' + esc(car.id) + '">Заявка в СТО</a><button class="btn sm ghost" id="addHist">Додати запис</button><button class="btn sm ghost" id="editCar">Редагувати</button>' +
@@ -933,6 +964,7 @@ function renderCar(id) {
         '<p class="mini" style="margin:8px 0 0">Інтервали орієнтовні. Точні дивіться в сервісній книжці вашого авто. Натисніть на роботу, щоб записати, коли її робили.</p></div>' +
       (car.osago_until === undefined ? '' : '<div class="card"><div class="between" style="margin-bottom:4px"><h2>Документи й страховка</h2><button type="button" class="link" id="editDocs">Змінити</button></div>' +
         carDocs().map(function (d) { var i = docInfo(car[d[0]]); return '<div class="doc-row"><div><b>' + esc(d[1]) + '</b><small>' + (car[d[0]] ? 'до ' + esc(dt(car[d[0]])) : 'дату не вказано') + '</small></div><span class="doc-st ' + i.cls + '">' + esc(i.label) + '</span></div>'; }).join('') + '</div>') +
+      (M.ria ? '<div class="card" id="mkt"></div>' : '') +
       expensesHtml(hist, M) +
       '<h2 style="margin:18px 0 10px">Історія обслуговування</h2>' +
       (hist.length ? '<div class="card">' + hist.map(function (h) {
@@ -947,6 +979,22 @@ function renderCar(id) {
     if ($('#addHist2')) $('#addHist2').onclick = function () { histDialog(car, M); };
     $('#editCar').onclick = function () { carDialog(car); };
     if ($('#editDocs')) $('#editDocs').onclick = function () { docsDialog(car); };
+    if ($('#mkt')) {
+      var drawMkt = function (mk) {
+        $('#mkt').innerHTML = '<div class="between"><h2>Ринкова ціна</h2><span class="mini">дані AUTO.RIA</span></div>' +
+          (mk && mk.price ? '<div class="exp-big">≈ $' + Number(mk.price).toLocaleString('uk-UA') + '</div>' +
+            (mk.low && mk.high ? '<div class="small">Середина ринку: $' + Number(mk.low).toLocaleString('uk-UA') + ' – $' + Number(mk.high).toLocaleString('uk-UA') + '</div>' : '') +
+            '<div class="mini" style="margin-top:4px">За ' + mk.total + ' оголошеннями ' + esc(car.make + ' ' + car.model) + ' ' + esc(mk.years) + (mk.engine ? ', той самий об\'єм двигуна' : '') + '. Оцінено ' + esc(dt(mk.at)) + '.</div>'
+            : '<p class="small muted" style="margin:6px 0 0">Дізнайтеся, скільки коштує ваше авто на ринку зараз.</p>') +
+          '<button type="button" class="btn sm ghost" id="mktGo" style="margin-top:10px">' + (mk && mk.price ? 'Оновити оцінку' : 'Оцінити авто') + '</button><div id="mktErr"></div>';
+        $('#mktGo').onclick = function () {
+          var b = this; busy(b, true);
+          api('ria.price', { car_id: car.id }).then(function (r) { car.market = r.market; state.cars = null; drawMkt(r.market); })
+            .catch(function (e) { busy(b, false); $('#mktErr').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+        };
+      };
+      drawMkt(car.market);
+    }
     $$('[data-svc]').forEach(function (b) { b.onclick = function () { histDialog(car, M, [b.dataset.svc]); }; });
     $$('[data-del]').forEach(function (b) {
       b.onclick = function () {
@@ -1044,7 +1092,8 @@ function renderNew() {
       '<div><label class="f" for="nDesc">Опишіть проблему</label><textarea class="i" id="nDesc" placeholder="Що відбувається, коли з\'явилося, чи горять лампочки на панелі"></textarea>' +
         '<button type="button" class="btn sm ai-btn" id="nAi" style="margin-top:8px">✨ Підказка AI: що це може бути</button>' +
         '<div class="small muted" style="margin-top:6px">AI підкаже ймовірні причини, терміновість і потрібну категорію. Опис передається в Google Gemini, тож не пишіть туди телефон чи інші особисті дані.</div>' +
-        '<div id="nAiOut" aria-live="polite"></div></div>' +
+        '<div id="nAiOut" aria-live="polite"></div>' +
+        '<div style="margin-top:12px"><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Фото проблеми <span class="muted" style="font-weight:400">до 4, необов\'язково</span></span><div class="ph-grid" id="nPh"></div></div></div>' +
       '<div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Що потрібно</span><div class="chips" id="nCat">' +
         M.categories.map(function (c) { return '<span class="chip" role="radio" tabindex="0" aria-checked="false" data-v="' + esc(c) + '">' + esc(c) + '</span>'; }).join('') + '</div></div>' +
       '<div><label class="f" for="nWhen">Коли зручно <span>необов\'язково</span></label><input class="i" id="nWhen" placeholder="Будні після 17:00, або субота зранку"></div></div>' +
@@ -1052,6 +1101,19 @@ function renderNew() {
         M.districts.map(function (d) { return '<option>' + esc(d) + '</option>'; }).join('') + '</select></div><div id="stoList"><div class="muted small">Спершу оберіть, що потрібно зробити.</div></div></div>' +
       '<div id="nErr"></div><button class="btn wide" id="nSend">Надіслати заявку</button></form>';
     bindChips($('#nCat'), true);
+    // фото проблеми: стискаємо на телефоні, показуємо мініатюри
+    var reqPhotos = [];
+    function drawReqPh() {
+      $('#nPh').innerHTML = reqPhotos.map(function (d, i) { return '<figure><img src="' + d + '" alt="Фото ' + (i + 1) + '"><button type="button" data-rm="' + i + '" aria-label="Прибрати фото">×</button></figure>'; }).join('') +
+        (reqPhotos.length < 4 ? '<figure style="display:flex;align-items:center;justify-content:center"><label style="cursor:pointer;font-size:28px;color:var(--soft);width:100%;height:100%;display:flex;align-items:center;justify-content:center" aria-label="Додати фото">📷<input type="file" accept="image/*" multiple class="sr" id="nPhF"></label></figure>' : '');
+      $$('[data-rm]', $('#nPh')).forEach(function (b) { b.onclick = function () { reqPhotos.splice(+b.dataset.rm, 1); drawReqPh(); }; });
+      if ($('#nPhF')) $('#nPhF').onchange = function () {
+        var fs = Array.prototype.slice.call(this.files, 0, 4 - reqPhotos.length), chain = Promise.resolve();
+        fs.forEach(function (f) { chain = chain.then(function () { return shrinkPhoto(f).then(function (d) { reqPhotos.push(d); }); }); });
+        chain.then(drawReqPh).catch(function (e) { fail(e); drawReqPh(); });
+      };
+    }
+    drawReqPh();
     $('#nCat').onchipchange = function () { var on = $('#nCat .chip.on'); sel.category = on ? on.dataset.v : ''; sel.sto = ''; loadStos(); };
     $('#nDistrict').onchange = function () { sel.district = this.value; sel.sto = ''; loadStos(); };
     function setCategory(cat) {
@@ -1063,7 +1125,7 @@ function renderNew() {
       var desc = $('#nDesc').value.trim(), out = $('#nAiOut'), btn = this;
       if (desc.length < 10) { out.innerHTML = '<div class="note err" style="margin-top:8px">Спершу опишіть проблему хоча б одним реченням.</div>'; $('#nDesc').focus(); return; }
       busy(btn, true); out.innerHTML = '<div class="muted small" style="margin-top:8px">AI аналізує опис…</div>';
-      api('ai.diagnose', { description: desc, car_id: $('#nCar').value }).then(function (r) {
+      api('ai.diagnose', { description: desc, car_id: $('#nCar').value, photos: reqPhotos.slice(0, 3) }).then(function (r) {
         busy(btn, false);
         var a = r.ai, ui = M.urgency ? M.urgency.indexOf(a.urgency) : ['Можна планувати', 'Варто не відкладати', 'Небезпечно їхати'].indexOf(a.urgency);
         var li = function (arr) { return '<ul>' + arr.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>'; };
@@ -1162,7 +1224,7 @@ function renderNew() {
       if (problem) { $('#nErr').innerHTML = '<div class="note err" style="margin-bottom:12px">' + esc(problem) + '</div>'; return; }
       $('#nErr').innerHTML = '';
       var btn = $('#nSend'); busy(btn, true);
-      api('req.create', { car_id: sel.car, sto_id: sel.sto, category: sel.category, description: desc, preferred: $('#nWhen').value })
+      api('req.create', { car_id: sel.car, sto_id: sel.sto, category: sel.category, description: desc, preferred: $('#nWhen').value, photos: reqPhotos })
         .then(function () { toast('Заявку надіслано. Сервіс відповість тут.'); go('/requests'); })
         .catch(function (e2) { busy(btn, false); fail(e2); });
     };
@@ -1177,7 +1239,7 @@ function renderRequests() {
     view.innerHTML = '<h1 style="margin-bottom:12px">Мої заявки</h1>' + (list.length ? list.map(function (q) {
       var s = q.sto || {};
       var body = '<div class="between"><div><h3>' + esc(q.category) + '</h3><div class="mini">' + esc(q.car) + ' · ' + esc(dt(q.created)) + '</div></div><span class="badge b-' + esc(q.status) + '">' + esc(q.status_label) + '</span></div>' +
-        '<p class="small" style="margin:8px 0">' + esc(q.description) + '</p>' +
+        '<p class="small" style="margin:8px 0">' + esc(q.description) + '</p>' + photosRow(q) +
         '<div class="small"><b>' + esc(s.name || '') + '</b>' + (s.address ? ' · <span class="muted">' + esc(s.address) + '</span>' : '') + '</div>';
       if (q.sto_comment || q.price || (q.visit && !q.visit_state && ['accepted', 'in_work'].indexOf(q.status) === -1)) body += '<div class="note info" style="margin-top:10px"><div class="small muted" style="margin-bottom:2px">Відповідь сервісу</div>' +
         (q.sto_comment ? '<div>' + esc(q.sto_comment) + '</div>' : '') + (q.price ? '<div><b>Орієнтовна ціна:</b> ' + esc(money(q.price)) + '</div>' : '') + (q.dur_value && q.status === 'done' ? '<div><b>Строк ремонту:</b> ' + esc(durTxt(q.dur_value, q.dur_unit)) + '</div>' : '') + '</div>';
@@ -1225,6 +1287,10 @@ function reviewDialog(id) {
     api('review.add', { request_id: id, rating: rating, text: $('#rvText').value }).then(function () { closeDialog(); toast('Дякуємо за відгук!'); route(); })
       .catch(function (e) { busy(btn, false); $('#rvErr').innerHTML = '<div class="note err" style="margin-top:10px">' + esc(e.message) + '</div>'; });
   };
+}
+
+function photosRow(q) {
+  return (q.photos && q.photos.length) ? '<div class="ph-grid" style="margin:8px 0">' + q.photos.map(function (u, i) { return '<figure><a href="' + esc(u) + '" target="_blank" rel="noopener"><img src="' + esc(u) + '" alt="Фото проблеми ' + (i + 1) + '" loading="lazy"></a></figure>'; }).join('') + '</div>' : '';
 }
 
 /* ---------- час візиту: вибір і показ ---------- */
@@ -1302,7 +1368,7 @@ function renderStoRequests() {
     $('#stoReqs').innerHTML = list.length ? list.map(function (q) {
       var d = q.driver || {};
       var body = '<div class="between"><div><h3>' + esc(q.category) + '</h3><div class="mini">' + esc(q.car) + ' · ' + esc(dt(q.created)) + '</div></div><span class="badge b-' + esc(q.status) + '">' + esc(q.status_label) + '</span></div>' +
-        '<p style="margin:8px 0">' + esc(q.description) + '</p>' +
+        '<p style="margin:8px 0">' + esc(q.description) + '</p>' + photosRow(q) +
         '<dl class="kv">' + (q.preferred ? '<dt>Зручно</dt><dd>' + esc(q.preferred) + '</dd>' : '') +
         '<dt>Водій</dt><dd>' + esc(d.name || '') + (d.phone ? ' · <a href="' + esc(telHref(d.phone)) + '">' + esc(fmtPhone(d.phone)) + '</a>' : '') + '</dd>' +
         (q.visit && !q.visit_state ? '<dt>Запрошено</dt><dd>' + esc(q.visit) + '</dd>' : '') + (q.price ? '<dt>Ціна</dt><dd>' + esc(money(q.price)) + '</dd>' : '') +
@@ -1710,7 +1776,7 @@ function renderAdminReq() {
         var viaLiaison = q.sto && q.sto.managed && ['new', 'accepted', 'in_work'].indexOf(q.status) !== -1;
         return '<div class="card' + (why || viaLiaison ? ' late' : '') + '">' + (why ? '<div class="note warn" style="margin-bottom:10px"><b>' + esc(why) + '.</b> Зателефонуйте стороні й запишіть результат.</div>' : '') +
           (viaLiaison ? '<div class="note info" style="margin-bottom:10px"><b>Через зв\'язкового:</b> сервіс не має акаунта. Зателефонуйте йому й ведіть заявку в його кабінеті. <button type="button" class="link" data-cab="' + esc(q.sto.id) + '">Відкрити кабінет</button></div>' : '') + '<div class="between"><b>' + esc(q.category) + ' · ' + esc(q.car) + '</b><span class="badge b-' + esc(q.status) + '">' + esc(q.status_label) + '</span></div>' +
-          '<p class="small" style="margin:6px 0">' + esc(q.description) + '</p>' +
+          '<p class="small" style="margin:6px 0">' + esc(q.description) + '</p>' + photosRow(q) +
           '<dl class="kv"><dt>Водій</dt><dd>' + (q.driver ? esc(q.driver.name) + ', <a href="' + esc(telHref(q.driver.phone)) + '">' + esc(fmtPhone(q.driver.phone)) + '</a>' : '—') + '</dd>' +
           '<dt>СТО</dt><dd>' + (q.sto ? esc(q.sto.name) + (q.sto.phone ? ', <a href="' + esc(telHref(q.sto.phone)) + '">' + esc(fmtPhone(q.sto.phone)) + '</a>' : '') : '—') + '</dd>' +
           '<dt>Створено</dt><dd>' + esc(dt(q.created)) + '</dd>' + (q.updated && q.updated !== q.created ? '<dt>Оновлено</dt><dd>' + esc(dt(q.updated)) + '</dd>' : '') +

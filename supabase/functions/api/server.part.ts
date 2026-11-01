@@ -53,6 +53,12 @@ const storagePub = {
   url: (path) => Deno.env.get('SUPABASE_URL') + '/storage/v1/object/public/' + PUB_BUCKET + '/' + path
 };
 const b64decode = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+// Офіційний реєстр МВС: файл-шматок за ключем (gzip, табуляція) з приватного кошика vin-registry.
+async function vinShard(key) {
+  const { data, error } = await sb.storage.from('vin-registry').download('v1/' + key + '.tsv.gz');
+  if (error || !data) return null;
+  return await new Response(data.stream().pipeThrough(new DecompressionStream('gzip'))).text();
+}
 const bg = (p) => { try { EdgeRuntime.waitUntil(p); } catch (_) { /* поза Supabase */ } };
 
 // Лист будь-якому адресату через той самий скрипт Google (дія relay.mail, потрібен секрет RELAY_SECRET в обох місцях).
@@ -96,10 +102,10 @@ const api = makeApi(db, {
   uuid: () => crypto.randomUUID(),
   sha256hex: async (s) => hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))),
   env: { get GEMINI_API_KEY() { return Deno.env.get('GEMINI_API_KEY') || ''; }, get GEMINI_MODEL() { return Deno.env.get('GEMINI_MODEL') || ''; },
-    TG_ON: !!TG_TOKEN, TG_SECRET, API_URL: Deno.env.get('SUPABASE_URL') + '/functions/v1/api' },
+    get AUTO_RIA_KEY() { return Deno.env.get('AUTO_RIA_KEY') || ''; }, TG_ON: !!TG_TOKEN, TG_SECRET, API_URL: Deno.env.get('SUPABASE_URL') + '/functions/v1/api' },
   fetch: (u, o) => fetch(u, o),
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-  notify, storage, storagePub, b64decode, mail, tg, bg, tgCheck
+  notify, storage, storagePub, b64decode, mail, tg, bg, tgCheck, vinShard
 });
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS',

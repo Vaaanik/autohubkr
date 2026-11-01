@@ -8,7 +8,7 @@ on:
     inputs:
       region:
         description: Префікс КОАТУУ (12 — Дніпропетровська, all — вся Україна)
-        default: '12'
+        default: 'all'
         required: false
       dry:
         description: Лише порахувати (1) чи записати в базу (0)
@@ -29,5 +29,5 @@ jobs:
       - run: node scripts/import-vin-registry.mjs
         env:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          REGION_PREFIX: ${{ github.event_name == 'workflow_dispatch' && inputs.region || '12' }}
+          REGION_PREFIX: ${{ github.event_name == 'workflow_dispatch' && inputs.region || 'all' }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry || '0' }}
