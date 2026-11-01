@@ -1,5 +1,16 @@
 /* АвтоХаб: справжні лічильники з бази (дія stats.public). Показуємо число, лише коли воно не менше CFG.counterMin. */
 (function () {
+  // кнопки «Швидше в Telegram»: t.me/<бот>?start=driver_<utm_source>
+  var C0 = window.AUTOHUB_CONFIG || {};
+  if (C0.tgBot) {
+    var src = ((location.search.match(/[?&]utm_source=([^&]+)/) || [])[1] || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-tg-start]'), function (a) {
+      a.href = 'https://t.me/' + C0.tgBot + '?start=' + a.getAttribute('data-tg-start') + (src ? '_' + src : '');
+      a.target = '_blank'; a.rel = 'noopener'; a.hidden = false;
+    });
+  }
+})();
+(function () {
   var CFG = window.AUTOHUB_CONFIG || {}, url = CFG.formEndpoint;
   if (!url) return;
   var min = typeof CFG.counterMin === 'number' ? CFG.counterMin : 10;

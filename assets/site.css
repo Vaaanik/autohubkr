@@ -303,3 +303,7 @@ details.form-more > fieldset, details.form-more > div{margin-top:18px}
 .live-count b{color:var(--ink)}
 .privacy h2{margin-top:32px}.privacy p,.privacy li{color:var(--ink-soft);max-width:46em}
 @media (max-width:420px){.topnav a.sw + a.sw{display:none}}
+
+.tg-quick{display:flex;gap:14px;align-items:center;padding:14px 18px;margin-bottom:16px;border-radius:14px;background:#229ED9;color:#fff;text-decoration:none;box-shadow:0 6px 18px rgba(34,158,217,.25)}
+.tg-quick[hidden]{display:none}.tg-quick b{display:block;font-size:17px}.tg-quick small{display:block;opacity:.9;font-size:14px;margin-top:2px}
+.tg-ic{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.2);display:grid;place-items:center;font-size:20px;flex:none}

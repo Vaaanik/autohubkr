@@ -10,6 +10,9 @@ window.AUTOHUB_CONFIG = {
   tgDrivers:  "",   // група автоспільноти для водіїв
   tgServices: "",   // група партнерів для сервісів
 
+  // Telegram-бот АвтоХабу без @ (наприклад autohubkr_bot). Якщо вказано, на лендингах з'являється кнопка «Швидше в Telegram»
+  tgBot: "",
+
   // Скільки місць у тесті
   driversTotal:  300,
   servicesTotal: 30,
