@@ -846,7 +846,7 @@ export function makeApi(db, deps) {
       leadsDrivers: leads.filter((l) => l.kind === 'driver').length, leadsServices: leads.filter((l) => l.kind === 'service').length,
       leadsNew: leads.filter((l) => l.status === 'new').length,
       aiReady: !!env.GEMINI_API_KEY
-    }, funnel: await (async () => { const o = {}; for (const st of FUNNEL) for (const rl of ['driver', 'sto']) o[st + '_' + rl] = Number(await kvGet('fn_' + st + '_' + rl) || 0); o.start_x = Number(await kvGet('fn_start_x') || 0); return o; })(), statuses: STATUS };
+    }, tg: { token: tgOn(), hook: !!(await kvGet('tg_hook')), bot: await botName() }, funnel: await (async () => { const o = {}; for (const st of FUNNEL) for (const rl of ['driver', 'sto']) o[st + '_' + rl] = Number(await kvGet('fn_' + st + '_' + rl) || 0); o.start_x = Number(await kvGet('fn_start_x') || 0); return o; })(), statuses: STATUS };
   }
 
   async function adminStos(r) {
