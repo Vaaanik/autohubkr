@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /app/
+Disallow: /outreach/
+Sitemap: https://autohubkr.com/sitemap.xml
