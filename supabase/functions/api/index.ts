@@ -1312,9 +1312,50 @@ function makeApi(db, deps) {
     await fnHit('start', st.role);
     if (st.role) { await fnHit('role', st.role); await tgAskContact(chat, st.role); } else await tgAskRole(chat);
   }
+  /* вхід у браузері через бота: сайт показує кнопку → бот питає «Це ви?» → браузер отримує сесію */
+  async function tgLoginStart(r) {
+    const bot = await botName();
+    if (!bot) fail('Вхід через Telegram ще не налаштований');
+    const nonce = deps.uuid().replace(/-/g, '').slice(0, 20);
+    await kvPut('tgin_' + nonce, JSON.stringify({ uid: '', dev: s_(r.device).slice(0, 60) }), 600);
+    return { nonce, url: 'https://t.me/' + bot + '?start=in_' + nonce };
+  }
+  async function tgLoginCheck(r) {
+    const k = 'tgin_' + s_(r.nonce), b = JSON.parse(await kvGet(k) || 'null');
+    if (!b) fail('Час входу минув. Спробуйте ще раз.');
+    if (!b.uid) return { waiting: true };
+    const u = await db.find('users', 'id', b.uid);
+    if (!u) fail('Акаунт не знайдено');
+    await kvDel(k);
+    return session(u);
+  }
+  async function tgLoginAsk(chat, nonce) {
+    const b = JSON.parse(await kvGet('tgin_' + nonce) || 'null');
+    if (!b) { await tgSend(chat, { emoji: '⌛', title: 'Посилання застаріло', intro: 'Поверніться на сайт і натисніть «Увійти через Telegram» ще раз.' }); return; }
+    const u = (await db.where('users', 'tg_chat', chat))[0];
+    if (!u) {
+      await kvPut('tgreg_' + chat, JSON.stringify({ role: '', src: 'weblogin', login: nonce }), 7 * 86400);
+      await fnHit('start', '');
+      await tgAskRole(chat);
+      return;
+    }
+    await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML',
+      text: tgHtml({ emoji: '🔐', title: 'Вхід в АвтоХаб', intro: 'Запит на вхід у браузері' + (b.dev ? ' (' + b.dev + ')' : '') + ' в акаунт ' + u.name + ', ' + u.phone + '.\n\nЯкщо це не ви, нічого не натискайте.' }),
+      reply_markup: { inline_keyboard: [[{ text: '✅ Так, увійти', callback_data: 'in:' + nonce }], [{ text: 'Це не я', callback_data: 'inno:' + nonce }]] } });
+  }
   async function tgCallback(cq) {
     const chat = String(cq.message && cq.message.chat ? cq.message.chat.id : cq.from.id), data = String(cq.data || '');
     await deps.tg('answerCallbackQuery', { callback_query_id: cq.id });
+    const lg = data.match(/^(in|inno):([a-f0-9]{20})$/);
+    if (lg) {
+      const k = 'tgin_' + lg[2], b = JSON.parse(await kvGet(k) || 'null'), u = (await db.where('users', 'tg_chat', chat))[0];
+      const edit = (text) => cq.message ? deps.tg('editMessageText', { chat_id: chat, message_id: cq.message.message_id, parse_mode: 'HTML', text }) : tgKeyboard(chat, text);
+      if (lg[1] === 'inno') { await kvDel(k); await edit(tgHtml({ emoji: '🛑', title: 'Вхід скасовано', intro: 'Ніхто не отримав доступу до акаунта.' })); return; }
+      if (!b || !u) { await edit(tgHtml({ emoji: '⌛', title: 'Посилання застаріло', intro: 'Поверніться на сайт і спробуйте ще раз.' })); return; }
+      b.uid = u.id; await kvPut(k, JSON.stringify(b), 300);
+      await edit(tgHtml({ emoji: '✅', title: 'Вхід підтверджено', intro: 'Поверніться в браузер: АвтоХаб уже відкривається.' }));
+      return;
+    }
     const m = data.match(/^role:(driver|sto)$/); if (!m) return;
     const st = JSON.parse(await kvGet('tgreg_' + chat) || '{}'); st.role = m[1];
     await kvPut('tgreg_' + chat, JSON.stringify(st), 7 * 86400);
@@ -1341,6 +1382,7 @@ function makeApi(db, deps) {
       notify((st.role === 'sto' ? 'Сервіс' : 'Водій') + ' зареєструвався через Telegram: ' + name, 'Телефон: ' + phone + (st.src ? '\nДжерело: ' + st.src : '') + (st.role === 'sto' ? '\nКартку сервісу ще треба заповнити в застосунку.' : ''));
     }
     await kvDel('tgreg_' + chat);
+    if (st.login) { const lk = 'tgin_' + st.login, lb = JSON.parse(await kvGet(lk) || 'null'); if (lb) { lb.uid = u.id; await kvPut(lk, JSON.stringify(lb), 300); } }
     if (lead) {
       await db.update('leads', lead.id, { status: 'joined', data: Object.assign({}, lead.data || {}, { user_id: u.id }) });
       const sid = (lead.data || {}).sto_id, card = sid ? await db.find('stos', 'id', sid) : null;
@@ -1404,6 +1446,8 @@ function makeApi(db, deps) {
       await tgKeyboard(chat, 'Застосунок завжди під рукою: кнопка <b>«Відкрити АвтоХаб»</b> внизу чату.');
       return {};
     }
+    const login = text.match(/^\/start\s+in_([a-f0-9]{20})$/);
+    if (login) { await tgLoginAsk(chat, login[1]); return {}; }
     const plain = text.match(/^\/start(?:\s+(\S+))?$/);
     if (plain && !(plain[1] && /^[a-f0-9]{16}$/.test(plain[1]))) { await tgFunnelStart(chat, plain[1] || ''); return {}; }
     if (/^\/stop/.test(text)) {
@@ -1699,7 +1743,7 @@ function makeApi(db, deps) {
   const histOut = (h) => { const p = pick(h, ['id', 'date', 'work', 'place', 'price', 'mileage', 'request_id', 'confirmed']); p.services = String(h.services || '').split(',').filter(Boolean); return p; };
 
   const ACTIONS = {
-    meta: async () => Object.assign({ ria: !!env.AUTO_RIA_KEY, otp: await otpMeta() }, META),
+    meta: async () => Object.assign({ ria: !!env.AUTO_RIA_KEY, otp: await otpMeta(), tgLogin: !!(await botName()) }, META),
     register, login, 'otp.send': otpSend, 'otp.bot': otpBot, 'otp.bot.check': otpBotCheck, 'pin.reset': pinReset,
     logout: async (r) => { if (r.token) await db.removeWhere('sessions', 'token', String(r.token)); return {}; },
     me: async (r) => { const u = await auth(r); const sto = u.sto_id ? await db.find('stos', 'id', u.sto_id) : null; return { user: pubUser(u), sto: sto ? pubSto(sto, true) : null }; },
@@ -1772,7 +1816,7 @@ function makeApi(db, deps) {
     'req.create': reqCreate, 'req.list': reqList, 'req.update': reqUpdate, 'req.visit': reqVisit, 'req.confirm': reqConfirm, 'req.slot': reqSlot, 'req.slot.ok': reqSlotOk, 'sto.add': stoAdd,
     'stats.public': statsPublic, 'ai.receipt': aiReceipt, 'vin.decode': vinDecode,
     'tg.link': tgLink, 'tg.unlink': tgUnlink, 'admin.tg.setup': adminTgSetup, 'admin.mail.test': adminMailTest,
-    'tg.auth': tgAuth, 'tg.bind': tgBind, 'tg.prereg': tgPrereg, 'sto.photo': stoPhoto, 'admin.sto.photo': adminStoPhoto,
+    'tg.auth': tgAuth, 'tg.bind': tgBind, 'tg.prereg': tgPrereg, 'tg.login': tgLoginStart, 'tg.login.check': tgLoginCheck, 'sto.photo': stoPhoto, 'admin.sto.photo': adminStoPhoto,
     'ria.mods': riaMods, 'ria.equips': riaEquips, 'ria.price': riaPrice, 'cars.info': carInfo, 'ai.doc': aiDoc,
     'review.add': reviewAdd,
     'jobs.list': jobsList, 'jobs.add': jobsAdd, 'jobs.update': jobsUpdate, 'jobs.delete': jobsDelete,
