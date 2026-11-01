@@ -249,8 +249,10 @@ export function makeApi(db, deps) {
   }
 
   /* --- підтвердження номера: код у Telegram (Telegram Gateway), Viber/SMS (TurboSMS) або безкоштовно через бота (поділитися контактом) --- */
-  const otpCh = () => ({ telegram: !!env.TG_GATEWAY_TOKEN, sms: !!env.TURBOSMS_TOKEN, viber: !!(env.TURBOSMS_TOKEN && env.TURBOSMS_VIBER_SENDER), bot: tgOn() });
-  const otpOn = () => { const c = otpCh(); return c.telegram || c.sms || c.bot; };
+  // бот рахується лише після «Налаштувати Telegram-бота» (вебхук встановлено), інакше реєстрація зависла б
+  const otpCh = async () => ({ telegram: !!env.TG_GATEWAY_TOKEN, sms: !!env.TURBOSMS_TOKEN, viber: !!(env.TURBOSMS_TOKEN && env.TURBOSMS_VIBER_SENDER), bot: tgOn() && !!(await kvGet('tg_hook')) });
+  const otpOn = async () => { const c = await otpCh(); return c.telegram || c.sms || c.bot; };
+  const otpMeta = async () => (await otpOn()) ? await otpCh() : null;
   async function otpTarget(r) {
     const phone = phone_(r.phone), purpose = r.purpose === 'reset' ? 'reset' : 'register';
     const exists = await db.find('users', 'phone', phone);
@@ -286,7 +288,7 @@ export function makeApi(db, deps) {
         else console.error('turbosms', JSON.stringify(j).slice(0, 300));
       } catch (e) { console.error('turbosms', e); }
     }
-    if (!via) fail(otpCh().bot ? 'Не вдалося надіслати код. Підтвердіть номер через Telegram-бота.' : 'Не вдалося надіслати код. Спробуйте пізніше.');
+    if (!via) fail((await otpCh()).bot ? 'Не вдалося надіслати код. Підтвердіть номер через Telegram-бота.' : 'Не вдалося надіслати код. Спробуйте пізніше.');
     await kvPut('otp_' + purpose + '_' + phone, JSON.stringify({ h: await hash(code, phone), n: 0 }), 600);
     await kvPut('otp_wait_' + phone, 1, 60);
     return { via };
@@ -294,7 +296,7 @@ export function makeApi(db, deps) {
   // Безкоштовний шлях: бот просить «Поділитися номером», Telegram віддає власний номер користувача.
   async function otpBot(r) {
     const { phone, purpose } = await otpTarget(r);
-    if (!tgOn()) fail('Telegram-бот ще не налаштований');
+    if (!(await otpCh()).bot) fail('Telegram-бот ще не налаштований');
     const nonce = deps.uuid().replace(/-/g, '').slice(0, 20);
     await kvPut('otpb_' + nonce, JSON.stringify({ phone, purpose, ok: false }), 900);
     return { nonce, url: 'https://t.me/' + (await tgBot()) + '?start=v_' + nonce };
@@ -305,26 +307,26 @@ export function makeApi(db, deps) {
     return { confirmed: !!b.ok, error: b.err || '' };
   }
   async function otpVerify(phone, purpose, r) {
-    if (!otpOn()) return {};
+    if (!(await otpOn())) return {};
     if (r.otp_nonce) {
       const k = 'otpb_' + s_(r.otp_nonce), b = JSON.parse(await kvGet(k) || 'null');
       if (!b || !b.ok || b.phone !== phone || b.purpose !== purpose) fail('Номер ще не підтверджено в Telegram');
       await kvDel(k);
-      return { chat: b.chat || '' };
+      return { chat: b.chat || '', ok: true };
     }
     const k = 'otp_' + purpose + '_' + phone, rec = JSON.parse(await kvGet(k) || 'null');
     if (!rec) fail('Підтвердіть номер: отримайте код');
     if (rec.n >= 5) { await kvDel(k); fail('Забагато невдалих спроб. Отримайте новий код.'); }
     if ((await hash(String(r.otp_code || '').replace(/\D/g, ''), phone)) !== rec.h) { rec.n++; await kvPut(k, JSON.stringify(rec), 600); fail('Невірний код'); }
     await kvDel(k);
-    return {};
+    return { ok: true };
   }
   async function pinReset(r) {
     const phone = phone_(r.phone), pin = String(r.pin || '');
     if (!/^\d{4,6}$/.test(pin)) fail('PIN має бути з 4–6 цифр');
     const u = await db.find('users', 'phone', phone);
     if (!u) fail('Акаунта з таким номером немає');
-    if (!otpOn()) fail('Відновлення PIN тимчасово недоступне. Напишіть на info@autohubkr.com');
+    if (!(await otpOn())) fail('Відновлення PIN тимчасово недоступне. Напишіть на info@autohubkr.com');
     const v = await otpVerify(phone, 'reset', r);
     const salt = deps.uuid();
     const patch = { pin_hash: await hash(pin, salt), salt };
@@ -350,7 +352,7 @@ export function makeApi(db, deps) {
     }
     const ver = await otpVerify(phone, 'register', r);
     const salt = deps.uuid();
-    const user = { id: id(), role, name, phone, pin_hash: await hash(pin, salt), salt, sto_id: sto ? sto.id : '', created: now(), phone_ok: otpOn() };
+    const user = { id: id(), role, name, phone, pin_hash: await hash(pin, salt), salt, sto_id: sto ? sto.id : '', created: now(), phone_ok: !!(ver.ok || ver.chat) };
     if (ver.chat) { for (const o of await db.where('users', 'tg_chat', ver.chat)) await db.update('users', o.id, { tg_chat: '' }); user.tg_chat = ver.chat; }
     try { await db.insert('users', user); } catch (e) { if (String(e.message || e).indexOf('duplicate') !== -1) fail('Цей номер уже зареєстровано. Увійдіть або зверніться до підтримки.'); throw e; }
     if (sto) {
@@ -1301,6 +1303,7 @@ export function makeApi(db, deps) {
     const bot = await tgBot();
     const res = await deps.tg('setWebhook', { url: env.API_URL, secret_token: env.TG_SECRET, allowed_updates: ['message'], drop_pending_updates: true });
     if (!res || !res.ok) fail('Telegram не прийняв вебхук: ' + ((res && res.description) || 'невідома помилка'));
+    await kvPut('tg_hook', 1, 10 * 365 * 86400);
     await deps.tg('setMyCommands', { commands: [{ command: 'start', description: 'Підключити сповіщення' }, { command: 'app', description: 'Відкрити застосунок' }, { command: 'stop', description: 'Вимкнути сповіщення' }] });
     await deps.tg('setChatMenuButton', { menu_button: { type: 'web_app', text: 'АвтоХаб', web_app: { url: APP_URL } } });
     await deps.tg('setMyDescription', { description: 'Сповіщення АвтоХабу: нові заявки для сервісів і відповіді для водіїв. Кривий Ріг.' });
@@ -1529,7 +1532,7 @@ export function makeApi(db, deps) {
   const histOut = (h) => { const p = pick(h, ['id', 'date', 'work', 'place', 'price', 'mileage', 'request_id', 'confirmed']); p.services = String(h.services || '').split(',').filter(Boolean); return p; };
 
   const ACTIONS = {
-    meta: async () => Object.assign({ ria: !!env.AUTO_RIA_KEY, otp: otpOn() ? otpCh() : null }, META),
+    meta: async () => Object.assign({ ria: !!env.AUTO_RIA_KEY, otp: await otpMeta() }, META),
     register, login, 'otp.send': otpSend, 'otp.bot': otpBot, 'otp.bot.check': otpBotCheck, 'pin.reset': pinReset,
     logout: async (r) => { if (r.token) await db.removeWhere('sessions', 'token', String(r.token)); return {}; },
     me: async (r) => { const u = await auth(r); const sto = u.sto_id ? await db.find('stos', 'id', u.sto_id) : null; return { user: pubUser(u), sto: sto ? pubSto(sto, true) : null }; },
@@ -1537,7 +1540,7 @@ export function makeApi(db, deps) {
     boot: async (r) => {
       const u = await auth(r);
       const [sto, cars] = await Promise.all([u.sto_id ? db.find('stos', 'id', u.sto_id) : null, u.role === 'driver' ? myCars(u) : []]);
-      return { user: pubUser(u), sto: sto ? pubSto(sto, true) : null, cars, meta: Object.assign({ ria: !!env.AUTO_RIA_KEY, otp: otpOn() ? otpCh() : null }, META) };
+      return { user: pubUser(u), sto: sto ? pubSto(sto, true) : null, cars, meta: Object.assign({ ria: !!env.AUTO_RIA_KEY, otp: await otpMeta() }, META) };
     },
     'cars.list': async (r) => ({ cars: await myCars(await auth(r, 'driver')) }),
     'cars.add': async (r) => {
