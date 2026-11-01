@@ -1412,7 +1412,11 @@ export function makeApi(db, deps) {
     if (!res || !res.ok) fail('Telegram не прийняв вебхук: ' + ((res && res.description) || 'невідома помилка'));
     await kvPut('tg_hook', 1, 10 * 365 * 86400);
     await deps.tg('setMyCommands', { commands: [{ command: 'start', description: 'Почати / зареєструватися' }, { command: 'app', description: 'Відкрити застосунок' }, { command: 'stop', description: 'Вимкнути сповіщення' }] });
-    await deps.tg('setChatMenuButton', { menu_button: { type: 'web_app', text: 'АвтоХаб', web_app: { url: APP_URL } } });
+    await deps.tg('setChatMenuButton', { menu_button: { type: 'web_app', text: 'Відкрити АвтоХаб', web_app: { url: APP_URL } } });
+    // кнопка меню для вже прив'язаних чатів (у кого раніше була інша) і нижня кнопка «Відкрити АвтоХаб»
+    for (const u of (await db.all('users')).filter((x) => x.tg_chat)) {
+      await deps.tg('setChatMenuButton', { chat_id: Number(u.tg_chat), menu_button: { type: 'web_app', text: 'Відкрити АвтоХаб', web_app: { url: APP_URL } } });
+    }
     await deps.tg('setMyDescription', { description: 'АвтоХаб — автосервіси Кривого Рогу. Водіям: гараж з історією, нагадування про ТО й страховку, заявки в перевірені СТО. Сервісам: заявки від водіїв. Натисніть «Почати».' });
     await deps.tg('setMyShortDescription', { short_description: 'Автосервіси Кривого Рогу: заявки, гараж, нагадування' });
     return { bot };

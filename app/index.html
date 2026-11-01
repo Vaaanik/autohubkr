@@ -678,6 +678,10 @@ function renderAdminSettings() {
           : T.token ? '<p class="small" style="margin:6px 0 10px">Токен додано. Натисніть кнопку, щоб підключити бота до сервера.</p>'
           : '<ol class="small" style="margin:6px 0 10px;padding-left:18px"><li>У Telegram відкрийте @BotFather → /newbot (або візьміть токен наявного бота).</li><li>Supabase → Edge Functions → Secrets: додайте <b>TELEGRAM_BOT_TOKEN</b>.</li><li>Оновіть функцію api (Deploy updates).</li><li>Поверніться сюди й натисніть кнопку нижче.</li></ol>') +
         '<button class="btn sm dark" id="tgSetup">' + (T.hook ? 'Оновити налаштування бота' : 'Налаштувати Telegram-бота') + '</button><div id="tgSetupR"></div>' +
+        '<details class="plan-more" style="margin-top:12px"' + (T.hook ? '' : ' open') + '><summary>Велика кнопка «Відкрити» в боті (як у ботів сервісів)</summary>' +
+          '<p class="small" style="margin:6px 0">Кнопка «Відкрити АвтоХаб» біля поля введення й нижня кнопка вмикаються самі після «Налаштувати Telegram-бота». Велику синю кнопку «Відкрити» в профілі бота й у списку чатів Telegram дозволяє ввімкнути лише @BotFather:</p>' +
+          '<ol class="small" style="margin:0 0 8px;padding-left:18px"><li>@BotFather → /mybots → оберіть бота.</li><li>Bot Settings → Configure Mini App → Enable Mini App.</li><li>Вставте адресу застосунку й збережіть.</li></ol>' +
+          '<div class="set-link"><code>https://autohubkr.com/app/</code><button type="button" class="link" data-copy="https://autohubkr.com/app/">Копіювати</button></div></details>' +
         (T.bot ? '<div class="lbl" style="margin-top:14px">Посилання для реклами</div><p class="mini" style="margin:2px 0 8px">Додайте до посилання <b>_джерело</b> (наприклад _insta), щоб бачити його у воронці.</p>' +
           [['driver', 'Для водіїв'], ['sto', 'Для сервісів']].map(function (x) { return '<div class="set-link"><span class="small">' + x[1] + '</span><code>' + esc(link(x[0])) + '</code><button type="button" class="link" data-copy="' + esc(link(x[0])) + '">Копіювати</button></div>'; }).join('') : '') +
       '</div>' +
