@@ -37,7 +37,7 @@ const head = (title, desc, canon, depth) => `<!doctype html>
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(desc)}">
 <link rel="canonical" href="${SITE}${canon}">
-<link rel="icon" href="${depth}app/icon-192.png" type="image/png">
+<link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" href="/assets/icon-192.png" type="image/png" sizes="192x192"><link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <meta name="theme-color" content="#06111F">
 <meta property="og:type" content="website"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:locale" content="uk_UA"><meta property="og:url" content="${SITE}${canon}"><meta property="og:image" content="${SITE}/assets/og-image.png"><meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
