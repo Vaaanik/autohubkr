@@ -741,9 +741,13 @@ function renderLogin() {
   function draw() {
     view.innerHTML =
       '<div class="login-hero"><img src="logo-full.webp" width="720" height="373" alt="AutoHubKR — навігатор автопослуг"><p>Гараж з історією ремонтів, заявки в перевірені СТО Кривого Рогу й чесні відгуки.</p></div>' +
-      '<div class="login-sheet"><div class="seg" role="tablist"><button type="button" data-m="login" class="' + (mode === 'login' ? 'on' : '') + '">Увійти</button><button type="button" data-m="reg" class="' + (mode === 'reg' ? 'on' : '') + '">Реєстрація</button></div>' +
+      '<div class="login-sheet">' +
+      (TG && TG.requestContact ? '<div class="card tg-one" style="margin-bottom:12px"><h2 style="margin-bottom:4px">Увійти одним натиском</h2><p class="small" style="margin:0 0 12px">Telegram передасть ваш номер, і акаунт буде готовий. Без паролів.</p>' +
+        '<div class="stack"><button type="button" class="btn wide" data-quick="driver">🚗 Я водій</button><button type="button" class="btn wide ghost" data-quick="sto">🔧 У мене автосервіс</button></div><div id="quickErr"></div>' +
+        '<p class="mini" style="margin:12px 0 0;text-align:center">або з номером і PIN-кодом нижче</p></div>' : '') +
+      '<div class="seg" role="tablist"><button type="button" data-m="login" class="' + (mode === 'login' ? 'on' : '') + '">Увійти</button><button type="button" data-m="reg" class="' + (mode === 'reg' ? 'on' : '') + '">Реєстрація</button></div>' +
       '<form class="card stack" id="authForm" novalidate>' +
-        (state.tgHint ? '<div class="note info">Ви в Telegram 👋 Увійдіть або зареєструйтеся один раз, далі АвтоХаб відкриватиметься тут без входу, а сповіщення приходитимуть у цей чат.</div>' : '') +
+        (state.tgHint && !(TG && TG.requestContact) ? '<div class="note info">Ви в Telegram 👋 Увійдіть або зареєструйтеся один раз, далі АвтоХаб відкриватиметься тут без входу, а сповіщення приходитимуть у цей чат.</div>' : '') +
         (mode === 'reg' ? '<div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Хто ви?</span><div class="seg"><button type="button" data-r="driver" class="' + (role === 'driver' ? 'on' : '') + '">Я водій</button><button type="button" data-r="sto" class="' + (role === 'sto' ? 'on' : '') + '">Я сервіс / майстер</button></div></div>' +
           '<div><label class="f" for="name">Ваше ім\'я</label><input class="i" id="name" autocomplete="name" required></div>' : '') +
         '<div><label class="f" for="phone">Телефон</label><input class="i" id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380 67 123 45 67" required></div>' +
@@ -756,6 +760,9 @@ function renderLogin() {
         (mode === 'reg' ? '<p class="small muted" style="margin:0">Реєструючись, ви погоджуєтеся з <a href="../privacy/" target="_blank">політикою конфіденційності</a>. Телефон бачить лише сервіс, який прийняв вашу заявку.</p>' : '<p class="small muted" style="margin:0">Забули PIN? Напишіть нам: <a href="mailto:info@autohubkr.com">info@autohubkr.com</a></p>') +
       '</form></div><p class="login-foot">Пілотна версія для Кривого Рогу · <a href="../">Про АвтоХаб</a> · <a href="../privacy/">Конфіденційність</a></p>';
     $$('[data-m]').forEach(function (b) { b.onclick = function () { mode = b.dataset.m; draw(); }; });
+    $$('[data-quick]').forEach(function (b) { b.onclick = function () { tgQuick(b.dataset.quick, b); }; });
+    var sp = TG && TG.initDataUnsafe ? TG.initDataUnsafe.start_param : '';
+    if (sp === 'sto' && $('[data-quick=sto]')) { $('[data-quick=sto]').classList.remove('ghost'); $('[data-quick=driver]').classList.add('ghost'); }
     if ($('#forgot')) $('#forgot').onclick = function () { pinResetDialog($('#phone').value); };
     $$('[data-r]').forEach(function (b) { b.onclick = function () { role = b.dataset.r; draw(); }; });
     bindChips(view);
@@ -788,6 +795,27 @@ function renderLogin() {
   meta().then(draw, function (e) { draw(); fail(e); });
 }
 
+// Міні-застосунок: роль → Telegram надсилає боту номер → бот створює акаунт → тут чекаємо на вхід
+function tgQuick(role, btn) {
+  var err = function (m) { $('#quickErr').innerHTML = m ? '<div class="note err" style="margin-top:10px">' + esc(m) + '</div>' : ''; };
+  err(''); busy(btn, true);
+  api('tg.prereg', { initData: TG.initData, role: role }).then(function () {
+    TG.requestContact(function (shared) {
+      if (!shared) { busy(btn, false); return err('Без номера акаунт не створити. Можна зареєструватися з PIN-кодом нижче.'); }
+      btn.textContent = 'Створюємо акаунт…';
+      var n = 0, tick = function () {
+        api('tg.auth', { initData: TG.initData }).then(function (r) {
+          if (r.token) {
+            state.token = r.token; state.user = r.user; store('ah_token', r.token); store('ah_user', JSON.stringify(r.user));
+            return boot().then(function () { if (role === 'sto' && !state.user.dual) { location.hash = '#/profile'; setTimeout(function () { if ($('#addSto')) $('#addSto').click(); }, 400); } });
+          }
+          if (++n < 20) setTimeout(tick, 1500); else { busy(btn, false); err('Не дочекалися відповіді бота. Відкрийте чат із ботом і спробуйте ще раз.'); }
+        }).catch(function (e) { busy(btn, false); err(e.message); });
+      };
+      setTimeout(tick, 1200);
+    });
+  }).catch(function (e) { busy(btn, false); err(e.message); });
+}
 function stoFields(s) {
   var M = state.meta || { districts: [], categories: [] };
   var sv = s.services || [];

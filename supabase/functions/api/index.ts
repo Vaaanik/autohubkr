@@ -819,6 +819,15 @@ function makeApi(db, deps) {
     if (!u) return { linked: false, tgName: s_(tu.first_name) };
     return session(u);
   }
+  // Міні-застосунок: «Увійти одним натиском» → запам'ятовуємо роль, далі Telegram надсилає боту контакт (requestContact)
+  async function tgPrereg(r) {
+    const tu = deps.tgCheck ? await deps.tgCheck(r.initData) : null;
+    if (!tu || !tu.id) fail('Не вдалося перевірити Telegram');
+    const role = r.role === 'sto' ? 'sto' : 'driver';
+    await kvPut('tgreg_' + tu.id, JSON.stringify({ role, src: 'miniapp' }), 900);
+    await fnHit('start', role); await fnHit('role', role);
+    return {};
+  }
   async function tgBind(r) {
     const u = await auth(r);
     const tu = deps.tgCheck ? await deps.tgCheck(r.initData) : null;
@@ -1763,7 +1772,7 @@ function makeApi(db, deps) {
     'req.create': reqCreate, 'req.list': reqList, 'req.update': reqUpdate, 'req.visit': reqVisit, 'req.confirm': reqConfirm, 'req.slot': reqSlot, 'req.slot.ok': reqSlotOk, 'sto.add': stoAdd,
     'stats.public': statsPublic, 'ai.receipt': aiReceipt, 'vin.decode': vinDecode,
     'tg.link': tgLink, 'tg.unlink': tgUnlink, 'admin.tg.setup': adminTgSetup, 'admin.mail.test': adminMailTest,
-    'tg.auth': tgAuth, 'tg.bind': tgBind, 'sto.photo': stoPhoto, 'admin.sto.photo': adminStoPhoto,
+    'tg.auth': tgAuth, 'tg.bind': tgBind, 'tg.prereg': tgPrereg, 'sto.photo': stoPhoto, 'admin.sto.photo': adminStoPhoto,
     'ria.mods': riaMods, 'ria.equips': riaEquips, 'ria.price': riaPrice, 'cars.info': carInfo, 'ai.doc': aiDoc,
     'review.add': reviewAdd,
     'jobs.list': jobsList, 'jobs.add': jobsAdd, 'jobs.update': jobsUpdate, 'jobs.delete': jobsDelete,
