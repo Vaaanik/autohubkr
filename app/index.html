@@ -683,6 +683,9 @@ function renderAdminSettings() {
           '<p class="small" style="margin:6px 0">Кнопка «Відкрити АвтоХаб» біля поля введення й нижня кнопка вмикаються самі після «Налаштувати Telegram-бота». Велику синю кнопку «Відкрити» в профілі бота й у списку чатів Telegram дозволяє ввімкнути лише @BotFather:</p>' +
           '<ol class="small" style="margin:0 0 8px;padding-left:18px"><li>@BotFather → /mybots → оберіть бота.</li><li>Bot Settings → Configure Mini App → Enable Mini App.</li><li>Вставте адресу застосунку й збережіть.</li></ol>' +
           '<div class="set-link"><code>https://autohubkr.com/app/</code><button type="button" class="link" data-copy="https://autohubkr.com/app/">Копіювати</button></div></details>' +
+        '<div class="lbl" style="margin-top:14px">Групи спільноти</div><p class="mini" style="margin:2px 0 6px">Бот надсилає посилання на групу кожному одразу після реєстрації чи підключення (один раз). Порожньо: не надсилати.</p>' +
+        '<label class="f" for="gD" style="margin-top:4px">Група водіїв</label><input class="i set-txt" id="gD" data-k="group_drivers" value="' + esc(S.group_drivers || '') + '" placeholder="https://t.me/+AbCdEf...">' +
+        '<label class="f" for="gS" style="margin-top:8px">Група сервісів-партнерів</label><input class="i set-txt" id="gS" data-k="group_services" value="' + esc(S.group_services || '') + '" placeholder="https://t.me/+XyZ...">' +
         (T.bot ? '<div class="lbl" style="margin-top:14px">Посилання для реклами</div><p class="mini" style="margin:2px 0 8px">Додайте до посилання <b>_джерело</b> (наприклад _insta), щоб бачити його у воронці.</p>' +
           [['driver', 'Для водіїв'], ['sto', 'Для сервісів']].map(function (x) { return '<div class="set-link"><span class="small">' + x[1] + '</span><code>' + esc(link(x[0])) + '</code><button type="button" class="link" data-copy="' + esc(link(x[0])) + '">Копіювати</button></div>'; }).join('') : '') +
       '</div>' +
@@ -719,6 +722,7 @@ function renderAdminSettings() {
     };
     $$('.set-sw').forEach(function (el) { el.onchange = function () { var p = {}; p[el.dataset.k] = el.checked; save(p, el); }; });
     $$('.set-num').forEach(function (el) { el.onchange = function () { var p = {}; p[el.dataset.k] = el.value; save(p, el); }; });
+    $$('.set-txt').forEach(function (el) { el.onchange = function () { var p = {}; p[el.dataset.k] = el.value.trim(); save(p, el); }; });
     $$('[data-copy]').forEach(function (b) { b.onclick = function () { try { navigator.clipboard.writeText(b.dataset.copy); toast('Скопійовано'); } catch (e) { toast(b.dataset.copy); } }; });
     $('#tgSetup').onclick = function () {
       var b = this; busy(b, true);
