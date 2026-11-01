@@ -125,23 +125,41 @@ for (const r of current) {
   console.log('  у вибірці VIN:', best.size);
 }
 console.log('Переглянуто записів:', seen, '· унікальних VIN у вибірці:', best.size);
-{ let bytes = 0; for (const r of best.values()) bytes += 40 + JSON.stringify(r).length; console.log('Орієнтовний розмір у базі: ~' + Math.round(bytes * 1.1 / 1048576) + ' МБ даних + ~' + Math.round(best.size * 45 / 1048576) + ' МБ індексу'); }
 if (CHECK) { console.log(found.length ? 'VIN ' + CHECK + ' знайдено в офіційних даних МВС: ' + found.length + ' записів.' : 'VIN ' + CHECK + ' НЕ знайдено в офіційних даних МВС за 2021–2026 роки.'); process.exit(0); }
 if (COUNT_ONLY) { console.log('Режим підрахунку: у базу нічого не записано.'); process.exit(0); }
 
-// Завантаження пачками з оновленням існуючих рядків.
-const headers = { 'Content-Type': 'application/json', apikey: KEY, Prefer: 'resolution=merge-duplicates,return=minimal' };
-if (!KEY.startsWith('sb_')) headers.Authorization = 'Bearer ' + KEY;
-const rows = [...best.values()];
-const BATCH = 2000;
-for (let i = 0; i < rows.length; i += BATCH) {
-  const body = JSON.stringify(rows.slice(i, i + BATCH));
-  let ok = false;
-  for (let a = 0; a < 4 && !ok; a++) {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/vin_registry?on_conflict=vin', { method: 'POST', headers, body });
-    if (r.ok) ok = true; else { console.error('Помилка', r.status, (await r.text()).slice(0, 300)); await new Promise((s) => setTimeout(s, 2000 * (a + 1))); }
-  }
-  if (!ok) { console.error('Не вдалося завантажити пачку', i); process.exit(1); }
-  if ((i / BATCH) % 25 === 0) console.log('Завантажено', Math.min(i + BATCH, rows.length), 'з', rows.length);
+// Зберігаємо реєстр файлами в Supabase Storage (кошик vin-registry): база лишається маленькою, а на безкоштовному тарифі
+// є 1 ГБ сховища. Кожен VIN потрапляє в один із 4096 файлів за першими 3 символами SHA-256 від VIN (~1,4 тис. рядків, ~25 КБ gzip).
+// Рядок: VIN, марка, модель, рік, об'єм см³, паливо, кузов, колір, кВт, дата останньої дії — через табуляцію.
+const crypto = await import('node:crypto');
+const zlib = await import('node:zlib');
+const shards = new Map();
+const clean = (v) => String(v == null ? '' : v).replace(/[\t\r\n]+/g, ' ').trim();
+for (const r of best.values()) {
+  const key = crypto.createHash('sha256').update(r.vin).digest('hex').slice(0, 3);
+  if (!shards.has(key)) shards.set(key, []);
+  shards.get(key).push([r.vin, r.brand, r.model, r.year || '', r.capacity || '', r.fuel, r.body, r.color, r.power_kw || '', r.d_reg].map(clean).join('\t'));
 }
-console.log('Готово:', rows.length, 'VIN у базі');
+best.clear();
+const prefix = process.env.REGISTRY_VERSION || 'v1';
+const hdr = { apikey: KEY, 'x-upsert': 'true', 'Content-Type': 'application/gzip', 'Cache-Control': 'max-age=86400' };
+if (!KEY.startsWith('sb_')) hdr.Authorization = 'Bearer ' + KEY;
+const keys = [...shards.keys()];
+let done = 0, bytes = 0, failed = 0;
+async function put(key) {
+  const body = zlib.gzipSync(Buffer.from(shards.get(key).join('\n'), 'utf8'), { level: 9 });
+  bytes += body.length;
+  for (let a = 0; a < 5; a++) {
+    const r = await fetch(SUPABASE_URL + '/storage/v1/object/vin-registry/' + prefix + '/' + key + '.tsv.gz', { method: 'POST', headers: hdr, body });
+    if (r.ok) { done++; return; }
+    const t = (await r.text()).slice(0, 200);
+    if (a === 4) { failed++; console.error('Помилка файлу', key, r.status, t); }
+    await new Promise((res) => setTimeout(res, 1500 * (a + 1)));
+  }
+}
+for (let i = 0; i < keys.length; i += 16) {
+  await Promise.all(keys.slice(i, i + 16).map(put));
+  if (i % 512 === 0) console.log('Файлів завантажено:', done, 'з', keys.length, '·', Math.round(bytes / 1048576), 'МБ');
+}
+console.log('Готово: файлів', done, 'з', keys.length, '· разом ~' + Math.round(bytes / 1048576) + ' МБ у сховищі');
+if (failed) process.exit(1);
