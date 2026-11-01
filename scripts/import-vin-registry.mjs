@@ -15,7 +15,7 @@ import os from 'node:os';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://uukjizyksppxeakafsua.supabase.co';
 const KEY = process.env.SUPABASE_SERVICE_KEY || '';
-const REGION = process.env.REGION_PREFIX === undefined ? '12' : process.env.REGION_PREFIX;
+const REGION = process.env.REGION_PREFIX === undefined ? '12' : (process.env.REGION_PREFIX === 'all' ? '' : process.env.REGION_PREFIX);
 const DRY = process.env.DRY_RUN === '1';
 const API = 'https://data.gov.ua/api/3/action/package_show?id=';
 const PKG_YEARS = '0ffd8b75-0628-48cc-952a-9302f9799ec0';   // МВС: річні архіви
@@ -125,6 +125,7 @@ for (const r of current) {
   console.log('  у вибірці VIN:', best.size);
 }
 console.log('Переглянуто записів:', seen, '· унікальних VIN у вибірці:', best.size);
+{ let bytes = 0; for (const r of best.values()) bytes += 40 + JSON.stringify(r).length; console.log('Орієнтовний розмір у базі: ~' + Math.round(bytes * 1.1 / 1048576) + ' МБ даних + ~' + Math.round(best.size * 45 / 1048576) + ' МБ індексу'); }
 if (CHECK) { console.log(found.length ? 'VIN ' + CHECK + ' знайдено в офіційних даних МВС: ' + found.length + ' записів.' : 'VIN ' + CHECK + ' НЕ знайдено в офіційних даних МВС за 2021–2026 роки.'); process.exit(0); }
 if (COUNT_ONLY) { console.log('Режим підрахунку: у базу нічого не записано.'); process.exit(0); }
 
