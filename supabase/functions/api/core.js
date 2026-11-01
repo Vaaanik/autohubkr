@@ -141,6 +141,13 @@ export function makeApi(db, deps) {
   const hash = async (pin, salt) => deps.sha256hex(salt + ':' + pin);
   const env = deps.env || {};
 
+  /* --- налаштування застосунку з адмінки (kv 'settings'), читаються на початку кожного запиту --- */
+  const SET_DEF = { otp_required: true, lead_to_tg: true, ai_limit: AI_LIMIT, counter_min: 10, notify_tg: true, notify_mail: true };
+  let SET = Object.assign({}, SET_DEF);
+  async function loadSettings() {
+    try { const raw = await kvGet('settings'); SET = Object.assign({}, SET_DEF, raw ? JSON.parse(raw) : {}); } catch (e) { SET = Object.assign({}, SET_DEF); }
+    return SET;
+  }
   /* --- короткочасне сховище (ліміти) --- */
   const kvGet = async (k) => { const r = await db.find('kv', 'key', k); return r && new Date(r.expires) > new Date() ? r.val : null; };
   const kvPut = (k, v, sec) => db.upsert('kv', { key: k, val: String(v), expires: new Date(Date.now() + sec * 1000).toISOString() });
@@ -156,8 +163,8 @@ export function makeApi(db, deps) {
   const adminTg = (m, buttons) => tgOn() ? bg(db.where('users', 'role', 'admin').then((list) => Promise.all(list.filter((a) => a.tg_chat).map((a) => tgSend(a.tg_chat, m, buttons))))) : null;
   // Лист адміністратору (як і раніше) + те саме в Telegram адміністраторам, які підключили бота.
   const notify = (subject, body) => {
-    if (deps.notify) deps.notify(subject, body);
-    adminTg({ emoji: '🛠', title: subject, intro: String(body || '').slice(0, 1500) }, [{ text: 'Адмін-панель', url: APP_URL }]);
+    if (deps.notify && SET.notify_mail) deps.notify(subject, body);
+    if (SET.notify_tg) adminTg({ emoji: '🛠', title: subject, intro: String(body || '').slice(0, 1500) }, [{ text: 'Адмін-панель', url: APP_URL }]);
   };
 
   /* --- облікові записи --- */
@@ -251,8 +258,9 @@ export function makeApi(db, deps) {
   /* --- підтвердження номера: код у Telegram (Telegram Gateway), Viber/SMS (TurboSMS) або безкоштовно через бота (поділитися контактом) --- */
   // бот рахується лише після «Налаштувати Telegram-бота» (вебхук встановлено), інакше реєстрація зависла б
   const otpCh = async () => ({ telegram: !!env.TG_GATEWAY_TOKEN, sms: !!env.TURBOSMS_TOKEN, viber: !!(env.TURBOSMS_TOKEN && env.TURBOSMS_VIBER_SENDER), bot: tgOn() && !!(await kvGet('tg_hook')) });
-  const otpOn = async () => { const c = await otpCh(); return c.telegram || c.sms || c.bot; };
-  const otpMeta = async () => (await otpOn()) ? await otpCh() : null;
+  const otpAvail = async () => { const c = await otpCh(); return c.telegram || c.sms || c.bot; };
+  const otpOn = async () => SET.otp_required !== false && (await otpAvail());
+  const otpMeta = async () => (await otpAvail()) ? Object.assign(await otpCh(), { required: SET.otp_required !== false }) : null;
   async function otpTarget(r) {
     const phone = phone_(r.phone), purpose = r.purpose === 'reset' ? 'reset' : 'register';
     const exists = await db.find('users', 'phone', phone);
@@ -307,7 +315,7 @@ export function makeApi(db, deps) {
     return { confirmed: !!b.ok, error: b.err || '' };
   }
   async function otpVerify(phone, purpose, r) {
-    if (!(await otpOn())) return {};
+    if (purpose === 'register' ? !(await otpOn()) : !(await otpAvail())) return {};
     if (r.otp_nonce) {
       const k = 'otpb_' + s_(r.otp_nonce), b = JSON.parse(await kvGet(k) || 'null');
       if (!b || !b.ok || b.phone !== phone || b.purpose !== purpose) fail('Номер ще не підтверджено в Telegram');
@@ -326,7 +334,7 @@ export function makeApi(db, deps) {
     if (!/^\d{4,6}$/.test(pin)) fail('PIN має бути з 4–6 цифр');
     const u = await db.find('users', 'phone', phone);
     if (!u) fail('Акаунта з таким номером немає');
-    if (!(await otpOn())) fail('Відновлення PIN тимчасово недоступне. Напишіть на info@autohubkr.com');
+    if (!(await otpAvail())) fail('Відновлення PIN тимчасово недоступне. Напишіть на info@autohubkr.com');
     const v = await otpVerify(phone, 'reset', r);
     const salt = deps.uuid();
     const patch = { pin_hash: await hash(pin, salt), salt };
@@ -986,7 +994,7 @@ export function makeApi(db, deps) {
     if (!key) fail('AI-помічник ще не налаштований');
     const ck = 'ai_' + u.id;
     const used = Number(await kvGet(ck) || 0);
-    if (used >= AI_LIMIT) fail('Ліміт AI-підказок вичерпано. Спробуйте за кілька годин.');
+    if (used >= SET.ai_limit) fail('Ліміт AI-підказок вичерпано. Спробуйте за кілька годин.');
     await kvPut(ck, used + 1, 21600);
     let carInfo = '';
     if (r.car_id) {
@@ -1055,7 +1063,7 @@ export function makeApi(db, deps) {
     let info = r.refresh ? null : JSON.parse(await kvGet(key) || 'null');
     if (!info) {
       const ck = 'ai_' + u.id, used = Number(await kvGet(ck) || 0);
-      if (used >= AI_LIMIT) fail('Ліміт AI-запитів вичерпано. Спробуйте за кілька годин.');
+      if (used >= SET.ai_limit) fail('Ліміт AI-запитів вичерпано. Спробуйте за кілька годин.');
       await kvPut(ck, used + 1, 21600);
       let opts = [];
       if (c.equipment && env.AUTO_RIA_KEY) {
@@ -1094,7 +1102,7 @@ export function makeApi(db, deps) {
     if (!m) fail('Надішліть фото (JPEG) або PDF поліса');
     if (m[2].length * 0.75 > PHOTO_MAX) fail('Файл завеликий, до 1,5 МБ');
     const ck = 'ai_' + u.id, used = Number(await kvGet(ck) || 0);
-    if (used >= AI_LIMIT) fail('Ліміт розпізнавань вичерпано. Спробуйте за кілька годин.');
+    if (used >= SET.ai_limit) fail('Ліміт розпізнавань вичерпано. Спробуйте за кілька годин.');
     await kvPut(ck, used + 1, 21600);
     const system = ['Ти розпізнаєш український автомобільний документ: поліс ОСЦПВ (автоцивілка, зокрема електронний), поліс КАСКО, Зелену карту або протокол обов\'язкового технічного контролю.',
       'kind: osago, kasko, green, inspection або other. until — останній день дії (YYYY-MM-DD), from — перший день дії. Для техконтролю until — дата наступного контролю.',
@@ -1122,7 +1130,7 @@ export function makeApi(db, deps) {
     if (!m) fail('Надішліть фото чека у форматі JPEG');
     if (m[1].length * 0.75 > PHOTO_MAX) fail('Фото завелике');
     const ck = 'ai_' + u.id, used = Number(await kvGet(ck) || 0);
-    if (used >= AI_LIMIT) fail('Ліміт розпізнавань вичерпано. Спробуйте за кілька годин.');
+    if (used >= SET.ai_limit) fail('Ліміт розпізнавань вичерпано. Спробуйте за кілька годин.');
     await kvPut(ck, used + 1, 21600);
     const codes = SERVICES.map((x) => x[0] + ' — ' + x[1]).join('\n');
     const system = ['Ти розпізнаєш фото чека, накладної або заказ-наряду автосервісу чи АЗС в Україні для гаража водія.',
@@ -1144,7 +1152,7 @@ export function makeApi(db, deps) {
     const cached = await kvGet('stats_public');
     if (cached) return JSON.parse(cached);
     const [leads, stos] = await Promise.all([db.all('leads'), db.where('stos', 'active', true)]);
-    const res = { drivers: leads.filter((l) => l.kind === 'driver').length, services: leads.filter((l) => l.kind === 'service').length, catalog: stos.length, tgBot: await botName() };
+    const res = { drivers: leads.filter((l) => l.kind === 'driver').length, services: leads.filter((l) => l.kind === 'service').length, catalog: stos.length, tgBot: await botName(), counterMin: SET.counter_min };
     await kvPut('stats_public', JSON.stringify(res), 300);
     return res;
   }
@@ -1213,7 +1221,7 @@ export function makeApi(db, deps) {
     if (!out.make) fail('Не вдалося розпізнати цей VIN. Заповніть дані вручну.');
     if (vin && !out.model && env.GEMINI_API_KEY) {
       const ck = 'ai_' + u.id, used = Number(await kvGet(ck) || 0);
-      if (used < AI_LIMIT) {
+      if (used < SET.ai_limit) {
         await kvPut(ck, used + 1, 21600);
         try {
           const a = await gemini(ck, used, 'Ти експерт з розшифровки VIN. Назви модель авто лише якщо впевнений за кодом VDS (символи 4–8) для цієї марки. ' +
@@ -1547,7 +1555,7 @@ export function makeApi(db, deps) {
     const lines = LEAD_KEYS[kind].filter((k) => data[k]).map((k) => LEAD_LABELS[k] + ': ' + data[k]);
     notify('Нова анкета (' + (kind === 'driver' ? 'водій' : 'сервіс') + '): ' + name + (kind === 'service' && data.name ? ' (' + data.name + ')' : ''),
       lines.join('\n') + stoNote + '\n\nУсі анкети: autohubkr.com/app/ → Анкети');
-    const bot = await botName();
+    const bot = SET.lead_to_tg ? await botName() : '';
     if (!bot) return {};
     const t = deps.uuid().replace(/-/g, '').slice(0, 16);
     await kvPut('leadtg_' + t, row.id, 14 * 86400);
@@ -1629,6 +1637,45 @@ export function makeApi(db, deps) {
     if (!l) fail('Анкету не знайдено');
     const st = oneOf(r.status, ['new', 'contacted', 'joined', 'rejected']);
     await db.update('leads', l.id, { status: st });
+    return {};
+  }
+
+  async function adminSettings(r) {
+    await auth(r, 'admin');
+    const k = (name, on, what) => ({ name, on: !!on, what });
+    return { settings: SET, defaults: SET_DEF,
+      tg: { token: tgOn(), hook: !!(await kvGet('tg_hook')), bot: await botName() }, otp: await otpCh(),
+      keys: [
+        k('TELEGRAM_BOT_TOKEN', tgOn(), 'Telegram-бот: реєстрація, перехід з анкет, сповіщення, міні-застосунок'),
+        k('GEMINI_API_KEY', env.GEMINI_API_KEY, 'AI: підказка несправності, розпізнавання чеків і полісів, опис авто'),
+        k('GEMINI_MODEL', env.GEMINI_MODEL, 'Необов\'язково: конкретна модель Gemini' + (env.GEMINI_MODEL ? ' (' + env.GEMINI_MODEL + ')' : ', зараз автовибір')),
+        k('AUTO_RIA_KEY', env.AUTO_RIA_KEY, 'Модифікації, комплектації й ринкова ціна авто'),
+        k('RELAY_SECRET', env.MAIL_ON, 'Листи сервісам і адміністратору (через Google Apps Script)'),
+        k('TG_GATEWAY_TOKEN', env.TG_GATEWAY_TOKEN, 'Коди підтвердження номера в Telegram ($0.01 за код)'),
+        k('TURBOSMS_TOKEN', env.TURBOSMS_TOKEN, 'Коди підтвердження в SMS (TurboSMS)'),
+        k('TURBOSMS_SENDER', env.TURBOSMS_SENDER, 'Ім\'я відправника SMS, зареєстроване в TurboSMS'),
+        k('TURBOSMS_VIBER_SENDER', env.TURBOSMS_VIBER_SENDER, 'Відправник Viber: спершу Viber, потім SMS'),
+        k('Реєстр МВС (VIN)', !!deps.vinShard, 'Розшифровка VIN з відкритого реєстру (оновлюється щомісяця автоматично)')
+      ] };
+  }
+  async function adminSettingsSet(r) {
+    await auth(r, 'admin');
+    const p = r.patch || {}, cur = await loadSettings(), out = Object.assign({}, cur);
+    ['otp_required', 'lead_to_tg', 'notify_tg', 'notify_mail'].forEach((k) => { if (p[k] !== undefined) out[k] = p[k] === true; });
+    if (p.ai_limit !== undefined) { const n = int(p.ai_limit); if (!(n >= 0 && n <= 200)) fail('Ліміт AI: від 0 до 200'); out.ai_limit = n; }
+    if (p.counter_min !== undefined) { const n = int(p.counter_min); if (!(n >= 0 && n <= 1000)) fail('Поріг лічильника: від 0 до 1000'); out.counter_min = n; }
+    if (!out.notify_tg && !out.notify_mail) fail('Залиште хоча б один канал сповіщень адміністратору');
+    await kvPut('settings', JSON.stringify(out), 20 * 365 * 86400);
+    await kvDel('stats_public');
+    SET = out;
+    return { settings: out };
+  }
+  async function adminCacheClear(r) {
+    await auth(r, 'admin');
+    const pre = { ria: 'ria_', carinfo: 'carinfo_', stats: 'stats_public' }[r.kind];
+    if (!pre) fail('Невідомий кеш');
+    if (!db.removePrefix) fail('Очищення недоступне');
+    await db.removePrefix('kv', 'key', pre);
     return {};
   }
 
@@ -1753,6 +1800,7 @@ export function makeApi(db, deps) {
       return { sto: pubSto(st, true) };
     },
     'admin.leads': adminLeads, 'admin.lead.set': adminLeadSet, 'admin.lead.tosto': adminLeadToSto,
+    'admin.settings': adminSettings, 'admin.settings.set': adminSettingsSet, 'admin.cache.clear': adminCacheClear,
     'admin.geocode': async (r) => { await auth(r, 'admin'); return geocodeBatch(Math.min(Number(r.limit) || 25, 40), r.retry === true); }
   };
 
@@ -1760,6 +1808,7 @@ export function makeApi(db, deps) {
     meta = meta || {};
     try {
       // форми лендингів і лічильник переходів надсилають { type: driver | service | visit }
+      await loadSettings();
       if (req && !req.action && (req.type === 'driver' || req.type === 'service')) { const r0 = await leadAdd(req, meta); r0.ok = true; return r0; }
       if (req && !req.action && req.type === 'visit') { await visitAdd(req, meta); return { ok: true }; }
       if (req && req.update_id !== undefined) { await tgUpdate(req, meta); return { ok: true }; }
