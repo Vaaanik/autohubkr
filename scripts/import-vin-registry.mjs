@@ -60,7 +60,9 @@ function take(f) {
   // У старих архівах вид ТЗ у KIND, у нових — у purpose («ЛЕГКОВИЙ»), тож перевіряємо обидва.
   if ((f.kind || f.purpose) && !KINDS.test(String(f.kind || '') + ' ' + String(f.purpose || ''))) return;
   const prev = best.get(vin);
-  const d = String(f.dreg || '').slice(0, 10);
+  // дати бувають «2026-01-01» і «09.12.2021»: приводимо до РРРР-ММ-ДД, щоб правильно визначати найсвіжіший запис
+  const raw = String(f.dreg || '').trim(), dm = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+  const d = dm ? dm[3] + '-' + dm[2] + '-' + dm[1] : raw.slice(0, 10);
   if (prev && prev.d_reg > d) return;
   const n = (v) => { const x = Number(String(v || '').replace(',', '.')); return isFinite(x) && x > 0 ? x : null; };
   best.set(vin, { vin, brand: String(f.brand || '').trim().slice(0, 60), model: String(f.model || '').trim().slice(0, 80), year: n(f.year) ? Math.round(n(f.year)) : null,
