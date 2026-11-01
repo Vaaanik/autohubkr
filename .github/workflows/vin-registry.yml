@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       region:
-        description: Префікс КОАТУУ (12 — Дніпропетровська, порожньо — вся Україна)
+        description: Префікс КОАТУУ (12 — Дніпропетровська, all — вся Україна)
         default: '12'
         required: false
       dry:
