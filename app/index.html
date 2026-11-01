@@ -687,7 +687,7 @@ function renderAdminSettings() {
         '<div class="lbl" style="margin-top:14px">Групи спільноти</div><p class="mini" style="margin:2px 0 6px">Бот надсилає посилання на групу кожному одразу після реєстрації чи підключення (один раз). Порожньо: не надсилати.</p>' +
         '<label class="f" for="gD" style="margin-top:4px">Група водіїв</label><input class="i set-txt" id="gD" data-k="group_drivers" value="' + esc(S.group_drivers || '') + '" placeholder="https://t.me/+AbCdEf...">' +
         '<label class="f" for="gS" style="margin-top:8px">Група сервісів-партнерів</label><input class="i set-txt" id="gS" data-k="group_services" value="' + esc(S.group_services || '') + '" placeholder="https://t.me/+XyZ...">' +
-        '<button type="button" class="btn sm ghost" id="grpSend" style="margin-top:10px">Надіслати тим, хто вже зареєструвався</button><div id="grpR"></div>' +
+        '<div class="row" style="margin-top:10px;flex-wrap:wrap;gap:8px"><button type="button" class="btn sm ghost" id="grpTest">Надіслати мені для перевірки</button><button type="button" class="btn sm ghost" id="grpSend">Надіслати тим, хто вже зареєструвався</button></div><div id="grpR"></div>' +
         (T.bot ? '<div class="lbl" style="margin-top:14px">Посилання для реклами</div><p class="mini" style="margin:2px 0 8px">Додайте до посилання <b>_джерело</b> (наприклад _insta), щоб бачити його у воронці.</p>' +
           [['driver', 'Для водіїв'], ['sto', 'Для сервісів']].map(function (x) { return '<div class="set-link"><span class="small">' + x[1] + '</span><code>' + esc(link(x[0])) + '</code><button type="button" class="link" data-copy="' + esc(link(x[0])) + '">Копіювати</button></div>'; }).join('') : '') +
       '</div>' +
@@ -724,6 +724,11 @@ function renderAdminSettings() {
     };
     $$('.set-sw').forEach(function (el) { el.onchange = function () { var p = {}; p[el.dataset.k] = el.checked; save(p, el); }; });
     $$('.set-num').forEach(function (el) { el.onchange = function () { var p = {}; p[el.dataset.k] = el.value; save(p, el); }; });
+    $('#grpTest').onclick = function () {
+      var b = this; busy(b, true);
+      api('admin.groups.test', {}, { admin: true }).then(function (x) { busy(b, false); $('#grpR').innerHTML = '<div class="note ok" style="margin-top:8px">Надіслано вам у Telegram: ' + x.sent + ' запрошення. Так їх побачать водії й сервіси.</div>'; })
+        .catch(function (e) { busy(b, false); $('#grpR').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+    };
     $('#grpSend').onclick = function () {
       var b = this; busy(b, true);
       api('admin.groups.send', {}, { admin: true }).then(function (x) { busy(b, false); $('#grpR').innerHTML = '<div class="note ok" style="margin-top:8px">Надіслано: ' + x.sent + '. Уже мали посилання: ' + x.had + '.</div>'; })
