@@ -341,6 +341,11 @@ function makeApi(db, deps) {
       await db.insert('history', { id: id(), car_id: nq.car_id, user_id: nq.driver_id, date: today(), work: nq.work_done, place: sto ? sto.name : '',
         price: nq.price, mileage: nq.mileage, request_id: nq.id, created: now(), confirmed: '' });
       if (car && nq.mileage) await bumpMileage(car, nq.mileage);
+      try {
+        const drv = await db.find('users', 'id', nq.driver_id);
+        await db.insert('sto_jobs', { id: id(), sto_id: nq.sto_id, date: today(), client_name: drv ? drv.name : '', client_phone: drv ? drv.phone : '', car: car ? [car.make, car.model, car.year].filter(Boolean).join(' ') : '',
+          plate: car ? car.plate || '' : '', vin: car ? car.vin || '' : '', mileage: nq.mileage, work: nq.work_done, price: nq.price, status: 'done', source: 'АвтоХаб', request_id: nq.id, note: '', created: now() });
+      } catch (e) { console.error('sto_jobs', e); }
     }
     return { request: pubReq(nq) };
   }
@@ -377,6 +382,57 @@ function makeApi(db, deps) {
         '\nРоботи за словами сервісу: ' + q.work_done + '\nСервіс: ' + (sto ? sto.name + ', ' + sto.phone : '—'));
     }
     return { request: pubReq(nq) };
+  }
+
+  /* --- журнал робіт сервісу: власні клієнти й роботи через АвтоХаб --- */
+  const JOB_ST = ['in_work', 'done'];
+  const pubJob = (j) => pick(j, ['id', 'date', 'client_name', 'client_phone', 'car', 'plate', 'vin', 'mileage', 'work', 'price', 'status', 'source', 'request_id', 'note', 'created']);
+  function jobFields(r, partial) {
+    const f = {}, has = (k) => !partial || r[k] !== undefined;
+    if (has('date')) { const d = date_(r.date) || today(); if (d > today()) fail('Дата не може бути в майбутньому'); f.date = d; }
+    if (has('client_name')) f.client_name = s_(r.client_name).slice(0, 120);
+    if (has('client_phone')) { const ph = s_(r.client_phone); f.client_phone = ph ? (() => { try { return phone_(ph); } catch (e) { fail('Перевірте телефон клієнта'); } })() : ''; }
+    if (has('car')) f.car = s_(r.car).slice(0, 120);
+    if (has('plate')) f.plate = s_(r.plate).toUpperCase().replace(/\s+/g, '').slice(0, 12);
+    if (has('vin')) f.vin = s_(r.vin).toUpperCase().replace(/\s+/g, '').slice(0, 17);
+    if (has('mileage')) { const m = int(r.mileage); if (m && m > 2000000) fail('Перевірте пробіг'); f.mileage = m; }
+    if (has('work')) f.work = s_(r.work);
+    if (has('price')) f.price = r.price === '' || r.price === null ? null : num(r.price);
+    if (has('status')) f.status = r.status ? oneOf(r.status, JOB_ST) : 'done';
+    if (has('note')) f.note = s_(r.note).slice(0, 500);
+    return f;
+  }
+  async function jobsList(r) {
+    const u = await auth(r, 'sto');
+    const rows = await db.where('sto_jobs', 'sto_id', u.sto_id || '-');
+    rows.sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : (a.created < b.created ? 1 : -1));
+    return { jobs: rows.map(pubJob) };
+  }
+  async function jobsAdd(r) {
+    const u = await auth(r, 'sto');
+    if (!u.sto_id) fail('Сервіс не знайдено');
+    const f = jobFields(r, false);
+    if (!f.work) fail('Опишіть роботи');
+    if (!f.car && !f.plate && !f.client_name) fail('Вкажіть клієнта, авто або номер');
+    const j = Object.assign({ id: id(), sto_id: u.sto_id, source: 'власний', request_id: '', created: now() }, f);
+    await db.insert('sto_jobs', j);
+    return { job: pubJob(j) };
+  }
+  async function jobsUpdate(r) {
+    const u = await auth(r, 'sto');
+    const j = await db.find('sto_jobs', 'id', String(r.id || ''));
+    if (!j || j.sto_id !== u.sto_id) fail('Запис не знайдено');
+    const f = jobFields(r, true);
+    if (f.work !== undefined && !f.work) fail('Опишіть роботи');
+    return { job: pubJob(await db.update('sto_jobs', j.id, f)) };
+  }
+  async function jobsDelete(r) {
+    const u = await auth(r, 'sto');
+    const j = await db.find('sto_jobs', 'id', String(r.id || ''));
+    if (!j || j.sto_id !== u.sto_id) fail('Запис не знайдено');
+    if (j.request_id) fail('Запис із заявки АвтоХабу видалити не можна');
+    await db.removeWhere('sto_jobs', 'id', j.id);
+    return {};
   }
 
   async function reviewAdd(r) {
@@ -445,7 +501,7 @@ function makeApi(db, deps) {
       else if (la > 47 && la < 49 && ln > 32 && ln < 35) { patch.lat = la; patch.lng = ln; patch.geo = 'ok'; }
       else fail('Координати мають бути в районі Кривого Рогу');
     }
-    let upd = await db.update('stos', sto.id, patch);
+    let upd = Object.keys(patch).length ? await db.update('stos', sto.id, patch) : sto;
     // Під час активації одразу шукаємо сервіс на карті, якщо координат ще немає.
     if (patch.active === true && !upd.lat && upd.address) {
       try {
@@ -912,6 +968,7 @@ function makeApi(db, deps) {
     'req.create': reqCreate, 'req.list': reqList, 'req.update': reqUpdate, 'req.visit': reqVisit, 'req.confirm': reqConfirm,
     'stats.public': statsPublic, 'ai.receipt': aiReceipt, 'vin.decode': vinDecode,
     'review.add': reviewAdd,
+    'jobs.list': jobsList, 'jobs.add': jobsAdd, 'jobs.update': jobsUpdate, 'jobs.delete': jobsDelete,
     'history.list': async (r) => {
       const u = await auth(r, 'driver'); const c = await ownCar(u, r.car_id);
       const rows = await db.where('history', 'car_id', c.id);
