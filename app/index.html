@@ -117,6 +117,24 @@ input.i::placeholder,textarea.i::placeholder{color:#9AA8B8}
 .note.ok{background:var(--ok-bg);color:#0F5534}
 .note.err{background:var(--stop-bg);color:#9A1C17}
 .note.info{background:var(--volt-bg);color:#123F82}
+.dash-alert{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px}
+.dash-alert span{font-size:12px;font-weight:700;border-radius:99px;padding:4px 10px;background:rgba(255,198,41,.16);color:#FFD866}
+.dash-alert span.over{background:rgba(212,43,38,.22);color:#FFB3AF}
+.doc-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 2px;border-top:1px solid var(--line2)}
+.doc-row:first-of-type{border-top:0}
+.doc-row b{font-weight:600;font-size:15px}.doc-row small{display:block;color:var(--soft);font-size:13px}
+.doc-st{font-size:12px;font-weight:700;white-space:nowrap}
+.doc-st.over{color:var(--stop)}.doc-st.soon{color:var(--amber)}.doc-st.ok{color:var(--ok)}.doc-st.none{color:var(--soft)}
+.exp-big{font-size:26px;font-weight:800;letter-spacing:-.02em}
+.exp-bar{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:14px}
+.exp-bar i{display:block;height:8px;border-radius:99px;background:var(--volt);min-width:4px}
+.exp-bar span{flex:1;min-width:0}.exp-bar b{white-space:nowrap;font-weight:600}
+.code-box{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;padding:12px 14px;border-radius:var(--r-ctl);background:var(--ink,#06111F);color:#fff}
+.code-box small{display:block;opacity:.75;font-size:12px}
+.code-box b{font-size:30px;letter-spacing:.18em;font-variant-numeric:tabular-nums;color:#FFD866}
+.vtag{display:inline-block;font-size:12px;font-weight:700;border-radius:99px;padding:3px 9px;margin-top:8px;background:var(--ok-bg);color:var(--ok)}
+.vtag.no{background:var(--amber-bg);color:var(--amber)}.vtag.bad{background:var(--stop-bg);color:var(--stop)}
+.card.late{border-color:#F3DDA8;box-shadow:0 0 0 2px var(--amber-bg)}
 .empty{text-align:center;padding:30px 18px;color:var(--soft)}
 .empty b{display:block;color:var(--ink);font-family:var(--head);font-size:18px;font-weight:700;margin-bottom:6px}
 .stars{display:inline-flex;gap:1px;color:#F2A900;font-size:15px;letter-spacing:1px}
@@ -376,12 +394,13 @@ var ADMIN_TABS = [['/admin', 'Огляд', 'chart'], ['/admin/sto', 'СТО', 's
 var STO_TABS = [['/sto', 'Заявки', 'wrench'], ['/sto/profile', 'Мій сервіс', 'shop'], ['/profile', 'Профіль', 'user']];
 
 function route() {
-  var h = location.hash.replace(/^#/, '') || '/';
+  var h = location.hash.replace(/^#/, '').split('?')[0] || '/';
   var who = document.getElementById('who');
   drawViewbar();
   who.innerHTML = state.user ? '<b>' + esc(state.user.name) + '</b>' + esc(state.sto ? state.sto.name : ({ admin: 'Адміністратор', sto: 'Сервіс' }[state.user.role] || 'Водій')) : '';
   document.body.classList.toggle('is-login', !state.token);
-  if (!state.token) { if (h !== '/login') return go('/login'); setTabs(null); return renderLogin(); }
+  if (!state.token) { if (h !== '/login') { if (h.indexOf('/new') === 0) store('ah_next', location.hash.slice(1)); return go('/login'); } setTabs(null); return renderLogin(); }
+  var next = store('ah_next'); if (next && state.user.role === 'driver') { store('ah_next', null); if (location.hash !== '#' + next) return go(next); }
   if (h === '/' || h === '/login') return go({ sto: '/sto', admin: '/admin' }[state.user.role] || '/garage');
   window.scrollTo(0, 0);
   var m;
@@ -469,8 +488,8 @@ function renderLogin() {
         (mode === 'reg' && role === 'sto' ? stoFields({}) : '') +
         '<div id="authErr"></div>' +
         '<button class="btn wide" id="authBtn">' + (mode === 'login' ? 'Увійти' : (role === 'sto' ? 'Зареєструвати сервіс' : 'Створити акаунт')) + '</button>' +
-        (mode === 'reg' ? '<p class="small muted" style="margin:0">Реєструючись, ви погоджуєтеся на обробку контактних даних для роботи сервісу. Телефон бачить лише сервіс, який прийняв вашу заявку.</p>' : '<p class="small muted" style="margin:0">Забули PIN? Напишіть нам: <a href="mailto:info@autohubkr.com">info@autohubkr.com</a></p>') +
-      '</form></div><p class="login-foot">Пілотна версія для Кривого Рогу · <a href="../">Про АвтоХаб</a></p>';
+        (mode === 'reg' ? '<p class="small muted" style="margin:0">Реєструючись, ви погоджуєтеся з <a href="../privacy/" target="_blank">політикою конфіденційності</a>. Телефон бачить лише сервіс, який прийняв вашу заявку.</p>' : '<p class="small muted" style="margin:0">Забули PIN? Напишіть нам: <a href="mailto:info@autohubkr.com">info@autohubkr.com</a></p>') +
+      '</form></div><p class="login-foot">Пілотна версія для Кривого Рогу · <a href="../">Про АвтоХаб</a> · <a href="../privacy/">Конфіденційність</a></p>';
     $$('[data-m]').forEach(function (b) { b.onclick = function () { mode = b.dataset.m; draw(); }; });
     $$('[data-r]').forEach(function (b) { b.onclick = function () { role = b.dataset.r; draw(); }; });
     bindChips(view);
@@ -623,6 +642,50 @@ function carSpec(c) {
 }
 
 /* ---------- водій: гараж ---------- */
+/* Документи авто: строк дії й статус */
+var DOCS_FALLBACK = [['osago_until', 'ОСЦПВ (автоцивілка)'], ['kasko_until', 'КАСКО'], ['inspection_until', 'Техогляд'], ['green_until', 'Зелена карта']];
+function carDocs() { return (state.meta && state.meta.carDocs) || DOCS_FALLBACK; }
+function docDays(d) { if (!d) return null; var t = new Date(); t.setHours(0, 0, 0, 0); return Math.round((new Date(d + 'T00:00:00') - t) / 864e5); }
+function docInfo(d) {
+  var n = docDays(d);
+  if (n === null) return { cls: 'none', label: 'не вказано' };
+  if (n < 0) return { cls: 'over', label: 'закінчився' };
+  if (n === 0) return { cls: 'over', label: 'закінчується сьогодні' };
+  if (n <= 30) return { cls: 'soon', label: 'ще ' + n + ' ' + (n % 10 === 1 && n % 100 !== 11 ? 'день' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 'дні' : 'днів') };
+  return { cls: 'ok', label: 'діє' };
+}
+function docAlerts(car) {
+  return carDocs().map(function (d) { var i = docInfo(car[d[0]]); return (i.cls === 'over' || i.cls === 'soon') ? '<span class="' + i.cls + '">' + esc(d[1].replace(/ \(.*\)/, '')) + ': ' + esc(i.label) + '</span>' : ''; }).join('');
+}
+function docsDialog(car) {
+  openDialog('<h2 style="margin-bottom:6px">Документи й страховка</h2><p class="mini" style="margin:0 0 12px">Вкажіть, до якої дати діє документ. За 30 днів до кінця застосунок покаже нагадування в гаражі.</p><form class="stack" id="dForm" novalidate>' +
+    carDocs().map(function (d) { return '<div><label class="f" for="d_' + d[0] + '">' + esc(d[1]) + ' <span>діє до</span></label><input class="i" type="date" id="d_' + d[0] + '" value="' + esc(car[d[0]] || '') + '"></div>'; }).join('') +
+    '<div id="dErr"></div><div class="row"><button type="button" class="btn ghost" data-close>Скасувати</button><button class="btn" style="flex:1" id="dSave">Зберегти</button></div></form>');
+  $('#dForm').onsubmit = function (e) {
+    e.preventDefault();
+    var p = { id: car.id }; carDocs().forEach(function (d) { p[d[0]] = $('#d_' + d[0]).value; });
+    var btn = $('#dSave'); busy(btn, true);
+    api('cars.update', p).then(function () { closeDialog(); state.cars = null; toast('Строки збережено'); route(); })
+      .catch(function (e2) { busy(btn, false); $('#dErr').innerHTML = '<div class="note err">' + esc(e2.message) + '</div>'; });
+  };
+}
+/* Витрати за останні 12 місяців з історії */
+function expensesHtml(hist, M) {
+  var since = new Date(); since.setFullYear(since.getFullYear() - 1); since = since.toISOString().slice(0, 10);
+  var rows = hist.filter(function (h) { return h.price && h.date >= since; });
+  if (!rows.length) return '<div class="card"><h2>Витрати</h2><p class="small muted" style="margin:6px 0 0">Вкажіть ціну в записах історії або сфотографуйте чек, і тут з\'явиться сума за рік з розбивкою.</p></div>';
+  var grp = {}, total = 0, gOf = {};
+  M.services.forEach(function (x) { gOf[x[0]] = x[2]; });
+  rows.forEach(function (h) {
+    var g = (h.services && h.services.length) ? M.serviceGroups[gOf[h.services[0]]] || 'Інше' : 'Інше';
+    grp[g] = (grp[g] || 0) + Number(h.price); total += Number(h.price);
+  });
+  var list = Object.keys(grp).sort(function (a, b) { return grp[b] - grp[a]; });
+  return '<div class="card"><div class="between"><h2>Витрати за рік</h2><span class="mini">' + rows.length + ' ' + (rows.length === 1 ? 'запис' : rows.length < 5 ? 'записи' : 'записів') + '</span></div>' +
+    '<div class="exp-big">' + esc(money(Math.round(total))) + '</div>' +
+    list.map(function (g) { return '<div class="exp-bar"><i style="width:' + Math.max(4, Math.round(grp[g] / total * 90)) + 'px"></i><span>' + esc(g) + '</span><b>' + esc(money(Math.round(grp[g]))) + '</b></div>'; }).join('') + '</div>';
+}
+
 function renderGarage() {
   loading();
   (state.cars ? Promise.resolve(state.cars) : loadCars()).then(function (cars) {
@@ -633,7 +696,8 @@ function renderGarage() {
           (c.photo ? '<div class="dash-photo"><img src="' + esc(c.photo) + '" alt="" loading="lazy"></div>' : '') +
           '<h3>' + esc(c.make + ' ' + c.model) + (c.year ? '<span class="yr">' + esc(c.year) + '</span>' : '') + '</h3><span class="go" aria-hidden="true">›</span>' +
           (spec ? '<div class="spec">' + esc(spec) + '</div>' : '') +
-          '<div class="dash-row"><div>' + plateHtml(c.plate) + '</div><div><div class="odo-l">Пробіг</div>' + odoHtml(c.mileage) + '</div></div></a>';
+          '<div class="dash-row"><div>' + plateHtml(c.plate) + '</div><div><div class="odo-l">Пробіг</div>' + odoHtml(c.mileage) + '</div></div>' +
+          (docAlerts(c) ? '<div class="dash-alert">' + docAlerts(c) + '</div>' : '') + '</a>';
       }).join('') + '<a class="btn wide" href="#/new" style="margin-top:6px">Нова заявка в СТО</a>'
       : '<div class="card empty"><b>Додайте своє авто</b>Оберіть марку й модель зі списку, і ми складемо план обслуговування за пробігом.<div style="margin-top:14px"><button class="btn" id="addCar2">Додати авто</button></div></div>');
     $('#addCar').onclick = function () { carDialog(); };
@@ -802,18 +866,22 @@ function renderCar(id) {
           '<p class="mini" style="margin:0 0 6px">Натисніть на роботу й вкажіть, коли її робили. Тоді план підкаже, коли наступна.</p><div class="plan-compact">' +
           nodata.map(function (p) { return '<button type="button" class="pc-row" data-svc="' + esc(p.s[0]) + '"><span>' + esc(p.s[1]) + '</span><small>' + esc(p.note) + '</small></button>'; }).join('') + '</div></details>' : '') +
         '<p class="mini" style="margin:8px 0 0">Інтервали орієнтовні. Точні дивіться в сервісній книжці вашого авто. Натисніть на роботу, щоб записати, коли її робили.</p></div>' +
+      (car.osago_until === undefined ? '' : '<div class="card"><div class="between" style="margin-bottom:4px"><h2>Документи й страховка</h2><button type="button" class="link" id="editDocs">Змінити</button></div>' +
+        carDocs().map(function (d) { var i = docInfo(car[d[0]]); return '<div class="doc-row"><div><b>' + esc(d[1]) + '</b><small>' + (car[d[0]] ? 'до ' + esc(dt(car[d[0]])) : 'дату не вказано') + '</small></div><span class="doc-st ' + i.cls + '">' + esc(i.label) + '</span></div>'; }).join('') + '</div>') +
+      expensesHtml(hist, M) +
       '<h2 style="margin:18px 0 10px">Історія обслуговування</h2>' +
       (hist.length ? '<div class="card">' + hist.map(function (h) {
         var tags = (h.services || []).map(function (c) { return '<span class="svc-tag">' + esc(SN[c] || c) + '</span>'; }).join('');
         return '<div class="hist"><div class="between"><b>' + esc(dt(h.date)) + '</b><span class="small muted">' + esc([km(h.mileage), money(h.price)].filter(Boolean).join(' · ')) + '</span></div>' +
           (tags ? '<div class="svc-tags">' + tags + '</div>' : '') + (h.work ? '<div>' + esc(h.work) + '</div>' : '') +
-          '<div class="between"><span class="small muted">' + esc(h.place || '') + (h.request_id ? (h.place ? ' · ' : '') + 'через АвтоХаб' : '') + '</span>' +
+          '<div class="between"><span class="small muted">' + esc(h.place || '') + (h.request_id ? (h.place ? ' · ' : '') + (h.confirmed === 'так' ? 'через АвтоХаб, підтверджено' : h.confirmed === 'спір' ? 'через АвтоХаб, є спір' : 'через АвтоХаб') : '') + '</span>' +
           (h.request_id ? '' : '<button type="button" class="link" data-del="' + esc(h.id) + '" style="color:var(--soft)">Видалити</button>') + '</div></div>';
       }).join('') + '</div>' : '<div class="card empty"><b>Поки порожньо</b>Додайте ремонти й ТО, які вже робили: план обслуговування стане точнішим.<div style="margin-top:12px"><button class="btn sm" id="addHist2">Додати перший запис</button></div></div>') +
       '<button class="btn sm danger" id="delCar" style="margin-top:18px">Видалити авто з гаража</button>';
     $('#addHist').onclick = function () { histDialog(car, M); };
     if ($('#addHist2')) $('#addHist2').onclick = function () { histDialog(car, M); };
     $('#editCar').onclick = function () { carDialog(car); };
+    if ($('#editDocs')) $('#editDocs').onclick = function () { docsDialog(car); };
     $$('[data-svc]').forEach(function (b) { b.onclick = function () { histDialog(car, M, [b.dataset.svc]); }; });
     $$('[data-del]').forEach(function (b) {
       b.onclick = function () {
@@ -840,6 +908,8 @@ function histDialog(car, M, preset) {
   var today = new Date().toISOString().slice(0, 10), picked = (preset || []).slice();
   var applies = M.services.filter(function (s) { return svcApplies(s, car); });
   openDialog('<h2 style="margin-bottom:12px">Запис в історію</h2><form class="stack" id="hForm" novalidate>' +
+    (M.carDocs ? '<label class="btn ghost wide" id="rcBtn">Сфотографувати чек<input type="file" accept="image/*" capture="environment" id="rcFile" class="sr"></label>' : '') +
+    '<div id="rcNote"></div>' +
     '<div class="grid2"><div><label class="f" for="hDate">Дата</label><input class="i" id="hDate" type="date" value="' + today + '" max="' + today + '"></div><div><label class="f" for="hKm">Пробіг, км</label><input class="i" id="hKm" inputmode="numeric" value="' + esc(car.mileage || '') + '"></div></div>' +
     '<div><label class="f" for="hQ">Що робили <span>можна кілька</span></label><div id="hPicked" class="svc-picked" aria-live="polite"></div>' +
       '<input class="i" id="hQ" type="search" placeholder="Пошук: олива, колодки, ГРМ…" autocomplete="off"><div id="hList" class="svc-list"></div></div>' +
@@ -865,6 +935,22 @@ function histDialog(car, M, preset) {
   $('#hList').onclick = function (e) { var b = e.target.closest('[data-add]'); if (!b) return; picked.push(b.dataset.add); drawPicked(); drawList(); };
   $('#hQ').oninput = drawList;
   drawPicked(); drawList();
+  if ($('#rcFile')) $('#rcFile').onchange = function () {
+    var f = this.files[0]; if (!f) return;
+    var lbl = $('#rcBtn'); lbl.classList.add('busy'); lbl.firstChild.textContent = 'Розпізнаю чек…';
+    shrinkPhoto(f).then(function (d) { return api('ai.receipt', { image: d }); }).then(function (r) {
+      var c = r.receipt;
+      if (c.date) $('#hDate').value = c.date;
+      if (c.mileage) $('#hKm').value = c.mileage;
+      if (c.price) $('#hPrice').value = c.price;
+      if (c.place) $('#hPlace').value = c.place;
+      if (c.work) $('#hWork').value = c.work;
+      (c.services || []).forEach(function (code) { if (picked.indexOf(code) === -1) picked.push(code); });
+      drawPicked(); drawList();
+      lbl.classList.remove('busy'); lbl.firstChild.textContent = 'Сфотографувати інший чек';
+      $('#rcNote').innerHTML = '<div class="note info">Заповнили з чека. Перевірте дані перед збереженням.</div>';
+    }).catch(function (e) { lbl.classList.remove('busy'); lbl.firstChild.textContent = 'Сфотографувати чек'; $('#rcNote').innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
+  };
   $('#hForm').onsubmit = function (e) {
     e.preventDefault();
     if (!picked.length && !$('#hWork').value.trim()) { $('#hErr').innerHTML = '<div class="note err">Оберіть роботи зі списку або опишіть їх у примітці</div>'; return; }
@@ -878,7 +964,8 @@ function histDialog(car, M, preset) {
 /* ---------- водій: нова заявка ---------- */
 function renderNew() {
   loading();
-  var pre = (location.hash.match(/car=(\w+)/) || [])[1];
+  var pre = (location.hash.match(/car=(\w+)/) || [])[1], preSto = (location.hash.match(/sto=(\w+)/) || [])[1];
+  var preCat = (location.hash.match(/cat=([^&]+)/) || [])[1]; try { preCat = preCat ? decodeURIComponent(preCat) : ''; } catch (e) { preCat = ''; }
   Promise.all([meta(), state.cars ? Promise.resolve(state.cars) : loadCars()]).then(function (res) {
     var M = res[0], cars = res[1];
     if (!cars.length) {
@@ -906,6 +993,7 @@ function renderNew() {
       $$('#nCat .chip').forEach(function (c) { var on = c.dataset.v === cat; c.classList.toggle('on', on); c.setAttribute('aria-checked', String(on)); });
       sel.category = cat; sel.sto = ''; loadStos();
     }
+    if (preCat && M.categories.indexOf(preCat) !== -1) setCategory(preCat);
     $('#nAi').onclick = function () {
       var desc = $('#nDesc').value.trim(), out = $('#nAiOut'), btn = this;
       if (desc.length < 10) { out.innerHTML = '<div class="note err" style="margin-top:8px">Спершу опишіть проблему хоча б одним реченням.</div>'; $('#nDesc').focus(); return; }
@@ -986,6 +1074,8 @@ function renderNew() {
           p.onclick = function (e) { if (e.target.dataset.rv) return; pickIt(); };
           p.onkeydown = function (e) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); pickIt(); } };
         });
+        // перехід зі сторінки сервісу на сайті: одразу обираємо цей сервіс
+        if (preSto) { var pe = $('.sto-pick[data-id="' + preSto + '"]', box); if (pe) { pe.click(); pe.scrollIntoView({ block: 'center' }); } preSto = ''; }
         $$('[data-rv]', box).forEach(function (b) {
           b.onclick = function () {
             var s = r.stos.filter(function (x) { return x.id === b.dataset.rv; })[0];
@@ -1026,11 +1116,15 @@ function renderRequests() {
         '<div class="small"><b>' + esc(s.name || '') + '</b>' + (s.address ? ' · <span class="muted">' + esc(s.address) + '</span>' : '') + '</div>';
       if (q.sto_comment || q.visit || q.price) body += '<div class="note info" style="margin-top:10px"><div class="small muted" style="margin-bottom:2px">Відповідь сервісу</div>' +
         (q.sto_comment ? '<div>' + esc(q.sto_comment) + '</div>' : '') + (q.visit ? '<div><b>Запрошують:</b> ' + esc(q.visit) + '</div>' : '') + (q.price ? '<div><b>Ціна:</b> ' + esc(money(q.price)) + '</div>' : '') + '</div>';
-      if (q.status === 'done') body += '<div class="note ok" style="margin-top:10px"><b>Виконано:</b> ' + esc(q.work_done) + '</div>';
+      if (q.code) body += '<div class="code-box"><div><small>Код візиту</small>Покажіть цей код у сервісі, коли приїдете</div><b>' + esc(q.code) + '</b></div>';
+      if (q.status === 'done') body += '<div class="note ok" style="margin-top:10px"><b>Виконано:</b> ' + esc(q.work_done) + (q.price ? '<div><b>Сума:</b> ' + esc(money(q.price)) + '</div>' : '') + '</div>';
+      if (q.confirmed === 'так') body += '<span class="vtag">Ви підтвердили виконання</span>';
+      if (q.confirmed === 'спір') body += '<span class="vtag bad">Ви повідомили про проблему, ми зв\'яжемося з вами</span>';
       var acts = '';
+      if (q.status === 'done' && q.confirmed === '') acts += '<button class="btn sm" data-ok="' + esc(q.id) + '">Підтверджую виконання</button><button class="btn sm ghost" data-dispute="' + esc(q.id) + '">Є проблема</button>';
       if (['accepted', 'in_work'].indexOf(q.status) !== -1 && s.phone) acts += '<a class="btn sm dark" href="' + esc(telHref(s.phone)) + '">Подзвонити</a>';
       if (['new', 'accepted'].indexOf(q.status) !== -1) acts += '<button class="btn sm ghost" data-cancel="' + esc(q.id) + '">Скасувати</button>';
-      if (q.status === 'done' && !q.review) acts += '<button class="btn sm" data-review="' + esc(q.id) + '">Залишити відгук</button>';
+      if (q.status === 'done' && q.confirmed !== '' && !q.review) acts += '<button class="btn sm" data-review="' + esc(q.id) + '">Залишити відгук</button>';
       if (q.review) body += '<div class="small" style="margin-top:8px">Ваш відгук: ' + stars(q.review.rating) + (q.review.text ? ' ' + esc(q.review.text) : '') + '</div>';
       return '<div class="card">' + body + (acts ? '<div class="row" style="margin-top:12px;flex-wrap:wrap">' + acts + '</div>' : '') + '</div>';
     }).join('') : '<div class="card empty"><b>Заявок ще немає</b>Опишіть проблему й оберіть сервіс, а відповідь прийде сюди.<div style="margin-top:14px"><a class="btn" href="#/new">Нова заявка</a></div></div>');
@@ -1038,6 +1132,16 @@ function renderRequests() {
       b.onclick = function () { busy(b, true); api('req.update', { id: b.dataset.cancel, status: 'cancelled' }).then(function () { toast('Заявку скасовано'); route(); }).catch(function (e) { busy(b, false); fail(e); }); };
     });
     $$('[data-review]').forEach(function (b) { b.onclick = function () { reviewDialog(b.dataset.review); }; });
+    $$('[data-ok]').forEach(function (b) {
+      b.onclick = function () { busy(b, true); api('req.confirm', { id: b.dataset.ok }).then(function () { toast('Дякуємо! Оцініть сервіс, це допоможе іншим водіям.'); reviewDialog(b.dataset.ok); }).catch(function (e) { busy(b, false); fail(e); }); };
+    });
+    $$('[data-dispute]').forEach(function (b) {
+      b.onclick = function () {
+        openDialog('<h2 style="margin-bottom:6px">Що пішло не так?</h2><p class="mini" style="margin:0 0 12px">Ми отримаємо повідомлення й зв\'яжемося з вами та сервісом.</p><textarea class="i" id="dpText" placeholder="Роботу не виконано / ціна не та, що домовлялись / інше"></textarea>' +
+          '<div class="row" style="margin-top:12px"><button class="btn ghost" data-close>Скасувати</button><button class="btn danger" id="dpGo" style="flex:1">Повідомити</button></div>');
+        $('#dpGo').onclick = function () { var btn = this; busy(btn, true); api('req.confirm', { id: b.dataset.dispute, ok: false, comment: $('#dpText').value }).then(function () { closeDialog(); toast('Повідомлення надіслано'); route(); }).catch(function (e) { busy(btn, false); fail(e); }); };
+      };
+    });
   }).catch(fail);
 }
 
@@ -1084,10 +1188,13 @@ function renderStoRequests() {
         (q.sto_comment ? '<dt>Ваш коментар</dt><dd>' + esc(q.sto_comment) + '</dd>' : '') +
         (q.work_done ? '<dt>Виконано</dt><dd>' + esc(q.work_done) + '</dd>' : '') + '</dl>';
       if (q.review) body += '<div class="small" style="margin-top:8px">Відгук: ' + stars(q.review.rating) + (q.review.text ? ' ' + esc(q.review.text) : '') + '</div>';
+      if (q.visited !== undefined && (q.status === 'accepted' || q.status === 'in_work' || q.status === 'done')) body += q.visited ? '<span class="vtag">Візит підтверджено кодом</span>' : '<span class="vtag no">Візит не підтверджено кодом</span>';
+      if (q.confirmed === 'так') body += ' <span class="vtag">Водій підтвердив виконання</span>';
       var acts = '';
+      if (q.visited === '' && (q.status === 'accepted' || q.status === 'in_work')) acts += '<button class="btn sm dark" data-act="code" data-id="' + esc(q.id) + '">Ввести код водія</button>';
       if (q.status === 'new') acts = '<button class="btn sm" data-act="accept" data-id="' + esc(q.id) + '">Прийняти</button><button class="btn sm ghost" data-act="decline" data-id="' + esc(q.id) + '">Відхилити</button>';
-      if (q.status === 'accepted') acts = '<button class="btn sm dark" data-act="in_work" data-id="' + esc(q.id) + '">Авто в роботі</button><button class="btn sm" data-act="done" data-id="' + esc(q.id) + '">Завершити</button>';
-      if (q.status === 'in_work') acts = '<button class="btn sm" data-act="done" data-id="' + esc(q.id) + '">Завершити</button>';
+      if (q.status === 'accepted') acts += (q.visited ? '' : '<button class="btn sm ' + (q.visited === undefined ? 'dark' : 'ghost') + '" data-act="in_work" data-id="' + esc(q.id) + '">' + (q.visited === undefined ? 'Авто в роботі' : 'Авто в роботі без коду') + '</button>') + '<button class="btn sm" data-act="done" data-id="' + esc(q.id) + '">Завершити</button>';
+      if (q.status === 'in_work') acts += '<button class="btn sm" data-act="done" data-id="' + esc(q.id) + '">Завершити</button>';
       return '<div class="card">' + body + (acts ? '<div class="row" style="margin-top:12px;flex-wrap:wrap">' + acts + '</div>' : '') + '</div>';
     }).join('') : '<div class="card empty"><b>' + ({ new: 'Нових заявок немає', active: 'Немає заявок у роботі', archive: 'Архів порожній' })[stoTab] + '</b>' +
       (stoTab === 'new' ? 'Коли водій обере ваш сервіс, заявка з\'явиться тут, а телефон водія відкриється після того, як ви її приймете.' : '') + '</div>';
@@ -1096,6 +1203,17 @@ function renderStoRequests() {
 }
 
 function stoAction(act, q) {
+  if (act === 'code') {
+    openDialog('<h2 style="margin-bottom:6px">Код візиту</h2><p class="mini" style="margin:0 0 12px">Водій бачить 4-значний код у своїй заявці. Введіть його, коли авто приїде: так візит зарахується як заявка через АвтоХаб.</p>' +
+      '<input class="i" id="vCode" inputmode="numeric" maxlength="4" placeholder="0000" style="font-size:24px;letter-spacing:.3em;text-align:center"><div id="vErr"></div>' +
+      '<div class="row" style="margin-top:12px"><button class="btn ghost" data-close>Скасувати</button><button class="btn" id="vGo" style="flex:1">Підтвердити візит</button></div>');
+    $('#vGo').onclick = function () {
+      var btn = this; busy(btn, true);
+      api('req.visit', { id: q.id, code: $('#vCode').value }).then(function () { closeDialog(); toast('Візит підтверджено, авто в роботі'); stoTab = 'active'; renderStoRequests(); })
+        .catch(function (e) { busy(btn, false); $('#vErr').innerHTML = '<div class="note err" style="margin-top:10px">' + esc(e.message) + '</div>'; });
+    };
+    return;
+  }
   if (act === 'in_work') {
     return api('req.update', { id: q.id, status: 'in_work' }).then(function () { toast('Позначено: у роботі'); renderStoRequests(); }).catch(fail);
   }
@@ -1310,20 +1428,34 @@ function renderAdminReq() {
     var f = '';
     view.innerHTML = '<div class="between" style="margin-bottom:12px"><h1>Заявки</h1><span class="mini">' + r.total + ' усього</span></div>' +
       '<select class="i" id="arF" style="margin-bottom:12px"><option value="">Усі статуси</option>' + ['new', 'accepted', 'in_work', 'done', 'declined', 'cancelled'].map(function (k) { return '<option value="' + k + '">' + esc({ new: 'Нова', accepted: 'Прийнята', in_work: 'У роботі', done: 'Виконана', declined: 'Відхилена', cancelled: 'Скасована' }[k]) + '</option>'; }).join('') + '</select><div id="arL"></div>';
+    var ageH = function (q) { var m = String(q.updated || q.created).match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/); return m ? (Date.now() - new Date(m[1], m[2] - 1, m[3], m[4], m[5])) / 36e5 : 0; };
+    var isLate = function (q) { return (q.status === 'new' && ageH(q) > 2) || (q.status === 'done' && q.confirmed === '' && ageH(q) > 48) || q.confirmed === 'спір'; };
+    var late = r.requests.filter(isLate);
+    $('#arF').insertAdjacentHTML('afterbegin', '<option value="late">Потребують уваги (' + late.length + ')</option>');
+    if (late.length) { f = 'late'; $('#arF').value = 'late'; }
     function draw() {
-      var list = r.requests.filter(function (q) { return !f || q.status === f; });
+      var list = r.requests.filter(function (q) { return !f || (f === 'late' ? isLate(q) : q.status === f); });
       $('#arL').innerHTML = list.length ? list.map(function (q) {
-        return '<div class="card"><div class="between"><b>' + esc(q.category) + ' · ' + esc(q.car) + '</b><span class="badge b-' + esc(q.status) + '">' + esc(q.status_label) + '</span></div>' +
+        var why = q.confirmed === 'спір' ? 'Спір: водій не підтвердив виконання' : q.status === 'new' && ageH(q) > 2 ? 'Сервіс не відповідає понад 2 години' : q.status === 'done' && q.confirmed === '' && ageH(q) > 48 ? 'Водій не підтвердив виконання' : '';
+        return '<div class="card' + (why ? ' late' : '') + '">' + (why ? '<div class="note warn" style="margin-bottom:10px"><b>' + esc(why) + '.</b> Зателефонуйте стороні й запишіть результат.</div>' : '') + '<div class="between"><b>' + esc(q.category) + ' · ' + esc(q.car) + '</b><span class="badge b-' + esc(q.status) + '">' + esc(q.status_label) + '</span></div>' +
           '<p class="small" style="margin:6px 0">' + esc(q.description) + '</p>' +
           '<dl class="kv"><dt>Водій</dt><dd>' + (q.driver ? esc(q.driver.name) + ', <a href="' + esc(telHref(q.driver.phone)) + '">' + esc(fmtPhone(q.driver.phone)) + '</a>' : '—') + '</dd>' +
           '<dt>СТО</dt><dd>' + (q.sto ? esc(q.sto.name) + (q.sto.phone ? ', <a href="' + esc(telHref(q.sto.phone)) + '">' + esc(fmtPhone(q.sto.phone)) + '</a>' : '') : '—') + '</dd>' +
           '<dt>Створено</dt><dd>' + esc(dt(q.created)) + '</dd>' + (q.updated && q.updated !== q.created ? '<dt>Оновлено</dt><dd>' + esc(dt(q.updated)) + '</dd>' : '') +
           (q.preferred ? '<dt>Бажаний час</dt><dd>' + esc(q.preferred) + '</dd>' : '') + (q.visit ? '<dt>Запрошення</dt><dd>' + esc(q.visit) + '</dd>' : '') +
           (q.price ? '<dt>Ціна</dt><dd>' + esc(q.price) + ' грн</dd>' : '') + (q.sto_comment ? '<dt>Коментар СТО</dt><dd>' + esc(q.sto_comment) + '</dd>' : '') +
-          (q.work_done ? '<dt>Виконано</dt><dd>' + esc(q.work_done) + '</dd>' : '') + (q.review ? '<dt>Відгук</dt><dd>' + stars(q.review.rating) + ' ' + esc(q.review.text || '') + '</dd>' : '') + '</dl></div>';
+          (q.work_done ? '<dt>Виконано</dt><dd>' + esc(q.work_done) + '</dd>' : '') + (q.review ? '<dt>Відгук</dt><dd>' + stars(q.review.rating) + ' ' + esc(q.review.text || '') + '</dd>' : '') +
+          (q.code ? '<dt>Код візиту</dt><dd>' + esc(q.code) + (q.visited ? ', підтверджено ' + esc(dt(q.visited)) : ', ще не введено') + '</dd>' : '') +
+          (q.confirmed ? '<dt>Водій</dt><dd>' + (q.confirmed === 'так' ? 'підтвердив виконання' : 'повідомив про проблему') + '</dd>' : '') + '</dl>' +
+          (q.admin_note === undefined ? '' : '<label class="f" for="an_' + esc(q.id) + '" style="margin-top:10px">Нотатка зв\'язкового</label><div class="row"><input class="i" id="an_' + esc(q.id) + '" value="' + esc(q.admin_note || '') + '" placeholder="Подзвонив СТО, приймуть завтра"><button type="button" class="btn sm ghost" data-note="' + esc(q.id) + '">Зберегти</button></div>') + '</div>';
       }).join('') : '<div class="card empty"><b>Заявок немає</b>Коли водії почнуть надсилати заявки, вони з\'являться тут.</div>';
     }
     $('#arF').onchange = function () { f = this.value; draw(); };
+    $('#arL').onclick = function (e) {
+      var b = e.target.closest('[data-note]'); if (!b) return;
+      var q = r.requests.filter(function (x) { return x.id === b.dataset.note; })[0], v = $('#an_' + b.dataset.note).value;
+      busy(b, true); api('admin.req.note', { id: q.id, note: v }, { admin: true }).then(function () { q.admin_note = v; busy(b, false); toast('Нотатку збережено'); }).catch(function (e2) { busy(b, false); fail(e2); });
+    };
     draw();
   }).catch(fail);
 }

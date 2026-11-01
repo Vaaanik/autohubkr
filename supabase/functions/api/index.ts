@@ -9,6 +9,8 @@ const CATEGORIES = ['Діагностика', 'Двигун', 'Ходова', '�
 const DISTRICTS = ['Центрально-Міський', 'Металургійний', 'Саксаганський', 'Довгинцівський', 'Покровський', 'Тернівський', 'Інгулецький'];
 const STATUS = { new: 'Нова', accepted: 'Прийнята', declined: 'Відхилена', in_work: 'У роботі', done: 'Виконана', cancelled: 'Скасована' };
 const URGENCY = ['Можна планувати', 'Варто не відкладати', 'Небезпечно їхати'];
+// Документи авто зі строком дії: [ключ, назва]
+const CAR_DOCS = [['osago_until', 'ОСЦПВ (автоцивілка)'], ['kasko_until', 'КАСКО'], ['inspection_until', 'Техогляд'], ['green_until', 'Зелена карта']];
 // Характеристики авто (крок «Модифікація»)
 const CAR_OPTS = {
   fuels: ['Бензин', 'Дизель', 'Газ/бензин', 'Гібрид', 'Електро'],
@@ -18,7 +20,7 @@ const CAR_OPTS = {
 };
 // Довідник робіт для історії й плану ТО: [код, назва, група, інтервал км, інтервал місяців, лише для пального]
 // Інтервали орієнтовні; точні — у регламенті виробника.
-const SERVICE_GROUPS = ['ТО і рідини', 'Двигун і ГРМ', 'Гальма', 'Ходова і кермо', 'Трансмісія', 'Електрика', 'Шини', 'Кузов і салон', 'Інше'];
+const SERVICE_GROUPS = ['ТО і рідини', 'Двигун і ГРМ', 'Гальма', 'Ходова і кермо', 'Трансмісія', 'Електрика', 'Шини', 'Кузов і салон', 'Інше', 'Витрати'];
 const SERVICES = [
   ['oil', 'Заміна оливи двигуна й фільтра', 0, 10000, 12], ['air_filter', 'Повітряний фільтр', 0, 20000, 24], ['cabin_filter', 'Салонний фільтр', 0, 15000, 12],
   ['fuel_filter', 'Паливний фільтр', 0, 40000, 48], ['spark_plugs', 'Свічки запалювання', 0, 40000, 48, 'petrol'], ['glow_plugs', 'Свічки розжарювання', 0, 100000, 0, 'diesel'],
@@ -39,7 +41,8 @@ const SERVICES = [
   ['battery', 'Акумулятор', 5, 0, 60], ['alternator', 'Генератор', 5, 200000, 0], ['starter', 'Стартер', 5, 200000, 0], ['lights', 'Лампи й фари', 5, 0, 0], ['diagnostics', "Комп'ютерна діагностика", 5, 0, 0],
   ['tires_season', 'Сезонна заміна шин', 6, 0, 6], ['tires_new', 'Нові шини', 6, 50000, 72], ['balancing', 'Балансування коліс', 6, 0, 0], ['tire_repair', 'Ремонт шини', 6, 0, 0],
   ['body_repair', 'Кузовний ремонт / фарбування', 7, 0, 0], ['glass', 'Заміна скла', 7, 0, 0], ['wipers', 'Щітки склоочисника', 7, 0, 12], ['antirust', 'Антикорозійна обробка', 7, 0, 36], ['detailing', 'Мийка, хімчистка, полірування', 7, 0, 0],
-  ['other', 'Інше', 8, 0, 0]
+  ['other', 'Інше', 8, 0, 0],
+  ['fuel', 'Пальне', 9, 0, 0], ['insurance', 'Страховка', 9, 0, 0], ['parts', 'Запчастини й витратні матеріали', 9, 0, 0], ['fees', 'Збори, штрафи, документи', 9, 0, 0], ['parking', 'Паркування', 9, 0, 0]
 ];
 const SERVICE_CODES = SERVICES.map((x) => x[0]);
 const PHOTO_MAX = 1600000; // байтів після стиснення в браузері
@@ -92,7 +95,7 @@ function makeApi(db, deps) {
 
   /* --- облікові записи --- */
   const pubUser = (u) => { const p = { id: u.id, role: u.role, name: u.name, phone: u.phone }; if (u.isAdmin || u.role === 'admin') p.isAdmin = true; return p; };
-  const CAR_KEYS = ['id', 'make', 'model', 'year', 'plate', 'vin', 'mileage', 'engine', 'fuel', 'power', 'gearbox', 'drive', 'body'];
+  const CAR_KEYS = ['id', 'make', 'model', 'year', 'plate', 'vin', 'mileage', 'engine', 'fuel', 'power', 'gearbox', 'drive', 'body'].concat(CAR_DOCS.map((d) => d[0]));
   const pubCar = (c, urls) => { const p = pick(c, CAR_KEYS); p.photo = c.photo && urls ? (urls[c.photo] || '') : ''; return p; };
   // Перевірка й нормалізація полів авто (спільна для додавання й редагування).
   function carFields(r, partial) {
@@ -108,6 +111,7 @@ function makeApi(db, deps) {
     if (has('power')) { const pw = int(r.power); if (pw && pw > 1500) fail('Перевірте потужність'); f.power = pw; }
     const opt = (k, list) => { if (has(k)) f[k] = r[k] ? oneOf(r[k], list) : ''; };
     opt('fuel', CAR_OPTS.fuels); opt('gearbox', CAR_OPTS.gearboxes); opt('drive', CAR_OPTS.drives); opt('body', CAR_OPTS.bodies);
+    CAR_DOCS.forEach((d) => { if (has(d[0])) { const v = s_(r[d[0]]); if (v && !date_(v)) fail('Перевірте дату: ' + d[1]); f[d[0]] = date_(v); } });
     return f;
   }
   async function signPhotos(cars) {
@@ -122,7 +126,7 @@ function makeApi(db, deps) {
     if (own) p.active = isActive(s);
     return p;
   }
-  const pubReq = (q) => { const p = pick(q, ['id', 'car_id', 'sto_id', 'category', 'description', 'preferred', 'status', 'sto_comment', 'price', 'visit', 'work_done', 'mileage', 'created', 'updated']); p.status_label = STATUS[q.status] || q.status; return p; };
+  const pubReq = (q) => { const p = pick(q, ['id', 'car_id', 'sto_id', 'category', 'description', 'preferred', 'status', 'sto_comment', 'price', 'visit', 'work_done', 'mileage', 'visited', 'confirmed', 'created', 'updated']); p.status_label = STATUS[q.status] || q.status; return p; };
   const geoOf = (s) => (s.geo === 'x' || s.geo === 'xx') ? 'not_found' : (s.lat ? 'ok' : '');
 
   async function session(u) {
@@ -268,6 +272,8 @@ function makeApi(db, deps) {
       p.car = car ? carTitle(car) : '';
       p.sto = sto ? { id: sto.id, name: sto.name, phone: sto.phone, address: sto.address } : null;
       p.review = rv ? { rating: rv.rating, text: rv.text } : null;
+      // Код візиту бачить лише водій: показує його в сервісі, сервіс вводить код у застосунку.
+      if (u.role === 'driver' && (q.status === 'accepted' || q.status === 'in_work') && !q.visited) p.code = q.code || '';
       if (u.role === 'sto') {
         const d = by(users, 'id', q.driver_id);
         // Телефон водія сервіс бачить лише після того, як прийняв заявку.
@@ -291,6 +297,7 @@ function makeApi(db, deps) {
     }
     if (!FLOW[to] || FLOW[to].indexOf(q.status) === -1) fail('Цей крок зараз недоступний');
     const patch = { status: to, updated: now() };
+    if (to === 'accepted') patch.code = String(1000 + Math.floor(Math.random() * 9000));
     if (r.comment !== undefined) patch.sto_comment = s_(r.comment);
     if (r.price !== undefined && r.price !== '') patch.price = num(r.price);
     if (r.visit !== undefined) patch.visit = s_(r.visit);
@@ -299,8 +306,42 @@ function makeApi(db, deps) {
     if (to === 'done') {
       const [sto, car] = await Promise.all([db.find('stos', 'id', nq.sto_id), db.find('cars', 'id', nq.car_id)]);
       await db.insert('history', { id: id(), car_id: nq.car_id, user_id: nq.driver_id, date: today(), work: nq.work_done, place: sto ? sto.name : '',
-        price: nq.price, mileage: nq.mileage, request_id: nq.id, created: now() });
+        price: nq.price, mileage: nq.mileage, request_id: nq.id, created: now(), confirmed: '' });
       if (car && nq.mileage) await bumpMileage(car, nq.mileage);
+    }
+    return { request: pubReq(nq) };
+  }
+
+  // Сервіс вводить код, який показав водій: так фіксується, що водій справді приїхав через АвтоХаб.
+  async function reqVisit(r) {
+    const u = await auth(r, 'sto');
+    const q = await db.find('requests', 'id', String(r.id || ''));
+    if (!q || q.sto_id !== u.sto_id) fail('Заявку не знайдено');
+    if (q.status !== 'accepted' && q.status !== 'in_work') fail('Код вводять після того, як заявку прийнято');
+    if (q.visited) return { request: pubReq(q) };
+    const ck = 'code_' + q.id, tries = Number(await kvGet(ck) || 0);
+    if (tries >= 5) fail('Забагато спроб. Зверніться до підтримки АвтоХабу.');
+    if (!q.code || String(r.code || '').replace(/\D/g, '') !== q.code) { await kvPut(ck, tries + 1, 86400); fail('Код не збігається. Попросіть водія показати код із застосунку.'); }
+    const patch = { visited: now(), updated: now() };
+    if (q.status === 'accepted') patch.status = 'in_work';
+    return { request: pubReq(await db.update('requests', q.id, patch)) };
+  }
+
+  // Водій підтверджує, що роботи виконано (або повідомляє про проблему). Підтверджена робота й відгук — основа рейтингу.
+  async function reqConfirm(r) {
+    const u = await auth(r, 'driver');
+    const q = await db.find('requests', 'id', String(r.id || ''));
+    if (!q || q.driver_id !== u.id) fail('Заявку не знайдено');
+    if (q.status !== 'done') fail('Підтвердити можна після того, як сервіс позначить роботу виконаною');
+    if (q.confirmed) fail('Ви вже відповіли на цю заявку');
+    const ok = r.ok !== false;
+    const nq = await db.update('requests', q.id, { confirmed: ok ? 'так' : 'спір', updated: now() });
+    const h = (await db.where('history', 'request_id', q.id))[0];
+    if (h) await db.update('history', h.id, { confirmed: ok ? 'так' : 'спір' });
+    if (!ok) {
+      const sto = await db.find('stos', 'id', q.sto_id);
+      notify('Спір за заявкою в АвтоХабі → ' + (sto ? sto.name : ''), 'Водій ' + u.name + ' (' + u.phone + ') не підтвердив виконання.\nКоментар: ' + (s_(r.comment) || '—') +
+        '\nРоботи за словами сервісу: ' + q.work_done + '\nСервіс: ' + (sto ? sto.name + ', ' + sto.phone : '—'));
     }
     return { request: pubReq(nq) };
   }
@@ -394,8 +435,17 @@ function makeApi(db, deps) {
       const p = pubReq(q), car = by(cars, 'id', q.car_id), sto = by(stos, 'id', q.sto_id), d = by(users, 'id', q.driver_id), rv = by(reviews, 'request_id', q.id);
       p.car = car ? carTitle(car) : ''; p.sto = sto ? { name: sto.name, phone: sto.phone } : null;
       p.driver = d ? { name: d.name, phone: d.phone } : null; p.review = rv ? { rating: rv.rating, text: rv.text } : null;
+      p.admin_note = q.admin_note || ''; p.code = q.code || '';
       return p;
     }), total: all.length };
+  }
+
+  async function adminReqNote(r) {
+    await auth(r, 'admin');
+    const q = await db.find('requests', 'id', String(r.id || ''));
+    if (!q) fail('Заявку не знайдено');
+    await db.update('requests', q.id, { admin_note: s_(r.note) });
+    return {};
   }
 
   async function adminUsers(r) {
@@ -484,8 +534,17 @@ function makeApi(db, deps) {
       category: { type: 'STRING', enum: CATEGORIES }, urgency: { type: 'STRING', enum: URGENCY }, summary: { type: 'STRING' },
       causes: { type: 'ARRAY', items: { type: 'STRING' } }, checks: { type: 'ARRAY', items: { type: 'STRING' } }, ask_sto: { type: 'ARRAY', items: { type: 'STRING' } },
       request_text: { type: 'STRING' } }, required: ['category', 'urgency', 'summary', 'causes', 'request_text'] };
-    const body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.3, maxOutputTokens: 4096 } });
+    const a = await gemini(ck, used, system, [{ text: prompt }], schema);
+    const arr = (v, n) => (Array.isArray(v) ? v : []).map(s_).filter(String).slice(0, n);
+    return { ai: { category: CATEGORIES.indexOf(a.category) !== -1 ? a.category : 'Інше', urgency: URGENCY.indexOf(a.urgency) !== -1 ? a.urgency : URGENCY[1],
+      summary: s_(a.summary), causes: arr(a.causes, 4), checks: arr(a.checks, 3), ask_sto: arr(a.ask_sto, 3), request_text: s_(a.request_text), model: a._model } };
+  }
+
+  // Запит до Gemini з перебором моделей. ck/used — лічильник ліміту водія (невдалий запит не рахуємо).
+  async function gemini(ck, used, system, parts, schema) {
+    const key = env.GEMINI_API_KEY;
+    const body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts }],
+      generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.2, maxOutputTokens: 4096 } });
     const custom = env.GEMINI_MODEL;
     const models = [];
     if (custom) models.push(custom);
@@ -497,13 +556,12 @@ function makeApi(db, deps) {
       lastCode = resp.status;
       if (lastCode === 200) {
         const data = await resp.json();
-        const parts = ((((data.candidates || [])[0] || {}).content || {}).parts) || [];
-        const raw = parts.map((p) => p.thought ? '' : (p.text || '')).join('');
+        const out = ((((data.candidates || [])[0] || {}).content || {}).parts) || [];
+        const raw = out.map((p) => p.thought ? '' : (p.text || '')).join('');
         let a;
-        try { a = JSON.parse(raw); } catch (e) { console.error('AI JSON', raw); fail('AI не зміг відповісти. Спробуйте переформулювати.'); }
-        const arr = (v, n) => (Array.isArray(v) ? v : []).map(s_).filter(String).slice(0, n);
-        return { ai: { category: CATEGORIES.indexOf(a.category) !== -1 ? a.category : 'Інше', urgency: URGENCY.indexOf(a.urgency) !== -1 ? a.urgency : URGENCY[1],
-          summary: s_(a.summary), causes: arr(a.causes, 4), checks: arr(a.checks, 3), ask_sto: arr(a.ask_sto, 3), request_text: s_(a.request_text), model: models[i] } };
+        try { a = JSON.parse(raw); } catch (e) { console.error('AI JSON', raw); fail('AI не зміг відповісти. Спробуйте ще раз.'); }
+        a._model = models[i];
+        return a;
       }
       console.error('Gemini ' + models[i] + ' → ' + lastCode + ': ' + String(await resp.text()).slice(0, 300));
       if (!custom && i < models.length - 1) await kvPut('ai_skip_' + models[i], 1, lastCode === 404 ? 21600 : 600);
@@ -511,6 +569,41 @@ function makeApi(db, deps) {
     }
     await kvPut(ck, used, 21600); // невдалий запит не рахуємо
     fail(lastCode === 429 ? 'AI зараз перевантажений. Спробуйте за хвилину.' : 'AI тимчасово недоступний. Спробуйте пізніше.');
+  }
+
+  // Фото чека або заказ-наряду → чернетка запису в історію (водій перевіряє й зберігає сам).
+  async function aiReceipt(r) {
+    const u = await auth(r, 'driver');
+    if (!env.GEMINI_API_KEY) fail('Розпізнавання чеків ще не налаштоване');
+    const m = String(r.image || '').match(/^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/);
+    if (!m) fail('Надішліть фото чека у форматі JPEG');
+    if (m[1].length * 0.75 > PHOTO_MAX) fail('Фото завелике');
+    const ck = 'ai_' + u.id, used = Number(await kvGet(ck) || 0);
+    if (used >= AI_LIMIT) fail('Ліміт розпізнавань вичерпано. Спробуйте за кілька годин.');
+    await kvPut(ck, used + 1, 21600);
+    const codes = SERVICES.map((x) => x[0] + ' — ' + x[1]).join('\n');
+    const system = ['Ти розпізнаєш фото чека, накладної або заказ-наряду автосервісу чи АЗС в Україні для гаража водія.',
+      'Повертай лише те, що видно на фото. Якщо поля немає, залиш порожнім (рядок) або 0 (число).',
+      'date у форматі YYYY-MM-DD. price — підсумкова сума до сплати в гривнях. mileage — пробіг, якщо вказаний. place — назва продавця або сервісу.',
+      'services — коди робіт із переліку, які точно відповідають позиціям чека. Для АЗС — fuel, для запчастин без робіт — parts.',
+      'work — короткий перелік позицій українською, до 300 символів. Якщо це не чек, поверни ok=false.', 'Перелік кодів:', codes].join('\n');
+    const schema = { type: 'OBJECT', properties: { ok: { type: 'BOOLEAN' }, date: { type: 'STRING' }, price: { type: 'NUMBER' }, mileage: { type: 'NUMBER' },
+      place: { type: 'STRING' }, work: { type: 'STRING' }, services: { type: 'ARRAY', items: { type: 'STRING' } } }, required: ['ok'] };
+    const a = await gemini(ck, used, system, [{ inline_data: { mime_type: 'image/jpeg', data: m[1] } }, { text: 'Розпізнай цей документ.' }], schema);
+    if (!a.ok) fail('Не схоже на чек. Сфотографуйте чек рівно й при доброму світлі.');
+    const d = date_(a.date);
+    return { receipt: { date: d && d <= today() ? d : '', price: num(a.price), mileage: int(a.mileage), place: s_(a.place).slice(0, 120), work: s_(a.work).slice(0, 300),
+      services: [...new Set(list_(a.services, SERVICE_CODES))] } };
+  }
+
+  // Публічні лічильники для сайту: скільки анкет і сервісів у каталозі (без персональних даних).
+  async function statsPublic() {
+    const cached = await kvGet('stats_public');
+    if (cached) return JSON.parse(cached);
+    const [leads, stos] = await Promise.all([db.all('leads'), db.where('stos', 'active', true)]);
+    const res = { drivers: leads.filter((l) => l.kind === 'driver').length, services: leads.filter((l) => l.kind === 'service').length, catalog: stos.length };
+    await kvPut('stats_public', JSON.stringify(res), 300);
+    return res;
   }
 
   /* --- анкети з лендингів і перегляди сторінок --- */
@@ -586,8 +679,8 @@ function makeApi(db, deps) {
     return {};
   }
 
-  const META = { categories: CATEGORIES, districts: DISTRICTS, statuses: STATUS, urgency: URGENCY, car: CAR_OPTS, services: SERVICES, serviceGroups: SERVICE_GROUPS };
-  const histOut = (h) => { const p = pick(h, ['id', 'date', 'work', 'place', 'price', 'mileage', 'request_id']); p.services = String(h.services || '').split(',').filter(Boolean); return p; };
+  const META = { categories: CATEGORIES, districts: DISTRICTS, statuses: STATUS, urgency: URGENCY, car: CAR_OPTS, services: SERVICES, serviceGroups: SERVICE_GROUPS, carDocs: CAR_DOCS };
+  const histOut = (h) => { const p = pick(h, ['id', 'date', 'work', 'place', 'price', 'mileage', 'request_id', 'confirmed']); p.services = String(h.services || '').split(',').filter(Boolean); return p; };
 
   const ACTIONS = {
     meta: async () => META,
@@ -632,7 +725,8 @@ function makeApi(db, deps) {
     'cars.delete': async (r) => { const u = await auth(r, 'driver'); const c = await ownCar(u, r.id); await db.update('cars', c.id, { deleted: 'так' }); return {}; },
     'sto.catalog': catalog,
     'sto.update': stoUpdate,
-    'req.create': reqCreate, 'req.list': reqList, 'req.update': reqUpdate,
+    'req.create': reqCreate, 'req.list': reqList, 'req.update': reqUpdate, 'req.visit': reqVisit, 'req.confirm': reqConfirm,
+    'stats.public': statsPublic, 'ai.receipt': aiReceipt,
     'review.add': reviewAdd,
     'history.list': async (r) => {
       const u = await auth(r, 'driver'); const c = await ownCar(u, r.car_id);
@@ -662,7 +756,7 @@ function makeApi(db, deps) {
       return {};
     },
     'ai.diagnose': aiDiagnose,
-    'admin.stats': adminStats, 'admin.stos': adminStos, 'admin.sto.set': adminStoSet, 'admin.requests': adminRequests, 'admin.users': adminUsers,
+    'admin.stats': adminStats, 'admin.stos': adminStos, 'admin.sto.set': adminStoSet, 'admin.requests': adminRequests, 'admin.req.note': adminReqNote, 'admin.users': adminUsers,
     // тестовий сервіс адміністратора: щоб перевіряти режим «Сервіс», не чіпаючи справжніх партнерів
     'admin.sto.test': async (r) => {
       const u = await auth(r, 'admin');

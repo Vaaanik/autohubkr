@@ -284,3 +284,22 @@ footer{padding:36px 0 110px;color:var(--ink-soft);font-size:14px}
 .three p{color:var(--ink-soft);margin:10px 0 0;font-size:16px}
 @media (max-width:900px){.choose,.three{grid-template-columns:1fr}}
 @media (max-width:560px){.topnav a.small{display:none}.topnav{gap:0}}
+
+/* вхід у застосунок, додаткові поля форми, лічильник каталогу (02.11.2026) */
+.top a.app{font-size:14px;font-weight:600;text-decoration:none;color:#06111F;background:#fff;border-radius:99px;padding:7px 14px;white-space:nowrap}
+.top a.app:hover{background:var(--signal)}
+@media (max-width:560px){.topnav{gap:14px}.top a.app{padding:6px 12px;font-size:13px}}
+details.form-more{border:1.5px solid var(--line);border-radius:14px;padding:14px 16px;background:#fff}
+details.form-more summary{font-size:16px;flex-direction:column;align-items:flex-start;gap:2px;position:relative;padding-right:28px}
+details.form-more summary::after{position:absolute;right:0;top:0}
+details.form-more summary .hint{font-weight:400;font-size:14px;color:var(--ink-soft)}
+details.form-more[open]{padding-bottom:4px}
+details.form-more > fieldset, details.form-more > div{margin-top:18px}
+.app-strip{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:22px;padding:16px 18px;border-radius:14px;background:var(--petrol);color:#fff}
+.app-strip p{margin:0;max-width:34em;color:#DCE6F0;font-size:15px}
+.app-strip b{color:#fff}
+.app-strip .btn{background:#fff;color:#06111F}
+.live-count{margin-top:14px;font-size:15px;color:var(--ink-soft)}
+.live-count b{color:var(--ink)}
+.privacy h2{margin-top:32px}.privacy p,.privacy li{color:var(--ink-soft);max-width:46em}
+@media (max-width:420px){.topnav a.sw + a.sw{display:none}}
