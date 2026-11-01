@@ -2,12 +2,7 @@
 # Потрібен секрет SUPABASE_SERVICE_KEY (Settings → Secrets and variables → Actions). Без нього лише рахує записи.
 name: Реєстр VIN (МВС)
 on:
-  schedule:
-    - cron: '41 4 20 * *'   # 20-го числа щомісяця: ГСЦ оновлює файл у середині місяця
-  workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['scripts/import-vin-registry.mjs', '.github/workflows/vin-registry.yml']
+  workflow_dispatch:   # лише ручний запуск: основний пошук тепер живий (baza-gai.com.ua)
 concurrency:
   group: vin-registry
   cancel-in-progress: false
