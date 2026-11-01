@@ -455,10 +455,10 @@ function stoPicker() {
   openDialog('<h2 style="margin-bottom:6px">Чий кабінет відкрити?</h2><p class="mini" style="margin:0 0 12px">Сервіси-партнери, які зареєструвались у застосунку. Довідкові СТО без власника сюди не входять.</p><div id="spL"><div class="spin">Завантаження…</div></div>' +
     '<div class="row" style="margin-top:12px"><button type="button" class="btn ghost" data-close style="flex:1">Скасувати</button></div>');
   api('admin.stos', {}, { admin: true }).then(function (r) {
-    var list = r.stos.filter(function (s) { return s.owner; });
+    var list = r.stos.filter(function (s) { return s.owner || (s.partner && s.active); });
     var mine = list.filter(function (s) { return s.source === 'тест'; })[0];
     $('#spL').innerHTML = (list.length ? list.map(function (s) {
-      return '<button type="button" class="sp-row" data-sid="' + esc(s.id) + '"><b>' + esc(s.name) + '</b><span class="mini">' + esc(s.owner ? s.owner.name : '') + ' · ' + (s.active ? 'показується водіям' : 'не активний') + '</span></button>';
+      return '<button type="button" class="sp-row" data-sid="' + esc(s.id) + '"><b>' + esc(s.name) + '</b><span class="mini">' + esc(s.owner ? s.owner.name : 'через зв\'язкового') + ' · ' + (s.active ? 'показується водіям' : 'не активний') + '</span></button>';
     }).join('') : '<p class="small muted">Поки жоден сервіс не зареєструвався.</p>') +
       (mine ? '' : '<button type="button" class="btn sm ghost wide" id="spTest" style="margin-top:10px">Створити тестовий сервіс</button><p class="mini" style="margin:6px 0 0">Тестовий сервіс не показується водіям, доки ви не активуєте його в розділі «СТО».</p>');
     $$('.sp-row', $('#spL')).forEach(function (b) { b.onclick = function () { closeDialog(); setView('sto', b.dataset.sid); }; });
@@ -1365,7 +1365,7 @@ function renderAdmin() {
 
 function adminStoCard(s) {
   return '<div class="card" data-sid="' + esc(s.id) + '"><div class="between"><div><b>' + esc(s.name) + '</b><div class="mini">' + esc([s.district || 'район не вказано', s.address].filter(Boolean).join(' · ')) + '</div></div>' +
-    (s.owner ? (s.active ? '<span class="badge b-done">Партнер</span>' : '<span class="badge b-new">На перевірці</span>') : (s.active ? '<span class="badge b-declined">Довідник</span>' : s.source === 'анкета' ? '<span class="badge b-new">З анкети</span>' : '<span class="badge b-cancelled">Приховано</span>')) + '</div>' +
+    (s.owner ? (s.active ? '<span class="badge b-done">Партнер</span>' : '<span class="badge b-new">На перевірці</span>') : s.partner && s.active ? '<span class="badge b-done">Партнер через зв\'язкового</span>' : (s.active ? '<span class="badge b-declined">Довідник</span>' : s.source === 'анкета' ? '<span class="badge b-new">З анкети</span>' : '<span class="badge b-cancelled">Приховано</span>')) + '</div>' +
     '<div class="small" style="margin-top:6px">' + (s.phone ? '<a href="' + esc(telHref(s.phone)) + '">' + esc(fmtPhone(s.phone)) + '</a>' : '<span class="muted">без телефону</span>') +
     (s.owner ? ' · власник: ' + esc(s.owner.name) + (s.owner.phone && s.owner.phone !== s.phone ? ', <a href="' + esc(telHref(s.owner.phone)) + '">' + esc(fmtPhone(s.owner.phone)) + '</a>' : '') : '') + '</div>' +
     (s.services.length ? '<div class="mini" style="margin-top:2px">' + esc(s.services.join(', ')) + '</div>' : '') +
@@ -1373,6 +1373,8 @@ function adminStoCard(s) {
     '<div class="mini">' + (s.geo === 'ok' ? '📍 є на карті' : s.geo === 'not_found' ? '📍 адресу не знайдено на карті' : '📍 координати ще не визначені') + (s.created ? ' · додано ' + esc(dt(s.created)) : '') + '</div>' +
     '<div class="row" style="margin-top:10px;flex-wrap:wrap;gap:8px">' +
       (s.active ? '<button class="btn sm ghost" data-act="off">' + (s.owner ? 'Зняти з каталогу' : 'Приховати') + '</button>' : '<button class="btn sm" data-act="on">' + (s.owner ? 'Активувати' : 'Показати') + '</button>') +
+      (!s.owner && s.active ? (s.partner ? '<button class="btn sm ghost" data-act="unpartner">Зняти партнерство</button><button class="btn sm ghost" data-act="cabinet">Кабінет сервісу</button>' : '<button class="btn sm dark" data-act="partner">Зробити партнером</button>') : '') +
+      (!s.owner && !s.active && s.source === 'анкета' ? '<button class="btn sm dark" data-act="partner">Показати як партнера</button>' : '') +
       '<button class="btn sm ghost" data-act="edit">Редагувати</button><a class="btn sm ghost" target="_blank" rel="noopener" href="' + esc(mapsLink(s)) + '">Google Maps</a></div></div>';
 }
 
@@ -1381,7 +1383,7 @@ function renderAdminSto() {
   Promise.all([meta(), api('admin.stos')]).then(function (res) {
     var M = res[0], all = res[1].stos, tab = store('ah_admin_sto_tab') || 'pending', q = '';
     var fromLead = function (s) { return !s.owner && !s.active && s.source === 'анкета'; };
-    var groups = { pending: function (s) { return (s.owner && !s.active) || fromLead(s); }, partners: function (s) { return s.owner && s.active; }, listed: function (s) { return !s.owner && !fromLead(s); }, map: function () { return true; } };
+    var groups = { pending: function (s) { return (s.owner && !s.active) || fromLead(s); }, partners: function (s) { return (s.owner || s.partner) && s.active; }, listed: function (s) { return !s.owner && !s.partner && !fromLead(s); }, map: function () { return true; } };
     var noGeo = all.filter(function (s) { return !s.geo && s.address; }).length, notFound = all.filter(function (s) { return s.geo === 'not_found'; }).length;
     view.innerHTML = '<div class="between" style="margin-bottom:12px"><h1>СТО</h1><span class="mini">' + all.length + ' усього</span></div>' +
       '<div class="seg" id="aTabs" style="margin-bottom:12px">' + [['pending', 'Перевірка'], ['partners', 'Партнери'], ['listed', 'Довідник'], ['map', 'Карта']].map(function (t) {
@@ -1415,6 +1417,19 @@ function renderAdminSto() {
       var b = e.target.closest('[data-act]'); if (!b) return;
       var card = b.closest('[data-sid]'), s = all.filter(function (x) { return x.id === card.dataset.sid; })[0];
       if (b.dataset.act === 'edit') return adminStoDialog(M, s, replace);
+      if (b.dataset.act === 'cabinet') return setView('sto', s.id);
+      if (b.dataset.act === 'partner' || b.dataset.act === 'unpartner') {
+        var on = b.dataset.act === 'partner';
+        if (on) {
+          openDialog('<h2 style="margin-bottom:6px">Зробити «' + esc(s.name) + '» партнером?</h2><p class="small" style="margin:0 0 8px">Водії зможуть надсилати цьому сервісу заявки з застосунку. Поки власник не зареєструвався, заявки приходять вам: ви дзвоните в сервіс і ведете заявку від його імені в розділі «Кабінет сервісу».</p>' +
+            '<p class="mini" style="margin:0 0 12px">Коли власник зареєструється як сервіс з телефоном ' + esc(s.phone ? fmtPhone(s.phone) : 'з картки') + ', картка перейде до нього автоматично.</p>' +
+            '<div class="row"><button class="btn ghost" data-close style="flex:1">Скасувати</button><button class="btn" id="pYes" style="flex:1">Зробити партнером</button></div>');
+          $('#pYes').onclick = function () { var bb = this; busy(bb, true); api('admin.sto.set', { id: s.id, partner: true }).then(function (r) { closeDialog(); toast('Партнера додано. Заявки йому приходитимуть вам.'); replace(r.sto); }).catch(function (e2) { busy(bb, false); fail(e2); }); };
+          return;
+        }
+        busy(b, true);
+        return api('admin.sto.set', { id: s.id, partner: false }).then(function (r) { toast('Партнерство знято, сервіс повернуто в довідник'); replace(r.sto); }).catch(function (e2) { busy(b, false); fail(e2); });
+      }
       busy(b, true);
       api('admin.sto.set', { id: s.id, active: b.dataset.act === 'on' }).then(function (r) { toast(b.dataset.act === 'on' ? 'Показано в каталозі' : 'Знято з каталогу'); replace(r.sto); })
         .catch(function (e2) { busy(b, false); fail(e2); });
@@ -1468,7 +1483,7 @@ function renderAdminReq() {
     view.innerHTML = '<div class="between" style="margin-bottom:12px"><h1>Заявки</h1><span class="mini">' + r.total + ' усього</span></div>' +
       '<select class="i" id="arF" style="margin-bottom:12px"><option value="">Усі статуси</option>' + ['new', 'accepted', 'in_work', 'done', 'declined', 'cancelled'].map(function (k) { return '<option value="' + k + '">' + esc({ new: 'Нова', accepted: 'Прийнята', in_work: 'У роботі', done: 'Виконана', declined: 'Відхилена', cancelled: 'Скасована' }[k]) + '</option>'; }).join('') + '</select><div id="arL"></div>';
     var ageH = function (q) { var m = String(q.updated || q.created).match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/); return m ? (Date.now() - new Date(m[1], m[2] - 1, m[3], m[4], m[5])) / 36e5 : 0; };
-    var isLate = function (q) { return (q.status === 'new' && ageH(q) > 2) || (q.status === 'done' && q.confirmed === '' && ageH(q) > 48) || q.confirmed === 'спір'; };
+    var isLate = function (q) { return (q.sto && q.sto.managed && ['new', 'accepted', 'in_work'].indexOf(q.status) !== -1) || (q.status === 'new' && ageH(q) > 2) || (q.status === 'done' && q.confirmed === '' && ageH(q) > 48) || q.confirmed === 'спір'; };
     var late = r.requests.filter(isLate);
     $('#arF').insertAdjacentHTML('afterbegin', '<option value="late">Потребують уваги (' + late.length + ')</option>');
     if (late.length) { f = 'late'; $('#arF').value = 'late'; }
@@ -1476,7 +1491,9 @@ function renderAdminReq() {
       var list = r.requests.filter(function (q) { return !f || (f === 'late' ? isLate(q) : q.status === f); });
       $('#arL').innerHTML = list.length ? list.map(function (q) {
         var why = q.confirmed === 'спір' ? 'Спір: водій не підтвердив виконання' : q.status === 'new' && ageH(q) > 2 ? 'Сервіс не відповідає понад 2 години' : q.status === 'done' && q.confirmed === '' && ageH(q) > 48 ? 'Водій не підтвердив виконання' : '';
-        return '<div class="card' + (why ? ' late' : '') + '">' + (why ? '<div class="note warn" style="margin-bottom:10px"><b>' + esc(why) + '.</b> Зателефонуйте стороні й запишіть результат.</div>' : '') + '<div class="between"><b>' + esc(q.category) + ' · ' + esc(q.car) + '</b><span class="badge b-' + esc(q.status) + '">' + esc(q.status_label) + '</span></div>' +
+        var viaLiaison = q.sto && q.sto.managed && ['new', 'accepted', 'in_work'].indexOf(q.status) !== -1;
+        return '<div class="card' + (why || viaLiaison ? ' late' : '') + '">' + (why ? '<div class="note warn" style="margin-bottom:10px"><b>' + esc(why) + '.</b> Зателефонуйте стороні й запишіть результат.</div>' : '') +
+          (viaLiaison ? '<div class="note info" style="margin-bottom:10px"><b>Через зв\'язкового:</b> сервіс не має акаунта. Зателефонуйте йому й ведіть заявку в його кабінеті. <button type="button" class="link" data-cab="' + esc(q.sto.id) + '">Відкрити кабінет</button></div>' : '') + '<div class="between"><b>' + esc(q.category) + ' · ' + esc(q.car) + '</b><span class="badge b-' + esc(q.status) + '">' + esc(q.status_label) + '</span></div>' +
           '<p class="small" style="margin:6px 0">' + esc(q.description) + '</p>' +
           '<dl class="kv"><dt>Водій</dt><dd>' + (q.driver ? esc(q.driver.name) + ', <a href="' + esc(telHref(q.driver.phone)) + '">' + esc(fmtPhone(q.driver.phone)) + '</a>' : '—') + '</dd>' +
           '<dt>СТО</dt><dd>' + (q.sto ? esc(q.sto.name) + (q.sto.phone ? ', <a href="' + esc(telHref(q.sto.phone)) + '">' + esc(fmtPhone(q.sto.phone)) + '</a>' : '') : '—') + '</dd>' +
@@ -1491,6 +1508,7 @@ function renderAdminReq() {
     }
     $('#arF').onchange = function () { f = this.value; draw(); };
     $('#arL').onclick = function (e) {
+      var cb = e.target.closest('[data-cab]'); if (cb) return setView('sto', cb.dataset.cab);
       var b = e.target.closest('[data-note]'); if (!b) return;
       var q = r.requests.filter(function (x) { return x.id === b.dataset.note; })[0], v = $('#an_' + b.dataset.note).value;
       busy(b, true); api('admin.req.note', { id: q.id, note: v }, { admin: true }).then(function () { q.admin_note = v; busy(b, false); toast('Нотатку збережено'); }).catch(function (e2) { busy(b, false); fail(e2); });
