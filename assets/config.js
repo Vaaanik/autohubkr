@@ -6,11 +6,8 @@ window.AUTOHUB_CONFIG = {
   // Адреса сервера застосунку autohubkr.com/app/ (Supabase Edge Function api)
   appEndpoint: "https://uukjizyksppxeakafsua.supabase.co/functions/v1/api",
 
-  // Посилання на Telegram-групи, куди переходить людина після заявки
-  tgDrivers:  "",   // група автоспільноти для водіїв
-  tgServices: "",   // група партнерів для сервісів
-
-  // Telegram-бот АвтоХабу без @ (наприклад autohubkr_bot). Якщо вказано, на лендингах з'являється кнопка «Швидше в Telegram»
+  // Єдиний Telegram-бот АвтоХабу (водії й сервіси). Ім'я бота сервер визначає сам після «Налаштувати Telegram-бота»,
+  // тут можна вказати вручну без @ (наприклад autohubkr_bot), якщо потрібно.
   tgBot: "",
 
   // Скільки місць у тесті

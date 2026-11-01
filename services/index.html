@@ -469,8 +469,8 @@
         <div class="thanks" id="thanks" role="status">
           <div class="tick" aria-hidden="true">&#10003;</div>
           <h2>Заявку партнера прийнято</h2>
-          <p style="margin-top:14px">Дякуємо, що ви з нами! Ми зв'яжемося з вами найближчим часом, щоб домовитися про картку сервісу. Поки можете вступити до Telegram-групи партнерів автоспільноти Кривого Рогу.</p>
-          <a class="btn" id="tgBtn" href="#" target="_blank" rel="noopener">Перейти до групи партнерів</a>
+          <p style="margin-top:14px" id="tgNote">Дякуємо, що ви з нами! Картку сервісу вже створено. Зареєструйтеся в застосунку з тим самим номером, щоб керувати карткою й отримувати заявки.</p>
+          <a class="btn" id="tgBtn" href="#" rel="noopener">Продовжити в Telegram</a>
         </div>
       </div>
     </div>
@@ -506,7 +506,6 @@
 /* Налаштування беруться з assets/config.js */
 var CFG = window.AUTOHUB_CONFIG || {};
 var FORM_ENDPOINT = CFG.formEndpoint || "";
-var TG_GROUP_URL  = CFG.tgServices || "";
 var SPOTS_TOTAL   = CFG.servicesTotal || 30;
 var SPOTS_TAKEN   = (typeof CFG.servicesTaken === 'number') ? CFG.servicesTaken : null;
 
@@ -606,11 +605,15 @@ var SPOTS_TAKEN   = (typeof CFG.servicesTaken === 'number') ? CFG.servicesTaken 
 
     btn.disabled = true; btn.textContent = 'Надсилаємо...';
 
-    function done(){
+    function done(res){
       f.style.display = 'none';
       var t = $('thanks'); t.classList.add('on');
-      var b = $('tgBtn');
-      if (TG_GROUP_URL) b.href = TG_GROUP_URL; else b.style.display = 'none';
+      var b = $('tgBtn'), go = res && res.tg;
+      if (go) {
+        b.href = go; b.style.display = '';
+        $('tgNote').textContent = 'Зараз відкриється Telegram-бот АвтоХабу. Натисніть «Поділитися номером», і акаунт буде готовий за кілька секунд.';
+        setTimeout(function(){ location.href = go; }, 1500);
+      } else { b.href = '../app/'; b.textContent = 'Відкрити застосунок'; b.removeAttribute('target'); }
       t.scrollIntoView({block:'center', behavior:'smooth'});
     }
 
@@ -622,7 +625,7 @@ var SPOTS_TAKEN   = (typeof CFG.servicesTaken === 'number') ? CFG.servicesTaken 
     }
     fetch(FORM_ENDPOINT, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(data)})
       .then(function(r){ return r.json(); })
-      .then(function(res){ if (!res || !res.ok) throw new Error(res && res.error); done(); })
+      .then(function(res){ if (!res || !res.ok) throw new Error(res && res.error); done(res); })
       .catch(function(){
         btn.disabled = false; btn.textContent = BTN_TEXT; refresh();
         $('e-send').classList.add('on');
