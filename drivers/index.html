@@ -416,7 +416,7 @@
 
 <div class="sticky"><a class="btn" href="#join">Долучитися до спільноти</a></div>
 
-<script src="../assets/config.js"></script>
+<script src="../assets/config.js?v=5"></script>
 <script>
 /* Налаштування беруться з assets/config.js */
 var CFG = window.AUTOHUB_CONFIG || {};
@@ -546,8 +546,9 @@ var SPOTS_TAKEN   = (typeof CFG.driversTaken === 'number') ? CFG.driversTaken : 
       btn.disabled = false; btn.textContent = BTN_TEXT; refresh(); // на живому сайті без адреси таблиці не вдаємо успіх
       $('e-send').classList.add('on'); return;
     }
-    fetch(FORM_ENDPOINT, {method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(data)})
-      .then(done)
+    fetch(FORM_ENDPOINT, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(data)})
+      .then(function(r){ return r.json(); })
+      .then(function(res){ if (!res || !res.ok) throw new Error(res && res.error); done(); })
       .catch(function(){
         btn.disabled = false; btn.textContent = BTN_TEXT; refresh();
         show('e-send', true);

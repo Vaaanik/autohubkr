@@ -203,6 +203,12 @@ body.is-login header.bar{display:none}
 .legend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px}
 
 /* адмін */
+.bars{display:flex;align-items:flex-end;gap:4px;height:120px;margin:10px 0 4px}
+.bars div{flex:1;background:var(--volt);border-radius:4px 4px 0 0;min-height:2px;position:relative}
+.bars div span{position:absolute;top:-17px;left:0;right:0;text-align:center;font-size:11px;color:var(--soft)}
+.bars-x{display:flex;gap:4px;font-size:10px;color:var(--faint)}.bars-x span{flex:1;text-align:center}
+.toplist{list-style:none;margin:0;padding:0;font-size:14px}.toplist li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line2)}
+.toplist li:first-child{border-top:0}.toplist b{font-variant-numeric:tabular-nums}
 .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}
 .tile{background:var(--card);border:1px solid var(--line2);border-radius:var(--r-card);padding:14px 14px 12px}
 .tile b{display:block;font-family:var(--head);font-size:30px;font-weight:700;line-height:1.05;font-variant-numeric:tabular-nums}
@@ -232,7 +238,7 @@ dialog .dlg{padding:20px}
 <nav class="tabs" id="tabs" hidden><div class="in" id="tabsIn"></div></nav>
 <dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
 
-<script src="../assets/config.js?v=4"></script>
+<script src="../assets/config.js?v=5"></script>
 <script>
 (function () {
 'use strict';
@@ -290,6 +296,7 @@ var IC = {
   list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
   user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
   wrench: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L4 16.8V20h3.2l5.3-5.3a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.6-2.6z"/></svg>',
+  inbox: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13l2.5-8h11L20 13v6H4z"/><path d="M4 13h4.5l1 2h5l1-2H20"/></svg>',
   chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
   shop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l2-6h14l2 6"/><path d="M4 10v10h16V10"/><path d="M9 20v-6h6v6"/></svg>'
 };
@@ -304,7 +311,7 @@ function setTabs(items, active) {
   }).join('');
 }
 var DRIVER_TABS = [['/garage', 'Гараж', 'car'], ['/new', 'Заявка', 'plus'], ['/requests', 'Мої заявки', 'list'], ['/profile', 'Профіль', 'user']];
-var ADMIN_TABS = [['/admin', 'Огляд', 'chart'], ['/admin/sto', 'СТО', 'shop'], ['/admin/req', 'Заявки', 'list'], ['/admin/users', 'Люди', 'user']];
+var ADMIN_TABS = [['/admin', 'Огляд', 'chart'], ['/admin/sto', 'СТО', 'shop'], ['/admin/req', 'Заявки', 'list'], ['/admin/leads', 'Анкети', 'inbox'], ['/admin/users', 'Люди', 'user']];
 var STO_TABS = [['/sto', 'Заявки', 'wrench'], ['/sto/profile', 'Мій сервіс', 'shop'], ['/profile', 'Профіль', 'user']];
 
 function route() {
@@ -331,6 +338,7 @@ function route() {
     if (h === '/admin/sto') return renderAdminSto();
     if (h === '/admin/req') return renderAdminReq();
     if (h === '/admin/users') return renderAdminUsers();
+    if (h === '/admin/leads') return renderAdminLeads();
     if (h === '/profile') return renderProfile();
     return go('/admin');
   }
@@ -825,7 +833,9 @@ function renderAdmin() {
       (s.pending ? '<a class="note warn" href="#/admin/sto" style="display:block;margin-bottom:12px;text-decoration:none;color:inherit"><b>' + s.pending + ' СТО чекають перевірки.</b> Відкрити й активувати →</a>' : '') +
       (!s.aiReady ? '<div class="note err" style="margin-bottom:12px">AI-помічник не налаштований: немає GEMINI_API_KEY у властивостях скрипту.</div>' : '') +
       '<div class="tiles">' + tile(s.drivers, 'водіїв') + tile(s.cars, 'авто в гаражах') + tile(s.partners, 'СТО-партнерів', false, '#/admin/sto') + tile(s.pending, 'СТО на перевірці', s.pending > 0, '#/admin/sto') +
-      tile(s.requests, 'заявок усього', false, '#/admin/req') + tile(s.requestsWeek, 'заявок за 7 днів') + tile(s.newUsersWeek, 'нових акаунтів за 7 днів', false, '#/admin/users') + tile(s.reviews, 'відгуків') + '</div>' +
+      tile(s.requests, 'заявок усього', false, '#/admin/req') + tile(s.requestsWeek, 'заявок за 7 днів') + tile(s.newUsersWeek, 'нових акаунтів за 7 днів', false, '#/admin/users') + tile(s.reviews, 'відгуків') +
+      tile(s.leadsDrivers, 'анкет водіїв', false, '#/admin/leads') + tile(s.leadsServices, 'анкет сервісів', false, '#/admin/leads') + '</div>' +
+      (s.leadsNew ? '<a class="note info" href="#/admin/leads" style="display:block;margin-bottom:12px;text-decoration:none"><b>' + s.leadsNew + ' нових анкет</b> з лендингів ще не опрацьовано.</a>' : '') +
       '<div class="card"><h2 style="margin-bottom:10px">Заявки за статусом</h2><dl class="kv">' + Object.keys(r.statuses).map(function (k) { return '<dt>' + esc(r.statuses[k]) + '</dt><dd>' + (s.byStatus[k] || 0) + '</dd>'; }).join('') + '</dl></div>' +
       '<div class="card"><h2 style="margin-bottom:6px">Довідник сервісів</h2><p class="small muted" style="margin:0 0 10px">' + s.listed + ' сервісів з відкритих каталогів показуються водіям для дзвінка. Без координат: ' + s.noCoords + '.</p>' +
       '<a class="btn sm ghost" href="#/admin/sto">Керувати СТО</a></div>';
@@ -949,6 +959,50 @@ function renderAdminReq() {
       }).join('') : '<div class="card empty"><b>Заявок немає</b>Коли водії почнуть надсилати заявки, вони з\'являться тут.</div>';
     }
     $('#arF').onchange = function () { f = this.value; draw(); };
+    draw();
+  }).catch(fail);
+}
+
+var LEAD_ST = { new: 'Нова', contacted: "Зв'язались", joined: 'Приєднався', rejected: 'Відмова' };
+function contactHref(c) {
+  var t = String(c || '').trim();
+  if (/^@?[A-Za-z][\w]{3,}$/.test(t)) return 'https://t.me/' + t.replace(/^@/, '');
+  var d = t.replace(/\D/g, ''); if (d.length >= 9) return telHref(t);
+  return '';
+}
+function renderAdminLeads() {
+  loading();
+  api('admin.leads').then(function (r) {
+    var tab = store('ah_admin_leads_tab') || 'driver';
+    var cnt = function (k) { return r.leads.filter(function (l) { return l.kind === k; }).length; };
+    view.innerHTML = '<div class="page-head"><h1>Анкети</h1><span class="mini">з лендингів</span></div>' +
+      '<div class="seg" id="alT" style="margin-bottom:12px"><button type="button" data-v="driver">Водії (' + cnt('driver') + ')</button><button type="button" data-v="service">Сервіси (' + cnt('service') + ')</button><button type="button" data-v="visits">Переходи</button></div><div id="alL"></div>';
+    function draw() {
+      $$('#alT button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === tab); });
+      var box = $('#alL');
+      if (tab === 'visits') {
+        var v = r.visits, max = Math.max.apply(null, v.days.map(function (d) { return d[1]; }).concat([1]));
+        var list = function (arr) { return '<ul class="toplist">' + arr.map(function (x) { return '<li><span>' + esc(x[0]) + '</span><b>' + x[1] + '</b></li>'; }).join('') + '</ul>'; };
+        box.innerHTML = '<div class="tiles" style="grid-template-columns:repeat(3,1fr)"><div class="tile"><b>' + v.total + '</b><span>переглядів усього</span></div><div class="tile"><b>' + v.unique + '</b><span>унікальних відвідувачів</span></div><div class="tile"><b>' + v.week + '</b><span>переглядів за 7 днів</span></div></div>' +
+          (v.total ? '<div class="card"><h2>Перегляди за 14 днів</h2><div class="bars" role="img" aria-label="Перегляди за днями">' + v.days.map(function (d) { return '<div style="height:' + Math.round(d[1] / max * 100) + '%;' + (d[1] ? '' : 'background:var(--line)') + '" title="' + esc(dt(d[0])) + ': ' + d[1] + '">' + (d[1] ? '<span>' + d[1] + '</span>' : '') + '</div>'; }).join('') + '</div><div class="bars-x">' + v.days.map(function (d) { return '<span>' + esc(d[0].slice(8, 10)) + '</span>'; }).join('') + '</div></div>' : '') +
+          '<div class="card"><h2 style="margin-bottom:6px">Звідки приходять</h2>' + list(v.sources) + '</div><div class="card"><h2 style="margin-bottom:6px">Сторінки</h2>' + list(v.pages) + '</div>';
+        return;
+      }
+      var list2 = r.leads.filter(function (l) { return l.kind === tab; });
+      box.innerHTML = list2.length ? list2.map(function (l) {
+        var href = contactHref(l.contact);
+        return '<div class="card" data-lid="' + esc(l.id) + '"><div class="between"><div><h3>' + esc(l.name) + '</h3><div class="mini">' + esc(dt(l.created)) + '</div></div>' +
+          '<select class="i" data-st style="width:auto;min-height:36px;padding:4px 8px;font-size:13px">' + Object.keys(LEAD_ST).map(function (k) { return '<option value="' + k + '"' + (k === l.status ? ' selected' : '') + '>' + LEAD_ST[k] + '</option>'; }).join('') + '</select></div>' +
+          '<div class="small" style="margin:6px 0 8px">' + (href ? '<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(l.contact) + '</a>' : esc(l.contact)) + '</div>' +
+          '<dl class="kv">' + l.fields.filter(function (f) { return ["Ім'я", 'Назва сервісу', 'Telegram або телефон', 'Звідки прийшов'].indexOf(f[0]) === -1 && !(f[0] === 'Джерело (UTM)' && f[1] === '{}'); }).map(function (f) { return '<dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd>'; }).join('') + '</dl></div>';
+      }).join('') : '<div class="card empty"><b>Анкет поки немає</b>Поділіться посиланням на лендинг, і нові анкети з\'являться тут, а на пошту прийде лист.</div>';
+    }
+    $('#alT').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; tab = b.dataset.v; store('ah_admin_leads_tab', tab); draw(); };
+    $('#alL').onchange = function (e) {
+      if (!e.target.matches('[data-st]')) return;
+      var id = e.target.closest('[data-lid]').dataset.lid, st = e.target.value;
+      api('admin.lead.set', { id: id, status: st }).then(function () { r.leads.forEach(function (l) { if (l.id === id) l.status = st; }); toast('Статус: ' + LEAD_ST[st]); }).catch(fail);
+    };
     draw();
   }).catch(fail);
 }
