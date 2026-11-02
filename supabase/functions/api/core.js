@@ -4,6 +4,18 @@
 export const CATEGORIES = ['Діагностика', 'Двигун', 'Ходова', 'Гальма', 'Електрика', 'ТО і мастило', 'Шини', 'Кузов і фарбування',
   'Кондиціонер', 'ГБО', 'Скло', 'Інше'];
 export const DISTRICTS = ['Центрально-Міський', 'Металургійний', 'Саксаганський', 'Довгинцівський', 'Покровський', 'Тернівський', 'Інгулецький'];
+// Типові роботи для прайсу сервісів і вилок цін по місту: [код, назва, категорія]
+export const PRICE_WORKS = [
+  ['diag_comp', 'Комп\'ютерна діагностика', 'Діагностика'], ['diag_susp', 'Діагностика ходової', 'Ходова'],
+  ['oil', 'Заміна оливи й фільтра (робота)', 'ТО і мастило'], ['to_full', 'Комплексне ТО (робота)', 'ТО і мастило'], ['coolant', 'Заміна антифризу', 'ТО і мастило'],
+  ['timing', 'Заміна ГРМ (ремінь і ролики, робота)', 'Двигун'], ['spark', 'Заміна свічок запалювання', 'Двигун'], ['injectors', 'Чистка форсунок', 'Двигун'], ['clutch', 'Заміна зчеплення (робота)', 'Двигун'],
+  ['align', 'Розвал-сходження', 'Ходова'], ['shocks', 'Заміна амортизаторів, пара (робота)', 'Ходова'], ['links', 'Заміна стійок стабілізатора, пара', 'Ходова'], ['silent', 'Заміна сайлентблоків важеля', 'Ходова'],
+  ['pads', 'Заміна гальмівних колодок, вісь', 'Гальма'], ['discs', 'Заміна дисків і колодок, вісь', 'Гальма'], ['brake_fluid', 'Заміна гальмівної рідини', 'Гальма'],
+  ['tires_15', 'Сезонна зміна шин R13–R15, комплект', 'Шини'], ['tires_17', 'Сезонна зміна шин R16–R17, комплект', 'Шини'], ['tires_19', 'Сезонна зміна шин R18+, комплект', 'Шини'], ['balance', 'Балансування, 4 колеса', 'Шини'],
+  ['battery', 'Заміна акумулятора (робота)', 'Електрика'], ['alternator', 'Ремонт генератора', 'Електрика'], ['starter', 'Ремонт стартера', 'Електрика'],
+  ['ac_refill', 'Заправка кондиціонера', 'Кондиціонер'], ['gbo_to', 'ТО ГБО', 'ГБО'], ['windshield', 'Заміна лобового скла (робота)', 'Скло'],
+  ['paint_part', 'Фарбування одного елемента', 'Кузов і фарбування'], ['polish', 'Полірування кузова', 'Кузов і фарбування'], ['wash', 'Мийка кузова', 'Кузов і фарбування'], ['chip', 'Локальний ремонт сколу', 'Кузов і фарбування']
+];
 export const STATUS = { new: 'Нова', accepted: 'Прийнята', declined: 'Відхилена', in_work: 'У роботі', done: 'Виконана', cancelled: 'Скасована' };
 export const URGENCY = ['Можна планувати', 'Варто не відкладати', 'Небезпечно їхати'];
 // Документи авто зі строком дії: [ключ, назва]
@@ -739,6 +751,70 @@ export function makeApi(db, deps) {
     if (has('status')) f.status = r.status ? oneOf(r.status, JOB_ST) : 'done';
     if (has('note')) f.note = s_(r.note).slice(0, 500);
     return f;
+  }
+  /* --- ціни: прайс сервісів → вилки по місту --- */
+  async function stoPricesSet(r) {
+    const st = await mySto(r), src = r.prices || {}, out = {};
+    PRICE_WORKS.forEach((w) => {
+      const p = src[w[0]]; if (!p) return;
+      const a = int(p.from), b = int(p.to);
+      if (!a && !b) return;
+      const lo = a || b, hi = Math.max(b || a, lo);
+      if (lo < 0 || hi > 500000) fail('Перевірте ціну: ' + w[1]);
+      out[w[0]] = { from: lo, to: hi };
+    });
+    await db.update('stos', st.id, { prices: out, prices_at: today() });
+    await kvDel('prices_city');
+    return { prices: out };
+  }
+  async function stoPricesGet(r) { const st = await mySto(r); return { prices: st.prices || {}, works: PRICE_WORKS }; }
+  async function cityPrices() {
+    const c = await kvGet('prices_city'); if (c) return JSON.parse(c);
+    const stos = (await db.where('stos', 'active', true)).filter((s) => s.prices && typeof s.prices === 'object' && Object.keys(s.prices).length);
+    const med = (a) => { const x = a.slice().sort((p, q) => p - q), m = Math.floor(x.length / 2); return x.length % 2 ? x[m] : Math.round((x[m - 1] + x[m]) / 2); };
+    const works = PRICE_WORKS.map((w) => {
+      const offers = stos.filter((s) => s.prices[w[0]]).map((s) => ({ id: s.id, name: s.name, district: s.district, from: Number(s.prices[w[0]].from), to: Number(s.prices[w[0]].to), partner: !!s.owner_id || s.partner === true }));
+      offers.sort((a, b) => a.from - b.from);
+      const mids = offers.map((o) => (o.from + o.to) / 2);
+      return { code: w[0], name: w[1], cat: w[2], n: offers.length, min: offers.length ? offers[0].from : null, max: offers.length ? Math.max(...offers.map((o) => o.to)) : null,
+        typical: offers.length ? Math.round(med(mids) / 10) * 10 : null, offers: offers.slice(0, 8) };
+    });
+    const res = { works, stos: stos.length, at: today() };
+    await kvPut('prices_city', JSON.stringify(res), 600);
+    return res;
+  }
+  async function pricesCity() { return await cityPrices(); }
+  // Розшифровка коду помилки OBD або симптому/звуку: причини, терміновість і ціни в Кривому Розі
+  async function aiObd(r) {
+    const u = await auth(r, 'driver');
+    const text = need(r.text, 'Введіть код помилки або опишіть симптом');
+    if (!env.GEMINI_API_KEY) fail('AI-помічник ще не налаштований');
+    const ck = 'ai_' + u.id, used = Number(await kvGet(ck) || 0);
+    if (used >= SET.ai_limit) fail('Ліміт AI-запитів вичерпано. Спробуйте за кілька годин.');
+    await kvPut(ck, used + 1, 21600);
+    let carInfo = '';
+    if (r.car_id) { const c = await db.find('cars', 'id', String(r.car_id)); if (c && c.user_id === u.id && !c.deleted) carInfo = [c.make, c.model, c.year, c.modification, c.engine ? c.engine + ' л' : '', c.fuel, c.mileage ? 'пробіг ' + c.mileage + ' км' : ''].filter(Boolean).join(', '); }
+    const codes = PRICE_WORKS.map((w) => w[0] + ' — ' + w[1]).join('\n');
+    const system = ['Ти автодіагност застосунку АвтоХаб (Кривий Ріг). Водій вводить код помилки OBD-II (наприклад P0301, P0420, U0100) або описує симптом чи звук.',
+      'Відповідай українською, просто й без жаргону. Якщо це код: code — сам код, meaning — що він означає. Якщо симптом: code порожній.',
+      'causes: 2–5 причин від найімовірнішої; для кожної: title (коротко), chance (висока/середня/низька), work (що зробить сервіс), work_code — код типової роботи з переліку, якщо підходить, інакше порожньо,',
+      'price_from і price_to — орієнтовна вартість робіт і запчастин у Кривому Розі в гривнях на 2026 рік для цього авто (реалістично, не завищуй), 0 якщо не знаєш.',
+      'urgency: «Небезпечно їхати», «Варто не відкладати» або «Можна планувати». category — категорія з переліку. checks: 1–3 безпечні перевірки самому. summary: одне речення.',
+      'request_text: опис для заявки в СТО від першої особи. Не стверджуй діагноз упевнено.', 'Перелік типових робіт:', codes].join('\n');
+    const schema = { type: 'OBJECT', properties: { code: { type: 'STRING' }, meaning: { type: 'STRING' }, summary: { type: 'STRING' },
+      urgency: { type: 'STRING', enum: URGENCY }, category: { type: 'STRING', enum: CATEGORIES },
+      causes: { type: 'ARRAY', items: { type: 'OBJECT', properties: { title: { type: 'STRING' }, chance: { type: 'STRING' }, work: { type: 'STRING' }, work_code: { type: 'STRING' }, price_from: { type: 'NUMBER' }, price_to: { type: 'NUMBER' } }, required: ['title'] } },
+      checks: { type: 'ARRAY', items: { type: 'STRING' } }, request_text: { type: 'STRING' } }, required: ['summary', 'urgency', 'category', 'causes'] };
+    const a = await gemini(ck, used, system, [{ text: (carInfo ? 'Авто: ' + carInfo + '\n' : '') + 'Запит: ' + text.slice(0, 800) }], schema);
+    const city = await cityPrices(), byCode = {}; city.works.forEach((w) => { byCode[w.code] = w; });
+    const causes = (Array.isArray(a.causes) ? a.causes : []).slice(0, 5).map((c) => {
+      const w = byCode[s_(c.work_code)];
+      const local = w && w.n >= 2 ? { min: w.min, max: w.max, typical: w.typical, n: w.n, code: w.code, name: w.name } : null;
+      const pf = int(c.price_from), pt = int(c.price_to);
+      return { title: s_(c.title).slice(0, 140), chance: s_(c.chance).slice(0, 20), work: s_(c.work).slice(0, 200), local, ai: pf || pt ? { from: pf || pt, to: Math.max(pt || pf, pf || pt) } : null, cat: w ? w.cat : '' };
+    });
+    return { ai: { code: s_(a.code).toUpperCase().slice(0, 12), meaning: s_(a.meaning).slice(0, 300), summary: s_(a.summary), urgency: URGENCY.indexOf(a.urgency) !== -1 ? a.urgency : URGENCY[1],
+      category: CATEGORIES.indexOf(a.category) !== -1 ? a.category : 'Діагностика', causes, checks: (Array.isArray(a.checks) ? a.checks : []).map(s_).filter(String).slice(0, 3), request_text: s_(a.request_text) } };
   }
   /* --- співробітники сервісу: список, запрошення в бота, призначення на роботи й заявки --- */
   const staffOf = (st) => (Array.isArray(st && st.staff) ? st.staff : []).filter((e) => e && e.id);
@@ -2015,6 +2091,7 @@ export function makeApi(db, deps) {
     'tg.auth': tgAuth, 'tg.bind': tgBind, 'tg.prereg': tgPrereg, 'tg.login': tgLoginStart, 'tg.login.check': tgLoginCheck, 'sto.photo': stoPhoto, 'admin.sto.photo': adminStoPhoto,
     'ria.mods': riaMods, 'ria.equips': riaEquips, 'ria.price': riaPrice, 'cars.info': carInfo, 'ai.doc': aiDoc,
     'review.add': reviewAdd,
+    'sto.prices': stoPricesGet, 'sto.prices.set': stoPricesSet, 'prices.city': pricesCity, 'ai.obd': aiObd,
     'staff.list': staffList, 'staff.save': staffSave, 'staff.invite': staffInvite, 'req.assign': reqAssign,
     'jobs.list': jobsList, 'jobs.add': jobsAdd, 'jobs.update': jobsUpdate, 'jobs.delete': jobsDelete,
     'history.list': async (r) => {

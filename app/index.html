@@ -333,6 +333,13 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
 .grp-x{position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;border:0;background:rgba(0,0,0,.45);color:#fff;font-size:20px;line-height:1;cursor:pointer}
 .st-row{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line2)}.st-row:first-of-type{border-top:0}.st-row small{display:block;color:var(--soft);font-size:13px;margin-top:2px}
 .st-av{width:38px;height:38px;border-radius:50%;background:var(--volt);color:#fff;display:grid;place-items:center;font-weight:700;flex:none}
+.tools{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.tool{display:block;background:#fff;border:1px solid var(--line2);border-radius:16px;padding:12px;text-decoration:none;color:inherit}
+.tool span{font-size:22px}.tool b{display:block;font-size:14px;margin-top:4px}.tool small{display:block;color:var(--soft);font-size:12px;margin-top:2px}
+.pr-row{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line2);padding:10px 0;cursor:pointer;font:inherit;color:inherit}.pr-row:first-of-type{border-top:0}
+.pr-row small,.pr-off small,.ob-row small{display:block;color:var(--soft);font-size:12px;margin-top:2px}.pr-v{text-align:right;white-space:nowrap}
+.pr-off{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line2)}
+.ob-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid rgba(0,0,0,.06)}.ob-p{text-align:right;white-space:nowrap}
+.pp-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line2)}.pp-in{display:flex;gap:6px;flex:none}.pp-in .i{width:74px;min-height:38px;padding:6px 8px;text-align:center}
 .km-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .km-row:first-of-type{border-top:0}.km-row small{display:block;color:var(--soft);font-size:12px}
 </style>
@@ -500,10 +507,12 @@ function route() {
   window.scrollTo(0, 0);
   var m;
   if (state.user.role === 'driver') {
-    setTabs(DRIVER_TABS, h.indexOf('/car/') === 0 ? '/garage' : h);
+    setTabs(DRIVER_TABS, h.indexOf('/car/') === 0 || h === '/prices' || h === '/ai' ? '/garage' : h);
     if (h === '/garage') return renderGarage();
     if (h === '/new') return renderNew();
     if (h === '/requests') return renderRequests();
+    if (h === '/prices') return renderPrices();
+    if (h === '/ai') return renderAi();
     if ((m = h.match(/^\/car\/(\w+)$/))) return renderCar(m[1]);
     if (h === '/profile') return renderProfile();
     return go('/garage');
@@ -1052,6 +1061,7 @@ function renderGarage() {
   loading();
   (state.cars ? Promise.resolve(state.cars) : loadCars()).then(function (cars) {
     view.innerHTML = '<div class="page-head"><h1>Мій гараж</h1><button class="btn sm ghost" id="addCar">Додати авто</button></div>' + groupCard() +
+      '<div class="tools"><a href="#/ai" class="tool"><span>🔎</span><b>Розшифрувати помилку</b><small>Код OBD або звук → причини й ціни</small></a><a href="#/prices" class="tool"><span>💰</span><b>Скільки коштує</b><small>Ціни сервісів міста</small></a></div>' +
       (cars.length ? cars.map(function (c) {
         var spec = carSpec(c);
         return '<a class="dash' + (c.photo ? ' has-photo' : '') + '" href="#/car/' + esc(c.id) + '" aria-label="' + esc(c.make + ' ' + c.model) + ': історія і план ТО">' +
@@ -1449,6 +1459,7 @@ function renderNew() {
       $('#ac').onclick = carDialog; return;
     }
     var sel = { car: pre || (cars.length === 1 ? cars[0].id : ''), category: '', sto: '', district: '' };
+    var draft = store('ah_draft'); if (draft) store('ah_draft', null);
     view.innerHTML = '<h1 style="margin-bottom:12px">Нова заявка</h1><form id="nForm" novalidate>' +
       '<div class="card stack"><div><label class="f" for="nCar">Авто</label><select class="i" id="nCar"><option value="">Оберіть авто</option>' +
         cars.map(function (c) { return '<option value="' + esc(c.id) + '"' + (c.id === sel.car ? ' selected' : '') + '>' + esc(c.make + ' ' + c.model + (c.year ? ' ' + c.year : '') + (c.plate ? ' · ' + c.plate : '')) + '</option>'; }).join('') + '</select></div>' +
@@ -1484,6 +1495,7 @@ function renderNew() {
       sel.category = cat; sel.sto = ''; loadStos();
     }
     if (preCat && M.categories.indexOf(preCat) !== -1) setCategory(preCat);
+    if (draft) $('#nDesc').value = draft;
     $('#nAi').onclick = function () {
       var desc = $('#nDesc').value.trim(), out = $('#nAiOut'), btn = this;
       if (desc.length < 10) { out.innerHTML = '<div class="note err" style="margin-top:8px">Спершу опишіть проблему хоча б одним реченням.</div>'; $('#nDesc').focus(); return; }
@@ -1922,6 +1934,101 @@ function jobDialog(j, all, staff) {
   };
 }
 
+/* ---------- водій: ціни по місту ---------- */
+function rangeTxt(a, b) { a = Number(a) || 0; b = Number(b) || 0; return a && b && a !== b ? a.toLocaleString('uk-UA') + '–' + b.toLocaleString('uk-UA') + ' грн' : (a || b) ? (a || b).toLocaleString('uk-UA') + ' грн' : ''; }
+function renderPrices() {
+  loading();
+  api('prices.city').then(function (r) {
+    var cats = {}, q = '';
+    r.works.forEach(function (w) { (cats[w.cat] = cats[w.cat] || []).push(w); });
+    view.innerHTML = '<a href="#/garage" class="back">‹ Гараж</a><h1 style="margin-bottom:6px">Скільки має коштувати</h1>' +
+      '<p class="small muted" style="margin:0 0 12px">Вилки цін на типові роботи за прайсами сервісів Кривого Рогу' + (r.stos ? ' (' + r.stos + ' сервісів)' : '') + '. Ціна запчастин зазвичай окремо.</p>' +
+      '<input class="i search" id="prQ" type="search" placeholder="Пошук роботи: колодки, розвал, шиномонтаж…" style="margin-bottom:12px"><div id="prL"></div>' +
+      '<p class="mini" style="margin-top:10px">Ціни вказують самі сервіси й можуть залежати від авто. Точну вартість уточнюйте в заявці.</p>';
+    function draw() {
+      var nq = norm(q), html = '';
+      Object.keys(cats).forEach(function (c) {
+        var ws = cats[c].filter(function (w) { return !nq || norm(w.name + ' ' + c).indexOf(nq) !== -1; });
+        if (!ws.length) return;
+        html += '<div class="card"><h2 style="margin-bottom:6px">' + esc(c) + '</h2>' + ws.map(function (w) {
+          return '<button type="button" class="pr-row" data-w="' + esc(w.code) + '"><span><b>' + esc(w.name) + '</b><small>' + (w.n ? w.n + ' ' + (w.n === 1 ? 'сервіс' : w.n < 5 ? 'сервіси' : 'сервісів') : 'ще немає цін') + '</small></span>' +
+            '<span class="pr-v">' + (w.n ? (w.n >= 2 ? '<b>' + esc(rangeTxt(w.min, w.max)) + '</b><small>зазвичай ' + esc(Number(w.typical).toLocaleString('uk-UA')) + ' грн</small>' : '<b>' + esc(rangeTxt(w.offers[0].from, w.offers[0].to)) + '</b>') : '<small class="muted">—</small>') + '</span></button>';
+        }).join('') + '</div>';
+      });
+      $('#prL').innerHTML = html || '<div class="card empty"><b>Нічого не знайдено</b>Спробуйте інше слово.</div>';
+      $$('[data-w]').forEach(function (b) { b.onclick = function () { priceSheet(r.works.filter(function (w) { return w.code === b.dataset.w; })[0]); }; });
+    }
+    $('#prQ').oninput = function () { q = this.value; draw(); };
+    draw();
+  }).catch(fail);
+}
+function priceSheet(w) {
+  openDialog('<h2 style="margin-bottom:4px">' + esc(w.name) + '</h2>' + (w.n >= 2 ? '<p class="small" style="margin:0 0 10px">По місту: <b>' + esc(rangeTxt(w.min, w.max)) + '</b>, зазвичай ' + esc(Number(w.typical).toLocaleString('uk-UA')) + ' грн</p>' : '') +
+    (w.n ? '<div class="lbl">Ціни сервісів</div>' + w.offers.map(function (o) {
+      return '<div class="pr-off"><div><b>' + esc(o.name) + '</b><small>' + esc(o.district || '') + '</small></div><div style="text-align:right"><b>' + esc(rangeTxt(o.from, o.to)) + '</b>' +
+        (o.partner ? '<a class="btn sm" href="#/new?sto=' + esc(o.id) + '&cat=' + encodeURIComponent(w.cat) + '" data-close-go style="margin-top:4px">Заявка</a>' : '') + '</div></div>';
+    }).join('') : '<p class="small muted">Сервіси ще не вказали ціну на цю роботу. Створіть заявку, і сервіси назвуть свою ціну.</p>') +
+    '<div class="row" style="margin-top:12px"><button class="btn ghost" data-close style="flex:1">Закрити</button><a class="btn" style="flex:1" href="#/new?cat=' + encodeURIComponent(w.cat) + '" data-close-go>Створити заявку</a></div>');
+  $$('[data-close-go]').forEach(function (a) { a.addEventListener('click', function () { closeDialog(); }); });
+}
+/* ---------- водій: розшифровка помилки або звуку ---------- */
+function renderAi() {
+  loading();
+  (state.cars ? Promise.resolve(state.cars) : loadCars()).then(function (cars) {
+    view.innerHTML = '<a href="#/garage" class="back">‹ Гараж</a><h1 style="margin-bottom:6px">Розшифрувати помилку</h1>' +
+      '<p class="small muted" style="margin:0 0 12px">Введіть код з діагностики (P0301, P0420…) або опишіть, що відбувається: стук, свист, вібрація, лампа на панелі. AI назве причини, терміновість і скільки це коштує в Кривому Розі.</p>' +
+      '<div class="card stack">' + (cars.length ? '<div><label class="f" for="aiCar">Авто</label><select class="i" id="aiCar">' + cars.map(function (c) { return '<option value="' + esc(c.id) + '">' + esc(c.make + ' ' + c.model + (c.year ? ' ' + c.year : '')) + '</option>'; }).join('') + '</select></div>' : '') +
+      '<div><label class="f" for="aiT">Код помилки або симптом</label><textarea class="i" id="aiT" rows="3" placeholder="P0171 або: на холодну свистить під капотом, минає за 5 хвилин"></textarea></div>' +
+      '<div class="chips" id="aiEx">' + ['P0300', 'P0420', 'Стук спереду на ямах', 'Свист при гальмуванні', 'Вібрація керма на швидкості', 'Горить чек'].map(function (x) { return '<span class="chip" data-ex="' + esc(x) + '">' + esc(x) + '</span>'; }).join('') + '</div>' +
+      '<button class="btn wide ai-btn" id="aiGo">✨ Розшифрувати</button><div id="aiOut" aria-live="polite"></div></div>';
+    $$('[data-ex]').forEach(function (c) { c.onclick = function () { $('#aiT').value = c.dataset.ex; }; });
+    $('#aiGo').onclick = function () {
+      var b = this, t = $('#aiT').value.trim();
+      if (t.length < 3) return toast('Введіть код або опишіть симптом', true);
+      busy(b, true); $('#aiOut').innerHTML = '<div class="mini" style="margin-top:8px">Аналізую…</div>';
+      api('ai.obd', { text: t, car_id: $('#aiCar') ? $('#aiCar').value : '' }).then(function (r) {
+        busy(b, false); var a = r.ai, ui = URG_IDX(a.urgency);
+        $('#aiOut').innerHTML = '<div class="ai" style="margin-top:12px"><div class="between"><b>' + (a.code ? esc(a.code) + ': ' : '') + esc(a.meaning || a.summary) + '</b></div>' +
+          '<div style="margin:8px 0"><span class="urg u' + ui + '">' + esc(a.urgency) + '</span></div>' + (a.meaning && a.summary ? '<p class="small" style="margin:0 0 8px">' + esc(a.summary) + '</p>' : '') +
+          '<div class="lbl">Ймовірні причини й ціни в Кривому Розі</div>' + a.causes.map(function (c) {
+            var price = c.local ? '<b>' + esc(rangeTxt(c.local.min, c.local.max)) + '</b><small>за прайсами ' + c.local.n + ' сервісів</small>' : c.ai ? '<b>≈ ' + esc(rangeTxt(c.ai.from, c.ai.to)) + '</b><small>оцінка AI з запчастинами</small>' : '';
+            return '<div class="ob-row"><div><b>' + esc(c.title) + '</b>' + (c.chance ? ' <span class="mini">' + esc(c.chance) + ' ймовірність</span>' : '') + (c.work ? '<small>' + esc(c.work) + '</small>' : '') + '</div><div class="ob-p">' + price + '</div></div>';
+          }).join('') +
+          (a.checks.length ? '<div class="lbl">Що можна перевірити самому</div><ul class="info-ul">' + a.checks.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '') +
+          (ui === 2 ? '<div class="note err" style="margin:6px 0 8px">Краще не їхати своїм ходом: зателефонуйте в сервіс або викличте евакуатор.</div>' : '') +
+          '<button class="btn wide" id="aiReq" style="margin-top:10px">Створити заявку в сервіс</button><div class="small muted" style="margin-top:8px">Це підказка AI, а не діагноз. Точну причину визначить майстер.</div></div>';
+        $('#aiReq').onclick = function () { store('ah_draft', (a.code ? a.code + ': ' : '') + (a.request_text || t)); go('/new?cat=' + encodeURIComponent(a.category) + ($('#aiCar') ? '&car=' + $('#aiCar').value : '')); };
+      }).catch(function (e) { busy(b, false); $('#aiOut').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+    };
+  }).catch(fail);
+}
+function URG_IDX(u) { return ['Можна планувати', 'Варто не відкладати', 'Небезпечно їхати'].indexOf(u); }
+/* ---------- СТО: прайс ---------- */
+function priceBlock(box, stoServices) {
+  box.innerHTML = '<div class="mini">Завантажую прайс…</div>';
+  api('sto.prices').then(function (r) {
+    var P = r.prices || {}, mine = stoServices || [];
+    var cats = {}; r.works.forEach(function (w) { (cats[w[2]] = cats[w[2]] || []).push(w); });
+    var order = Object.keys(cats).sort(function (a, b) { return (mine.indexOf(b) !== -1) - (mine.indexOf(a) !== -1); });
+    var filled = Object.keys(P).length;
+    box.innerHTML = '<div class="between"><h2>Прайс</h2><span class="mini">' + filled + ' з ' + r.works.length + '</span></div>' +
+      '<p class="mini" style="margin:4px 0 10px">Вкажіть ціну «від–до» на роботи, які робите. Водії бачать вилки цін по місту й ваш сервіс серед пропозицій. Порожнє поле: не показувати.</p>' +
+      order.map(function (c) {
+        return '<details class="plan-more"' + (mine.indexOf(c) !== -1 ? ' open' : '') + '><summary>' + esc(c) + '</summary>' + cats[c].map(function (w) {
+          var p = P[w[0]] || {};
+          return '<div class="pp-row"><span class="small">' + esc(w[1]) + '</span><span class="pp-in"><input class="i" inputmode="numeric" data-pf="' + w[0] + '" value="' + esc(p.from || '') + '" placeholder="від">' +
+            '<input class="i" inputmode="numeric" data-pt="' + w[0] + '" value="' + esc(p.to && p.to !== p.from ? p.to : '') + '" placeholder="до"></span></div>';
+        }).join('') + '</details>';
+      }).join('') + '<div id="ppErr"></div><button class="btn wide" id="ppSave" style="margin-top:10px">Зберегти прайс</button>';
+    $('#ppSave', box).onclick = function () {
+      var out = {}, b = this;
+      $$('[data-pf]', box).forEach(function (i) { var k = i.dataset.pf, a = i.value.replace(/\D/g, ''), z = ($('[data-pt="' + k + '"]', box).value || '').replace(/\D/g, ''); if (a || z) out[k] = { from: a, to: z }; });
+      busy(b, true);
+      api('sto.prices.set', { prices: out }).then(function (x) { busy(b, false); toast('Прайс збережено: ' + Object.keys(x.prices).length + ' робіт'); })
+        .catch(function (e) { busy(b, false); $('#ppErr', box).innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
+    };
+  }).catch(function (e) { box.innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
+}
 /* ---------- СТО: співробітники ---------- */
 var staffCache = null;
 function loadStaff() { return api('staff.list').then(function (r) { staffCache = r.staff; return r.staff; }).catch(function () { staffCache = []; return []; }); }
@@ -1988,9 +2095,10 @@ function renderStoProfile() {
     var s = state.sto || {};
     view.innerHTML = '<h1 style="margin-bottom:12px">Мій сервіс</h1>' +
       (s.active ? '<div class="note ok" style="margin-bottom:12px">Сервіс показується водіям у каталозі.</div>' : '<div class="note warn" style="margin-bottom:12px">Сервіс на перевірці й поки не показується в каталозі.</div>') +
-      '<div class="card" id="staffBox"></div><div class="card" id="stoPh"></div>' +
+      '<div class="card" id="staffBox"></div><div class="card" id="priceBox"></div><div class="card" id="stoPh"></div>' +
       '<form class="card stack" id="spForm" novalidate>' + stoFields(s) + '<div id="spErr"></div><button class="btn wide" id="spSave">Зберегти</button></form>';
     staffBlock($('#staffBox'));
+    priceBlock($('#priceBox'), s.services);
     stoPhotosBlock($('#stoPh'), s, function (body) { return api('sto.photo', body); }, function (sto) { state.sto = sto; });
     bindChips(view);
     $('#spForm').onsubmit = function (e) {
