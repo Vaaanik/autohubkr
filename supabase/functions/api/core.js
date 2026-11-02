@@ -155,7 +155,7 @@ export function makeApi(db, deps) {
   const env = deps.env || {};
 
   /* --- налаштування застосунку з адмінки (kv 'settings'), читаються на початку кожного запиту --- */
-  const SET_DEF = { otp_required: true, lead_to_tg: true, ai_limit: AI_LIMIT, counter_min: 10, notify_tg: true, notify_mail: true, group_drivers: '', group_services: '' };
+  const SET_DEF = { otp_required: true, lead_to_tg: true, ai_limit: AI_LIMIT, counter_min: 10, notify_tg: true, notify_mail: true, group_drivers: '', group_services: '', channel: '' };
   let SET = Object.assign({}, SET_DEF);
   async function loadSettings() {
     try { const raw = await kvGet('settings'); SET = Object.assign({}, SET_DEF, raw ? JSON.parse(raw) : {}); } catch (e) { SET = Object.assign({}, SET_DEF); }
@@ -187,6 +187,7 @@ export function makeApi(db, deps) {
     const p = pick(c, CAR_KEYS); p.photo = c.photo && urls ? (urls[c.photo] || '') : '';
     p.mileage_log = kmLog(c).slice().reverse();
     p.mileage_at = p.mileage_log.length ? p.mileage_log[0].date : '';
+    p.passport = c.passport_token ? APP_URL + '#/p/' + c.passport_token : '';
     return p;
   };
   // Історія пробігу: масив { date, km, src } у cars.mileage_log, від старих до нових.
@@ -229,6 +230,7 @@ export function makeApi(db, deps) {
     if (s.lat && s.lng) { p.lat = Number(s.lat); p.lng = Number(s.lng); }
     p.services = String(s.services || '').split(', ').filter(String);
     p.listed = !s.owner_id && s.partner !== true;
+    if (s.founder === true) p.founder = true;
     p.logo = s.logo && deps.storagePub ? deps.storagePub.url(s.logo) : '';
     p.photos = (Array.isArray(s.photos) ? s.photos : []).map((x) => deps.storagePub ? deps.storagePub.url(x) : '').filter(Boolean);
     if (!s.owner_id && s.partner === true) p.managed = true;   // партнер без власного акаунта: заявки веде зв'язковий
@@ -435,7 +437,7 @@ export function makeApi(db, deps) {
   async function catalog(r) {
     const [stos, reviews, done] = await Promise.all([db.where('stos', 'active', true), db.all('reviews'), db.where('requests', 'status', 'done')]);
     let list = stos;
-    if (r.category) list = list.filter((s) => String(s.services).indexOf(r.category) !== -1);
+    if (r.category) { list = list.filter((s) => String(s.services).indexOf(r.category) !== -1); bg(logSearch(r.district, r.category)); }
     if (r.district) list = list.filter((s) => s.district === r.district);
     const res = list.map((s) => {
       const own = reviews.filter((v) => v.sto_id === s.id);
@@ -988,7 +990,7 @@ export function makeApi(db, deps) {
     const sto = await db.find('stos', 'id', String(r.id || ''));
     if (!sto) fail('Сервіс не знайдено');
     const upd = await stoPhotoOp(sto, r);
-    const p = pubSto(upd, true); p.source = upd.source; p.geo = geoOf(upd); p.partner = upd.partner === true;
+    const p = pubSto(upd, true); p.source = upd.source; p.geo = geoOf(upd); p.partner = upd.partner === true; p.founder = upd.founder === true; p.posted = upd.posted || '';
     return { sto: p };
   }
 
@@ -1081,7 +1083,7 @@ export function makeApi(db, deps) {
       const p = pubSto(s, true);
       p.owner = null;
       if (s.owner_id) { const o = users.find((u) => u.id === s.owner_id); p.owner = o ? { name: o.name, phone: o.phone } : { name: '—', phone: '' }; }
-      p.source = s.source; p.created = s.created; p.geo = geoOf(s); p.partner = s.partner === true;
+      p.source = s.source; p.created = s.created; p.geo = geoOf(s); p.partner = s.partner === true; p.founder = s.founder === true; p.posted = s.posted || '';
       return p;
     });
     const rank = (s) => (s.owner && !s.active) || (!s.owner && !s.active && s.source === 'анкета') ? 0 : (s.owner || s.partner) ? 1 : 2;
@@ -1096,6 +1098,14 @@ export function makeApi(db, deps) {
     const f = r.fields || {}, patch = {};
     if (r.active !== undefined) patch.active = r.active === true;
     if (r.partner !== undefined) { patch.partner = r.partner === true; if (patch.partner) patch.active = true; }
+    if (r.founder !== undefined) {
+      patch.founder = r.founder === true;
+      if (patch.founder && sto.founder !== true && (await db.all('stos')).filter((x) => x.founder === true && x.deleted !== true).length >= 30) fail('Уже 30 партнерів-засновників');
+    }
+    // перші 30 партнерів автоматично отримують статус «Партнер-засновник»
+    if ((patch.active === true || patch.partner === true) && r.founder === undefined && sto.founder !== true && (sto.owner_id || patch.partner === true)) {
+      if ((await db.all('stos')).filter((x) => x.founder === true && x.deleted !== true).length < 30) patch.founder = true;
+    }
     if (f.name !== undefined) patch.name = need(f.name, 'Вкажіть назву');
     if (f.district !== undefined) patch.district = f.district ? oneOf(f.district, DISTRICTS) : '';
     if (f.address !== undefined) { patch.address = s_(f.address); if (patch.address !== sto.address) { patch.lat = null; patch.lng = null; patch.geo = ''; } }
@@ -1117,7 +1127,7 @@ export function makeApi(db, deps) {
         if (g && !g.notFound) upd = await db.update('stos', upd.id, { lat: g.lat, lng: g.lng, geo: 'ok', district: upd.district || g.district });
       } catch (e) { console.error(e); }
     }
-    const p = pubSto(upd, true); p.source = upd.source; p.geo = geoOf(upd); p.partner = upd.partner === true;
+    const p = pubSto(upd, true); p.source = upd.source; p.geo = geoOf(upd); p.partner = upd.partner === true; p.founder = upd.founder === true; p.posted = upd.posted || '';
     return { sto: p };
   }
 
@@ -1989,6 +1999,7 @@ export function makeApi(db, deps) {
     ['otp_required', 'lead_to_tg', 'notify_tg', 'notify_mail'].forEach((k) => { if (p[k] !== undefined) out[k] = p[k] === true; });
     if (p.ai_limit !== undefined) { const n = int(p.ai_limit); if (!(n >= 0 && n <= 200)) fail('Ліміт AI: від 0 до 200'); out.ai_limit = n; }
     if (p.counter_min !== undefined) { const n = int(p.counter_min); if (!(n >= 0 && n <= 1000)) fail('Поріг лічильника: від 0 до 1000'); out.counter_min = n; }
+    if (p.channel !== undefined) { const v = s_(p.channel).replace(/^https:\/\/t\.me\//, '@'); if (v && !/^(@[A-Za-z0-9_]{4,}|-100\d{6,})$/.test(v)) fail('Канал: @назва або числовий id -100…'); out.channel = v; }
     ['group_drivers', 'group_services'].forEach((k) => {
       if (p[k] === undefined) return;
       let v = s_(p[k]).replace(/^@/, 'https://t.me/');
@@ -2010,11 +2021,240 @@ export function makeApi(db, deps) {
     return {};
   }
 
+  const kyivNow = () => now().slice(0, 16).replace(' ', 'T');
+  /* --- вільні вікна зі знижкою --- */
+  const pubWin = (w, st) => Object.assign(pick(w, ['id', 'sto_id', 'at', 'dur_value', 'dur_unit', 'category', 'discount', 'note', 'status', 'request_id']),
+    { when: slotText(w.at) }, st ? { sto: { id: st.id, name: st.name, district: st.district, address: st.address, logo: st.logo && deps.storagePub ? deps.storagePub.url(st.logo) : '', founder: st.founder === true } } : {});
+  async function winMine(r) {
+    const st = await mySto(r);
+    const rows = (await db.where('sto_windows', 'sto_id', st.id)).filter((w) => w.status === 'booked' || w.at >= kyivNow());
+    rows.sort((a, b) => a.at < b.at ? -1 : 1);
+    return { windows: rows.map((w) => pubWin(w)) };
+  }
+  async function winAdd(r) {
+    const st = await mySto(r);
+    if (!isActive(st)) fail('Вікна доступні після перевірки сервісу');
+    const at = slot_(r.at);
+    const dv = Number(r.dur_value) || 1, du = r.dur_unit === 'дн' ? 'дн' : 'год';
+    if (!(dv > 0 && dv <= (du === 'дн' ? 14 : 12))) fail('Перевірте тривалість');
+    const disc = int(r.discount); if (!(disc >= 5 && disc <= 70)) fail('Знижка від 5 до 70%');
+    if ((await db.where('sto_windows', 'sto_id', st.id)).filter((w) => w.status === 'open' && w.at >= kyivNow()).length >= 30) fail('Можна до 30 відкритих вікон');
+    const w = { id: id(), sto_id: st.id, at, dur_value: dv, dur_unit: du, category: r.category ? oneOf(r.category, CATEGORIES) : '', discount: disc, note: s_(r.note).slice(0, 200), status: 'open', request_id: '', created: now() };
+    await db.insert('sto_windows', w);
+    return { window: pubWin(w) };
+  }
+  async function winDelete(r) {
+    const st = await mySto(r);
+    const w = await db.find('sto_windows', 'id', s_(r.id));
+    if (!w || w.sto_id !== st.id) fail('Вікно не знайдено');
+    if (w.status === 'booked') fail('Вікно вже заброньоване: скасуйте запис у заявках');
+    await db.removeWhere('sto_windows', 'id', w.id);
+    return {};
+  }
+  async function winList(r) {
+    await auth(r);
+    const [rows, stos] = await Promise.all([db.where('sto_windows', 'status', 'open'), db.where('stos', 'active', true)]);
+    const by = {}; stos.forEach((s) => { if (s.deleted !== true && (s.owner_id || s.partner === true)) by[s.id] = s; });
+    const list = rows.filter((w) => by[w.sto_id] && w.at >= kyivNow() && (!r.category || !w.category || w.category === r.category)).sort((a, b) => a.at < b.at ? -1 : 1).slice(0, 60);
+    return { windows: list.map((w) => pubWin(w, by[w.sto_id])) };
+  }
+  async function winBook(r) {
+    const u = await auth(r, 'driver'); const car = await ownCar(u, r.car_id);
+    const w = await db.find('sto_windows', 'id', s_(r.id));
+    if (!w || w.status !== 'open' || w.at < kyivNow()) fail('Це вікно вже зайняте. Оберіть інше.');
+    const sto = await db.find('stos', 'id', w.sto_id);
+    if (!sto || !isActive(sto)) fail('Сервіс недоступний');
+    await db.update('sto_windows', w.id, { status: 'booked' });   // спершу бронюємо, щоб двоє не взяли одне вікно
+    const fresh = await db.find('sto_windows', 'id', w.id);
+    const q = { id: id(), driver_id: u.id, car_id: car.id, sto_id: sto.id, category: w.category || (r.category ? oneOf(r.category, CATEGORIES) : 'Інше'),
+      description: need(r.description, 'Коротко опишіть, що потрібно зробити'), preferred: '', status: 'accepted', sto_comment: 'Вільне вікно, знижка ' + w.discount + '%' + (w.note ? '. ' + w.note : ''),
+      price: null, visit: slotText(w.at), visit_at: w.at, visit_state: 'confirmed', visit_options: [], visit_log: [{ by: 'driver', kind: 'window', at: now(), slot: w.at }],
+      dur_value: w.dur_value, dur_unit: w.dur_unit, work_done: '', mileage: null, code: String(1000 + parseInt(deps.uuid().replace(/-/g, '').slice(0, 6), 16) % 9000), visited: '', window_id: w.id, created: now(), updated: now(), photos: [] };
+    await db.insert('requests', q);
+    await db.update('sto_windows', fresh.id, { request_id: q.id });
+    const m = { emoji: '⏱', title: 'Заброньовано вільне вікно', intro: 'Водій обрав ваше вікно зі знижкою ' + w.discount + '%. Запис уже підтверджено.', quote: q.description,
+      rows: [['Коли', q.visit], ['Авто', carTitle(car)], ['Водій', u.name + ', ' + u.phone]] };
+    if (sto.owner_id) { const owner = await db.find('users', 'id', sto.owner_id); if (owner) tgSend(owner.tg_chat, m, [{ text: '📋 Відкрити заявку', url: APP_URL + '?view=sto' }]); mailSend(sto.email, m); }
+    else notify('Вікно для зв\'язкового: ' + sto.name, 'Водій ' + u.name + ' (' + u.phone + ') забронював ' + q.visit + '. Зателефонуйте сервісу ' + sto.phone);
+    return { request: pubReq(q) };
+  }
+
+  /* --- відгуки через QR на стійці --- */
+  async function stoPublic(r) {
+    const st = await db.find('stos', 'id', s_(r.id));
+    if (!st || st.deleted === true) fail('Сервіс не знайдено');
+    return { sto: pubSto(st) };
+  }
+  async function reviewQr(r) {
+    const u = await auth(r, 'driver');
+    const st = await db.find('stos', 'id', s_(r.sto_id));
+    if (!st || st.deleted === true) fail('Сервіс не знайдено');
+    if (st.owner_id === u.id) fail('Не можна оцінювати власний сервіс');
+    const k = 'qrrev_' + st.id + '_' + u.id;
+    if (await kvGet(k)) fail('Ви вже залишали відгук цьому сервісу нещодавно. Дякуємо!');
+    const rating = Math.round(Number(r.rating));
+    if (!(rating >= 1 && rating <= 5)) fail('Оберіть оцінку від 1 до 5');
+    await db.insert('reviews', { id: id(), request_id: 'qr_' + id(), sto_id: st.id, driver_id: u.id, rating, text: s_(r.text).slice(0, 1000), created: now(), source: 'qr' });
+    await kvPut(k, 1, 30 * 86400);
+    if (st.owner_id) { const owner = await db.find('users', 'id', st.owner_id); if (owner) tgSend(owner.tg_chat, { emoji: '⭐', title: 'Новий відгук: ' + '★'.repeat(rating) + '☆'.repeat(5 - rating), quote: s_(r.text), intro: 'Залишено через QR-код на стійці.' }); }
+    return { ok: true };
+  }
+
+  /* --- звіт «ваш район» --- */
+  async function logSearch(district, category) {
+    if (!category) return;
+    const k = 'srch_' + today().slice(0, 7) + '_' + (district || 'all') + '_' + category;
+    const n = Number(await kvGet(k) || 0); await kvPut(k, n + 1, 400 * 86400);
+  }
+  async function districtReport(st) {
+    const since = fmt(new Date(Date.now() - 30 * 864e5)).slice(0, 10);
+    const [reqs, stos] = await Promise.all([db.all('requests'), db.all('stos')]);
+    const inD = {}; stos.forEach((s) => { if (s.district === st.district) inD[s.id] = s; });
+    const recent = reqs.filter((q) => String(q.created).slice(0, 10) >= since);
+    const dReq = recent.filter((q) => inD[q.sto_id]), mine = recent.filter((q) => q.sto_id === st.id);
+    const cats = {}; dReq.forEach((q) => { cats[q.category] = (cats[q.category] || 0) + 1; });
+    const month = today().slice(0, 7), searches = {};
+    for (const c of CATEGORIES) { const n = Number(await kvGet('srch_' + month + '_' + st.district + '_' + c) || 0) + Number(await kvGet('srch_' + month + '_all_' + c) || 0); if (n) searches[c] = n; }
+    const top = (o) => Object.keys(o).map((k) => ({ name: k, n: o[k] })).sort((a, b) => b.n - a.n).slice(0, 6);
+    const offered = String(st.services || '').split(', ').filter(Boolean);
+    const gaps = top(searches).filter((x) => offered.indexOf(x.name) === -1).slice(0, 3);
+    const rivals = stos.filter((s) => s.district === st.district && isActive(s) && s.deleted !== true && s.id !== st.id);
+    return { district: st.district, days: 30, requests: dReq.length, mine: mine.length, share: dReq.length ? Math.round(mine.length / dReq.length * 100) : 0,
+      accepted: mine.filter((q) => ['accepted', 'in_work', 'done'].indexOf(q.status) !== -1).length, done: mine.filter((q) => q.status === 'done').length,
+      topRequests: top(cats), topSearches: top(searches), gaps, rivals: rivals.length, partners: rivals.filter((s) => s.owner_id || s.partner === true).length };
+  }
+  async function stoReport(r) { const st = await mySto(r); return { report: await districtReport(st) }; }
+
+  /* --- нагадування сервісу його клієнтам --- */
+  async function stoRemindSet(r) {
+    const st = await mySto(r), p = r.remind || {};
+    const out = { to: p.to === true, to_months: Math.min(24, Math.max(3, int(p.to_months) || 11)), tires: p.tires === true };
+    await db.update('stos', st.id, { remind: out });
+    return { remind: out, sent: Number(await kvGet('remsent_' + st.id) || 0) };
+  }
+  async function stoRemindGet(r) { const st = await mySto(r); return { remind: st.remind || { to: false, to_months: 11, tires: false }, sent: Number(await kvGet('remsent_' + st.id) || 0) }; }
+
+  /* --- щоденний запуск (GitHub Actions): документи водіїв, нагадування СТО, щомісячний звіт, прибирання вікон --- */
+  async function cronDaily(r) {
+    if (!deps.isServiceKey || !(await deps.isServiceKey(s_(r.key)))) fail('Немає доступу');
+    const t0 = today(), out = { docs: 0, to: 0, tires: 0, reports: 0 };
+    const once = async (k, days) => { if (await kvGet(k)) return false; await kvPut(k, 1, days * 86400); return true; };
+    const users = await db.all('users'), byId = {}, byPhone = {};
+    users.forEach((u) => { byId[u.id] = u; if (u.phone) byPhone[u.phone] = u; });
+    // 1) строки документів водіїв: за 30, 7 і 1 день
+    for (const c of (await db.all('cars')).filter((x) => !x.deleted)) {
+      const u = byId[c.user_id]; if (!u || !u.tg_chat) continue;
+      for (const d of CAR_DOCS) {
+        if (!c[d[0]]) continue;
+        const left = Math.round((new Date(c[d[0]] + 'T00:00:00Z') - new Date(t0 + 'T00:00:00Z')) / 864e5);
+        if ([30, 7, 1].indexOf(left) === -1) continue;
+        if (!(await once('remdoc_' + c.id + '_' + d[0] + '_' + c[d[0]] + '_' + left, 40))) continue;
+        await tgSend(u.tg_chat, { emoji: left === 1 ? '⚠️' : '📅', title: d[1] + ': ' + (left === 1 ? 'закінчується завтра' : 'залишилось ' + left + ' днів'), intro: [c.make, c.model].join(' ') + (c.plate ? ' · ' + c.plate : '') + '. Діє до ' + c[d[0]].split('-').reverse().join('.') + '.' },
+          [{ text: 'Відкрити авто', url: APP_URL + '#/car/' + c.id }]); out.docs++;
+      }
+    }
+    // 2) нагадування сервісів їхнім клієнтам
+    const stos = (await db.all('stos')).filter((s) => s.deleted !== true && isActive(s) && s.remind && (s.remind.to || s.remind.tires));
+    if (stos.length) {
+      const [reqs, jobs] = await Promise.all([db.where('requests', 'status', 'done'), db.all('sto_jobs')]);
+      const mon = Number(t0.slice(5, 7)), day = Number(t0.slice(8, 10));
+      const season = (mon === 3 && day >= 20) || (mon === 4 && day <= 20) ? 'spring' : (mon === 10 && day >= 20) || (mon === 11 && day <= 20) ? 'autumn' : '';
+      for (const st of stos) {
+        const visits = {};   // клієнт (user id) → список { date, work }
+        reqs.filter((q) => q.sto_id === st.id).forEach((q) => { (visits[q.driver_id] = visits[q.driver_id] || []).push({ date: String(q.updated || q.created).slice(0, 10), work: q.category + ' ' + (q.work_done || '') }); });
+        jobs.filter((j) => j.sto_id === st.id && j.client_phone && byPhone[j.client_phone]).forEach((j) => { const uid = byPhone[j.client_phone].id; (visits[uid] = visits[uid] || []).push({ date: j.date, work: j.work }); });
+        for (const uid of Object.keys(visits)) {
+          const u = byId[uid]; if (!u || !u.tg_chat || u.id === st.owner_id) continue;
+          const vs = visits[uid].sort((a, b) => a.date < b.date ? 1 : -1);
+          const last = vs[0], cut = new Date(Date.now() - st.remind.to_months * 30.4 * 864e5).toISOString().slice(0, 10);
+          const btn = (cat) => [{ text: '📅 Записатися', url: APP_URL + '#/new?sto=' + st.id + '&cat=' + encodeURIComponent(cat) }];
+          if (st.remind.to && last.date <= cut && last.date > new Date(Date.now() - (st.remind.to_months + 3) * 30.4 * 864e5).toISOString().slice(0, 10) && /(олив|масл|ТО|фільтр)/i.test(vs.map((v) => v.work).join(' '))) {
+            if (await once('remto_' + st.id + '_' + uid + '_' + last.date, 400)) {
+              await tgSend(u.tg_chat, { emoji: '🛢', title: st.name + ' нагадує про ТО', intro: 'Ваш останній візит був ' + last.date.split('-').reverse().join('.') + '. Час планувати заміну оливи й фільтрів, щоб двигун служив довше.' }, btn('ТО і мастило'));
+              out.to++; await kvPut('remsent_' + st.id, Number(await kvGet('remsent_' + st.id) || 0) + 1, 3650 * 86400);
+            }
+          }
+          if (st.remind.tires && season && /(шин|колес|шиномонтаж|балансув)/i.test(vs.map((v) => v.work).join(' '))) {
+            if (await once('remtire_' + st.id + '_' + uid + '_' + t0.slice(0, 4) + season, 120)) {
+              await tgSend(u.tg_chat, { emoji: season === 'autumn' ? '❄️' : '☀️', title: st.name + ': час ' + (season === 'autumn' ? 'зимових' : 'літніх') + ' шин', intro: season === 'autumn' ? 'Коли вночі нижче +7°, літня гума дубіє й гальмує гірше. Запишіться на шиномонтаж без черги.' : 'Вдень стабільно вище +7°: зимова гума швидко зношується. Запишіться на сезонну заміну.' }, btn('Шини'));
+              out.tires++; await kvPut('remsent_' + st.id, Number(await kvGet('remsent_' + st.id) || 0) + 1, 3650 * 86400);
+            }
+          }
+        }
+      }
+    }
+    // 3) 1-го числа: звіт «ваш район» власникам сервісів
+    if (t0.slice(8, 10) === '01') {
+      for (const st of (await db.all('stos')).filter((s) => s.owner_id && s.deleted !== true && isActive(s) && s.district)) {
+        const owner = byId[st.owner_id]; if (!owner || !owner.tg_chat) continue;
+        if (!(await once('remrep_' + st.id + '_' + t0.slice(0, 7), 40))) continue;
+        const rep = await districtReport(st);
+        await tgSend(owner.tg_chat, { emoji: '📊', title: 'Ваш район за 30 днів: ' + st.district, intro: 'Заявок у районі: ' + rep.requests + ', з них вам: ' + rep.mine + ' (' + rep.share + '%).' +
+          (rep.topSearches.length ? '\nНайчастіше шукають: ' + rep.topSearches.slice(0, 3).map((x) => x.name).join(', ') + '.' : '') + (rep.gaps.length ? '\nШукають, а у вас немає: ' + rep.gaps.map((x) => x.name).join(', ') + '.' : '') },
+          [{ text: 'Повний звіт', url: APP_URL + '?view=sto' }]); out.reports++;
+      }
+    }
+    // 4) прострочені відкриті вікна
+    for (const w of (await db.where('sto_windows', 'status', 'open')).filter((x) => x.at < kyivNow())) await db.update('sto_windows', w.id, { status: 'expired' });
+    return out;
+  }
+
+  /* --- партнер-засновник і пост у канал --- */
+  async function adminStoPost(r) {
+    await auth(r, 'admin');
+    const st = await db.find('stos', 'id', s_(r.id));
+    if (!st) fail('Сервіс не знайдено');
+    const svc = String(st.services || '').split(', ').filter(Boolean);
+    const draft = (st.founder === true ? '⭐ <b>Партнер-засновник АвтоХабу</b>\n\n' : '🔧 <b>Новий партнер АвтоХабу</b>\n\n') +
+      '<b>' + he(st.name) + '</b>' + (st.district ? ', ' + he(st.district) + ' район' : '') + '\n' + (st.address ? '📍 ' + he(st.address) + '\n' : '') + (st.hours ? '🕘 ' + he(st.hours) + '\n' : '') +
+      (svc.length ? '\n🛠 ' + he(svc.join(' · ')) + '\n' : '') + (st.about ? '\n' + he(st.about) + '\n' : '') + '\nЗаписатися онлайн і бачити статус ремонту можна в АвтоХабі 👇';
+    if (r.preview) return { text: draft, channel: SET.channel || '' };
+    if (!SET.channel) fail('Вкажіть канал у «Налаштуваннях»');
+    const text = s_(r.text) || draft;
+    if (text.length > 1000) fail('Текст задовгий для підпису до фото (до 1000 символів)');
+    const pic = st.photos && st.photos[0] && deps.storagePub ? deps.storagePub.url(st.photos[0]) : st.logo && deps.storagePub ? deps.storagePub.url(st.logo) : SITE_URL + 'assets/tg-group-services.jpg';
+    const bot = await botName();
+    const kb = { inline_keyboard: [[{ text: '📅 Записатися онлайн', url: bot ? 'https://t.me/' + bot + '?startapp=sto_' + st.id : APP_URL }]] };
+    const res = await deps.tg('sendPhoto', { chat_id: SET.channel, photo: pic, caption: text, parse_mode: 'HTML', reply_markup: kb });
+    if (!res || !res.ok) fail('Telegram не прийняв пост: ' + ((res && res.description) || 'перевірте, що бот є адміністратором каналу'));
+    await db.update('stos', st.id, { posted: today() });
+    return { ok: true };
+  }
+  /* --- паспорт авто для продажу: публічне посилання без даних власника --- */
+  async function carPassport(r) {
+    const u = await auth(r, 'driver'); const c = await ownCar(u, r.id);
+    if (r.off) { await db.update('cars', c.id, { passport_token: '' }); return { url: '' }; }
+    const tok = c.passport_token || deps.uuid().replace(/-/g, '').slice(0, 20);
+    await db.update('cars', c.id, { passport_token: tok, passport_vin: r.vin !== false });
+    return { url: APP_URL + '#/p/' + tok };
+  }
+  async function passportGet(r) {
+    const tok = s_(r.token);
+    if (!/^[a-f0-9]{20}$/.test(tok)) fail('Посилання недійсне');
+    const c = await db.find('cars', 'passport_token', tok);
+    if (!c || c.deleted) fail('Паспорт не знайдено або власник його вимкнув');
+    const hist = (await db.where('history', 'car_id', c.id)).sort((a, b) => a.date < b.date ? 1 : -1);
+    const SN = {}; SERVICES.forEach((x) => { SN[x[0]] = x[1]; });
+    const urls = c.photo && deps.storage ? await deps.storage.sign([c.photo]).catch(() => ({})) : {};
+    const log = kmLog(c);
+    const span = log.length > 1 ? (new Date(log[log.length - 1].date) - new Date(log[0].date)) / 864e5 : 0;
+    const perYear = span >= 60 ? Math.round((log[log.length - 1].km - log[0].km) / span * 365 / 100) * 100 : null;
+    const rows = hist.map((h) => ({ date: h.date, work: h.work, services: String(h.services || '').split(',').filter(Boolean).map((k) => SN[k] || k), mileage: h.mileage || null,
+      place: h.place || '', confirmed: !!h.request_id && h.confirmed !== 'спір', disputed: h.confirmed === 'спір' }));
+    return { passport: {
+      car: pick(c, ['make', 'model', 'year', 'modification', 'equipment', 'engine', 'fuel', 'power', 'gearbox', 'drive', 'body', 'mileage']),
+      vin: c.passport_vin === false ? (c.vin ? c.vin.slice(0, 3) + '•••••••••' + c.vin.slice(-5) : '') : (c.vin || ''),
+      photo: c.photo ? urls[c.photo] || '' : '', mileage_log: log.slice(-12).reverse(), per_year: perYear,
+      docs: CAR_DOCS.map((d) => ({ name: d[1], until: c[d[0]] || '' })).filter((d) => d.until),
+      history: rows, stats: { records: rows.length, confirmed: rows.filter((x) => x.confirmed).length, first: rows.length ? rows[rows.length - 1].date : '' },
+      made: today() } };
+  }
+
   const META = { categories: CATEGORIES, districts: DISTRICTS, statuses: STATUS, urgency: URGENCY, car: CAR_OPTS, services: SERVICES, serviceGroups: SERVICE_GROUPS, carDocs: CAR_DOCS };
   const histOut = (h) => { const p = pick(h, ['id', 'date', 'work', 'place', 'price', 'mileage', 'request_id', 'confirmed']); p.services = String(h.services || '').split(',').filter(Boolean); return p; };
 
   const ACTIONS = {
-    meta: async () => Object.assign({ ria: !!env.AUTO_RIA_KEY, otp: await otpMeta(), tgLogin: !!(await botName()) }, META),
+    meta: async () => Object.assign({ ria: !!env.AUTO_RIA_KEY, otp: await otpMeta(), tgLogin: !!(await botName()), tgBot: await botName() }, META),
     register, login, 'otp.send': otpSend, 'otp.bot': otpBot, 'otp.bot.check': otpBotCheck, 'pin.reset': pinReset,
     logout: async (r) => { if (r.token) await db.removeWhere('sessions', 'token', String(r.token)); return {}; },
     me: async (r) => { const u = await auth(r); const sto = u.sto_id ? await db.find('stos', 'id', u.sto_id) : null; return { user: pubUser(u), sto: sto ? pubSto(sto, true) : null }; },
@@ -2023,7 +2263,7 @@ export function makeApi(db, deps) {
       const u = await auth(r);
       const [sto, cars] = await Promise.all([u.sto_id ? db.find('stos', 'id', u.sto_id) : null, u.role === 'driver' ? myCars(u) : []]);
       const grp = u.role === 'sto' ? SET.group_services : (!u.sto_id && String(u.source || '').indexOf('tg:sto') === 0) ? SET.group_services : SET.group_drivers;
-      return { user: pubUser(u), sto: sto ? pubSto(sto, true) : null, cars, group: u.role === 'admin' ? '' : grp || '', meta: Object.assign({ ria: !!env.AUTO_RIA_KEY, otp: await otpMeta() }, META) };
+      return { user: pubUser(u), sto: sto ? pubSto(sto, true) : null, cars, group: u.role === 'admin' ? '' : grp || '', meta: Object.assign({ ria: !!env.AUTO_RIA_KEY, otp: await otpMeta(), tgBot: await botName() }, META) };
     },
     'cars.list': async (r) => ({ cars: await myCars(await auth(r, 'driver')) }),
     'cars.add': async (r) => {
@@ -2091,7 +2331,9 @@ export function makeApi(db, deps) {
     'tg.auth': tgAuth, 'tg.bind': tgBind, 'tg.prereg': tgPrereg, 'tg.login': tgLoginStart, 'tg.login.check': tgLoginCheck, 'sto.photo': stoPhoto, 'admin.sto.photo': adminStoPhoto,
     'ria.mods': riaMods, 'ria.equips': riaEquips, 'ria.price': riaPrice, 'cars.info': carInfo, 'ai.doc': aiDoc,
     'review.add': reviewAdd,
-    'sto.prices': stoPricesGet, 'sto.prices.set': stoPricesSet, 'prices.city': pricesCity, 'ai.obd': aiObd,
+    'win.mine': winMine, 'win.add': winAdd, 'win.delete': winDelete, 'win.list': winList, 'win.book': winBook,
+    'sto.public': stoPublic, 'review.qr': reviewQr, 'sto.report': stoReport, 'sto.remind': stoRemindGet, 'sto.remind.set': stoRemindSet, 'cron.daily': cronDaily, 'admin.sto.post': adminStoPost,
+    'cars.passport': carPassport, 'passport.get': passportGet, 'sto.prices': stoPricesGet, 'sto.prices.set': stoPricesSet, 'prices.city': pricesCity, 'ai.obd': aiObd,
     'staff.list': staffList, 'staff.save': staffSave, 'staff.invite': staffInvite, 'req.assign': reqAssign,
     'jobs.list': jobsList, 'jobs.add': jobsAdd, 'jobs.update': jobsUpdate, 'jobs.delete': jobsDelete,
     'history.list': async (r) => {

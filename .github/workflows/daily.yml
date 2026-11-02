@@ -1,0 +1,20 @@
+# АвтоХаб: щоденні нагадування (строки документів водіїв, ТО й сезонні шини від сервісів),
+# 1-го числа — звіт «ваш район» сервісам. Використовує той самий секрет SUPABASE_SERVICE_KEY.
+name: Щоденні нагадування
+on:
+  schedule:
+    - cron: '23 7 * * *'   # щодня ~09:23 за Києвом
+  workflow_dispatch:
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Запуск cron.daily
+        env:
+          KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          body=$(jq -n --arg k "$KEY" '{action:"cron.daily", key:$k}')
+          res=$(curl -sS -m 300 -X POST -H 'Content-Type: text/plain;charset=utf-8' --data "$body" https://uukjizyksppxeakafsua.supabase.co/functions/v1/api)
+          echo "$res"
+          echo "$res" | jq -e '.ok == true' > /dev/null
