@@ -223,7 +223,7 @@ export function makeApi(db, deps) {
     if (own) { p.active = isActive(s); p.email = s.email || ''; }
     return p;
   }
-  const pubReq = (q) => { const p = pick(q, ['id', 'car_id', 'sto_id', 'category', 'description', 'preferred', 'status', 'sto_comment', 'price', 'visit', 'work_done', 'mileage', 'visited', 'confirmed', 'visit_at', 'visit_state', 'dur_value', 'dur_unit', 'created', 'updated', 'master_id']);
+  const pubReq = (q) => { const p = pick(q, ['id', 'car_id', 'sto_id', 'category', 'description', 'preferred', 'status', 'sto_comment', 'price', 'visit', 'work_done', 'mileage', 'visited', 'confirmed', 'visit_at', 'visit_state', 'dur_value', 'dur_unit', 'created', 'updated', 'master_id', 'master_state']);
     p.visit_options = Array.isArray(q.visit_options) ? q.visit_options : []; p.visit_log = Array.isArray(q.visit_log) ? q.visit_log : []; p.status_label = STATUS[q.status] || q.status; return p; };
   const geoOf = (s) => (s.geo === 'x' || s.geo === 'xx') ? 'not_found' : (s.lat ? 'ok' : '');
 
@@ -724,7 +724,7 @@ export function makeApi(db, deps) {
 
   /* --- журнал робіт сервісу: власні клієнти й роботи через АвтоХаб --- */
   const JOB_ST = ['in_work', 'done'];
-  const pubJob = (j) => pick(j, ['id', 'date', 'client_name', 'client_phone', 'car', 'plate', 'vin', 'mileage', 'work', 'price', 'status', 'source', 'request_id', 'note', 'created', 'master_id', 'master_name']);
+  const pubJob = (j) => pick(j, ['id', 'date', 'client_name', 'client_phone', 'car', 'plate', 'vin', 'mileage', 'work', 'price', 'status', 'source', 'request_id', 'note', 'created', 'master_id', 'master_name', 'master_state']);
   function jobFields(r, partial) {
     const f = {}, has = (k) => !partial || r[k] !== undefined;
     if (has('date')) { const d = date_(r.date) || today(); if (d > today()) fail('Дата не може бути в майбутньому'); f.date = d; }
@@ -784,9 +784,36 @@ export function makeApi(db, deps) {
     if (owner && owner.tg_chat) tgSend(owner.tg_chat, { emoji: '✅', title: e.name + ' підключив Telegram', intro: 'Тепер співробітник отримуватиме призначені йому роботи.' });
   }
   // Повідомлення майстру про призначену роботу
-  async function notifyMaster(st, mid, m) {
+  async function notifyMaster(st, mid, m, kind, oid) {
     const e = staffOf(st).find((x) => x.id === mid);
-    if (e && e.tg_chat) await tgSend(e.tg_chat, m);
+    if (!e || !e.tg_chat || !tgOn()) return;
+    const kb = kind ? { inline_keyboard: [[{ text: '🔧 Взяв у роботу', callback_data: kind + ':s:' + oid }, { text: '✅ Готово', callback_data: kind + ':d:' + oid }]] } : undefined;
+    await deps.tg('sendMessage', { chat_id: e.tg_chat, text: tgHtml(m), parse_mode: 'HTML', link_preview_options: { is_disabled: true }, reply_markup: kb });
+  }
+  // Кнопки майстра в Telegram: «Взяв у роботу» / «Готово» (mj — робота з журналу, mr — заявка водія)
+  async function tgMasterAction(cq, chat, kind, act, oid) {
+    const isJob = kind === 'mj';
+    const row = await db.find(isJob ? 'sto_jobs' : 'requests', 'id', oid);
+    const st = row ? await db.find('stos', 'id', row.sto_id) : null;
+    const e = st ? staffOf(st).find((x) => x.id === row.master_id) : null;
+    const edit = (m, kb) => cq.message ? deps.tg('editMessageText', { chat_id: chat, message_id: cq.message.message_id, parse_mode: 'HTML', text: tgHtml(m), reply_markup: kb || { inline_keyboard: [] } }) : tgSend(chat, m);
+    if (!row || !e || String(e.tg_chat) !== chat) { await edit({ emoji: '⚠️', title: 'Цю роботу передали іншому майстру або видалили' }); return; }
+    if (!isJob && ['accepted', 'in_work'].indexOf(row.status) === -1 && act === 's') { await edit({ emoji: 'ℹ️', title: 'Заявку вже закрито або скасовано' }); return; }
+    const what = isJob ? [row.car, row.plate].filter(Boolean).join(' · ') || row.work : row.category;
+    const patch = { master_state: act === 's' ? 'started' : 'done' };
+    if (act === 's' && (isJob ? row.status !== 'in_work' && row.status !== 'done' : row.status === 'accepted')) patch.status = 'in_work';
+    if (act === 'd' && isJob) patch.status = 'done';
+    if (!isJob) patch.updated = now();
+    await db.update(isJob ? 'sto_jobs' : 'requests', row.id, patch);
+    await edit(act === 's'
+      ? { emoji: '🔧', title: 'Ви взяли в роботу: ' + what, intro: 'Коли закінчите, натисніть «Готово».' }
+      : { emoji: '✅', title: 'Готово: ' + what, intro: 'Керівник отримав повідомлення. Дякуємо!' },
+      act === 's' ? { inline_keyboard: [[{ text: '✅ Готово', callback_data: kind + ':d:' + oid }]] } : undefined);
+    const owner = st.owner_id ? await db.find('users', 'id', st.owner_id) : null;
+    if (owner && owner.tg_chat) await tgSend(owner.tg_chat, act === 's'
+      ? { emoji: '🔧', title: e.name + ' взяв у роботу', intro: what }
+      : { emoji: '✅', title: e.name + ' завершив роботу', intro: what + (isJob ? '' : '. Закрийте заявку в застосунку: опишіть роботи й пробіг, щоб водій отримав звіт.') },
+      [{ text: isJob ? 'Відкрити журнал' : 'Відкрити заявку', url: APP_URL + '?view=sto' }]);
   }
   function masterOf(st, mid) {
     if (!mid) return { master_id: '', master_name: '' };
@@ -803,8 +830,9 @@ export function makeApi(db, deps) {
     const nq = await db.update('requests', q.id, { master_id: m.master_id, updated: now() });
     if (m.master_id && m.master_id !== q.master_id) {
       const car = await db.find('cars', 'id', q.car_id);
+      await db.update('requests', q.id, { master_state: '' });
       await notifyMaster(st, m.master_id, { emoji: '🔧', title: 'Вам призначено роботу', quote: q.description,
-        rows: [['Що', q.category], ['Авто', car ? carTitle(car) : ''], ['Пробіг', car && car.mileage ? Number(car.mileage).toLocaleString('uk-UA') + ' км' : ''], ['Візит', q.visit_at ? slotText(q.visit_at) : q.visit], ['Строк', durText(q.dur_value, q.dur_unit)]] });
+        rows: [['Що', q.category], ['Авто', car ? carTitle(car) : ''], ['Пробіг', car && car.mileage ? Number(car.mileage).toLocaleString('uk-UA') + ' км' : ''], ['Візит', q.visit_at ? slotText(q.visit_at) : q.visit], ['Строк', durText(q.dur_value, q.dur_unit)]] }, 'mr', q.id);
     }
     return { request: Object.assign(pubReq(nq), { master_name: m.master_name }) };
   }
@@ -825,7 +853,7 @@ export function makeApi(db, deps) {
     const st = await db.find('stos', 'id', u.sto_id);
     const j = Object.assign({ id: id(), sto_id: u.sto_id, source: 'власний', request_id: '', created: now() }, f, masterOf(st, s_(r.master_id)));
     await db.insert('sto_jobs', j);
-    if (j.master_id) await notifyMaster(st, j.master_id, jobMsg(j));
+    if (j.master_id) await notifyMaster(st, j.master_id, jobMsg(j), j.status === 'done' ? '' : 'mj', j.id);
     return { job: pubJob(j) };
   }
   async function jobsUpdate(r) {
@@ -836,8 +864,9 @@ export function makeApi(db, deps) {
     if (f.work !== undefined && !f.work) fail('Опишіть роботи');
     const st = await db.find('stos', 'id', u.sto_id);
     if (r.master_id !== undefined) Object.assign(f, masterOf(st, s_(r.master_id)));
+    if (f.master_id !== undefined && f.master_id !== j.master_id) f.master_state = '';
     const nj = await db.update('sto_jobs', j.id, f);
-    if (nj.master_id && nj.master_id !== j.master_id) await notifyMaster(st, nj.master_id, jobMsg(nj));
+    if (nj.master_id && nj.master_id !== j.master_id) await notifyMaster(st, nj.master_id, jobMsg(nj), nj.status === 'done' ? '' : 'mj', nj.id);
     return { job: pubJob(nj) };
   }
   async function jobsDelete(r) {
@@ -1499,6 +1528,8 @@ export function makeApi(db, deps) {
   async function tgCallback(cq) {
     const chat = String(cq.message && cq.message.chat ? cq.message.chat.id : cq.from.id), data = String(cq.data || '');
     await deps.tg('answerCallbackQuery', { callback_query_id: cq.id });
+    const mk = data.match(/^(mj|mr):(s|d):([a-f0-9]{12})$/);
+    if (mk) { await tgMasterAction(cq, chat, mk[1], mk[2], mk[3]); return; }
     const lg = data.match(/^(in|inno):([a-f0-9]{20})$/);
     if (lg) {
       const k = 'tgin_' + lg[2], b = JSON.parse(await kvGet(k) || 'null'), u = (await db.where('users', 'tg_chat', chat))[0];

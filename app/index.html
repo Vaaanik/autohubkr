@@ -1747,7 +1747,7 @@ function renderStoRequests() {
         (q.sto_comment ? '<dt>Ваш коментар</dt><dd>' + esc(q.sto_comment) + '</dd>' : '') +
         (q.work_done ? '<dt>Виконано</dt><dd>' + esc(q.work_done) + '</dd>' : '') + '</dl>';
       if (q.review) body += '<div class="small" style="margin-top:8px">Відгук: ' + stars(q.review.rating) + (q.review.text ? ' ' + esc(q.review.text) : '') + '</div>';
-      if (staff.length && (q.status === 'accepted' || q.status === 'in_work')) body += '<div class="row" style="gap:8px;margin-top:10px;align-items:center"><span class="small" style="white-space:nowrap">👷 Майстер</span>' + masterSelect('m_' + q.id, q.master_id || '', staff).replace('<select class="i"', '<select class="i" data-master="' + esc(q.id) + '"') + '</div>';
+      if (staff.length && (q.status === 'accepted' || q.status === 'in_work')) body += '<div class="row" style="gap:8px;margin-top:10px;align-items:center"><span class="small" style="white-space:nowrap">👷 Майстер</span>' + masterSelect('m_' + q.id, q.master_id || '', staff).replace('<select class="i"', '<select class="i" data-master="' + esc(q.id) + '"') + '</div>' + (q.master_state ? '<div style="margin-top:6px">' + masterState(q.master_state) + (q.master_state === 'done' ? ' <span class="small muted">Закрийте заявку: «Завершити»</span>' : '') + '</div>' : '');
       else if (q.master_name) body += '<div class="small" style="margin-top:8px">👷 ' + esc(q.master_name) + '</div>';
       body += visitBlock(q, 'sto');
       if (q.visited !== undefined && (q.status === 'accepted' || q.status === 'in_work' || q.status === 'done')) body += q.visited ? '<span class="vtag">Візит підтверджено кодом</span>' : '<span class="vtag no">Візит не підтверджено кодом</span>';
@@ -1863,7 +1863,7 @@ function renderStoJobs() {
         return '<div class="card" data-jid="' + esc(j.id) + '" style="cursor:pointer"><div class="between"><div><b>' + esc(j.car || 'Авто не вказано') + '</b>' + (j.plate ? ' ' + plateHtml(j.plate) : '') +
           '<div class="mini">' + esc(dt(j.date)) + (j.mileage ? ' · ' + esc(km(j.mileage)) : '') + '</div></div>' +
           (j.status === 'in_work' ? '<span class="badge b-in_work">В роботі</span>' : j.source === 'АвтоХаб' ? '<span class="badge b-done">АвтоХаб</span>' : '<span class="badge b-accepted">Виконано</span>') + '</div>' +
-          '<div style="margin:8px 0 4px">' + esc(j.work) + '</div>' + (j.master_name ? '<div class="small" style="margin-bottom:4px">👷 ' + esc(j.master_name) + '</div>' : '') +
+          '<div style="margin:8px 0 4px">' + esc(j.work) + '</div>' + (j.master_name ? '<div class="small" style="margin-bottom:4px">👷 ' + esc(j.master_name) + (j.status === 'in_work' ? masterState(j.master_state) : '') + '</div>' : '') +
           '<div class="between"><span class="small muted">' + esc(j.client_name || '') + (j.client_phone ? ' · <a href="' + esc(telHref(j.client_phone)) + '">' + esc(fmtPhone(j.client_phone)) + '</a>' : '') + '</span><b>' + esc(money(j.price)) + '</b></div></div>';
       }).join('') : '<div class="card empty"><b>' + (all.length ? 'Нічого не знайдено' : 'Журнал порожній') + '</b>' + (all.length ? 'Спробуйте інший номер чи телефон.' : 'Додайте першу роботу: клієнт, авто, що зробили й скільки коштувало. Виконані заявки з АвтоХабу потрапляють сюди самі.') + '</div>';
     }
@@ -1925,6 +1925,7 @@ function jobDialog(j, all, staff) {
 /* ---------- СТО: співробітники ---------- */
 var staffCache = null;
 function loadStaff() { return api('staff.list').then(function (r) { staffCache = r.staff; return r.staff; }).catch(function () { staffCache = []; return []; }); }
+function masterState(st) { return st === 'started' ? ' <span class="badge b-in_work" style="font-size:11px">взяв у роботу</span>' : st === 'done' ? ' <span class="badge b-done" style="font-size:11px">майстер: готово</span>' : ''; }
 function masterSelect(id, cur, list, placeholder) {
   var act = list.filter(function (e) { return e.active || e.id === cur; });
   return '<select class="i" id="' + id + '"><option value="">' + (placeholder || 'Не призначено') + '</option>' +
