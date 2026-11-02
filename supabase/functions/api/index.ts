@@ -226,7 +226,7 @@ function makeApi(db, deps) {
     if (own) { p.active = isActive(s); p.email = s.email || ''; }
     return p;
   }
-  const pubReq = (q) => { const p = pick(q, ['id', 'car_id', 'sto_id', 'category', 'description', 'preferred', 'status', 'sto_comment', 'price', 'visit', 'work_done', 'mileage', 'visited', 'confirmed', 'visit_at', 'visit_state', 'dur_value', 'dur_unit', 'created', 'updated']);
+  const pubReq = (q) => { const p = pick(q, ['id', 'car_id', 'sto_id', 'category', 'description', 'preferred', 'status', 'sto_comment', 'price', 'visit', 'work_done', 'mileage', 'visited', 'confirmed', 'visit_at', 'visit_state', 'dur_value', 'dur_unit', 'created', 'updated', 'master_id']);
     p.visit_options = Array.isArray(q.visit_options) ? q.visit_options : []; p.visit_log = Array.isArray(q.visit_log) ? q.visit_log : []; p.status_label = STATUS[q.status] || q.status; return p; };
   const geoOf = (s) => (s.geo === 'x' || s.geo === 'xx') ? 'not_found' : (s.lat ? 'ok' : '');
 
@@ -553,6 +553,7 @@ function makeApi(db, deps) {
         const d = by(users, 'id', q.driver_id);
         // Телефон водія сервіс бачить лише після того, як прийняв заявку.
         p.driver = d ? { name: d.name, phone: q.status === 'new' || q.status === 'declined' ? '' : d.phone } : null;
+        p.master_name = q.master_id && sto ? ((staffOf(sto).find((x) => x.id === q.master_id) || {}).name || '') : '';
       }
       return p;
     })) };
@@ -619,7 +620,8 @@ function makeApi(db, deps) {
       try {
         const drv = await db.find('users', 'id', nq.driver_id);
         await db.insert('sto_jobs', { id: id(), sto_id: nq.sto_id, date: today(), client_name: drv ? drv.name : '', client_phone: drv ? drv.phone : '', car: car ? [car.make, car.model, car.year].filter(Boolean).join(' ') : '',
-          plate: car ? car.plate || '' : '', vin: car ? car.vin || '' : '', mileage: nq.mileage, work: nq.work_done, price: nq.price, status: 'done', source: 'АвтоХаб', request_id: nq.id, note: '', created: now() });
+          plate: car ? car.plate || '' : '', vin: car ? car.vin || '' : '', mileage: nq.mileage, work: nq.work_done, price: nq.price, status: 'done', source: 'АвтоХаб', request_id: nq.id, note: '', created: now(),
+          master_id: nq.master_id || '', master_name: nq.master_id ? ((staffOf(sto).find((x) => x.id === nq.master_id) || {}).name || '') : '' });
       } catch (e) { console.error('sto_jobs', e); }
     }
     return { request: pubReq(nq) };
@@ -725,7 +727,7 @@ function makeApi(db, deps) {
 
   /* --- журнал робіт сервісу: власні клієнти й роботи через АвтоХаб --- */
   const JOB_ST = ['in_work', 'done'];
-  const pubJob = (j) => pick(j, ['id', 'date', 'client_name', 'client_phone', 'car', 'plate', 'vin', 'mileage', 'work', 'price', 'status', 'source', 'request_id', 'note', 'created']);
+  const pubJob = (j) => pick(j, ['id', 'date', 'client_name', 'client_phone', 'car', 'plate', 'vin', 'mileage', 'work', 'price', 'status', 'source', 'request_id', 'note', 'created', 'master_id', 'master_name']);
   function jobFields(r, partial) {
     const f = {}, has = (k) => !partial || r[k] !== undefined;
     if (has('date')) { const d = date_(r.date) || today(); if (d > today()) fail('Дата не може бути в майбутньому'); f.date = d; }
@@ -741,6 +743,76 @@ function makeApi(db, deps) {
     if (has('note')) f.note = s_(r.note).slice(0, 500);
     return f;
   }
+  /* --- співробітники сервісу: список, запрошення в бота, призначення на роботи й заявки --- */
+  const staffOf = (st) => (Array.isArray(st && st.staff) ? st.staff : []).filter((e) => e && e.id);
+  const pubStaff = (e) => ({ id: e.id, name: e.name, role: e.role || '', phone: e.phone || '', tg: !!e.tg_chat, active: e.active !== false });
+  async function mySto(r) {
+    const u = await auth(r, 'sto');
+    const st = await db.find('stos', 'id', u.sto_id || '-');
+    if (!st) fail('Сервіс не знайдено');
+    return st;
+  }
+  async function staffList(r) { const st = await mySto(r); return { staff: staffOf(st).map(pubStaff) }; }
+  async function staffSave(r) {
+    const st = await mySto(r), list = staffOf(st), e = r.staff || {};
+    const name = need(e.name, 'Вкажіть ім\'я співробітника').slice(0, 60);
+    let phone = ''; if (s_(e.phone)) phone = phone_(e.phone);
+    let cur = e.id ? list.find((x) => x.id === e.id) : null;
+    if (e.id && !cur) fail('Співробітника не знайдено');
+    if (!cur) { if (list.filter((x) => x.active !== false).length >= 50) fail('Можна до 50 співробітників'); cur = { id: id(), tg_chat: '', active: true, created: now() }; list.push(cur); }
+    Object.assign(cur, { name, role: s_(e.role).slice(0, 60), phone });
+    if (e.active !== undefined) cur.active = e.active !== false;
+    await db.update('stos', st.id, { staff: list });
+    return { staff: list.map(pubStaff) };
+  }
+  async function staffInvite(r) {
+    const st = await mySto(r), e = staffOf(st).find((x) => x.id === s_(r.id));
+    if (!e) fail('Співробітника не знайдено');
+    const bot = await botName();
+    if (!bot) fail('Telegram-бот ще не налаштований');
+    const t = deps.uuid().replace(/-/g, '').slice(0, 16);
+    await kvPut('empinv_' + t, JSON.stringify({ sto: st.id, emp: e.id }), 30 * 86400);
+    return { url: 'https://t.me/' + bot + '?start=emp_' + t, name: e.name };
+  }
+  async function tgEmpJoin(chat, token, from) {
+    const inv = JSON.parse(await kvGet('empinv_' + token) || 'null');
+    const st = inv ? await db.find('stos', 'id', inv.sto) : null;
+    const list = staffOf(st), e = list.find((x) => x.id === (inv && inv.emp));
+    if (!st || !e) { await tgSend(chat, { emoji: '⌛', title: 'Запрошення застаріло', intro: 'Попросіть керівника сервісу надіслати нове посилання.' }); return; }
+    e.tg_chat = chat; e.tg_name = s_(from && from.first_name).slice(0, 40);
+    await db.update('stos', st.id, { staff: list });
+    await kvDel('empinv_' + token);
+    await tgSend(chat, { emoji: '👷', title: 'Вітаємо в команді «' + st.name + '»', intro: e.name + ', сюди приходитимуть роботи, на які вас призначить керівник: авто, що зробити й коли.' });
+    const owner = st.owner_id ? await db.find('users', 'id', st.owner_id) : null;
+    if (owner && owner.tg_chat) tgSend(owner.tg_chat, { emoji: '✅', title: e.name + ' підключив Telegram', intro: 'Тепер співробітник отримуватиме призначені йому роботи.' });
+  }
+  // Повідомлення майстру про призначену роботу
+  async function notifyMaster(st, mid, m) {
+    const e = staffOf(st).find((x) => x.id === mid);
+    if (e && e.tg_chat) await tgSend(e.tg_chat, m);
+  }
+  function masterOf(st, mid) {
+    if (!mid) return { master_id: '', master_name: '' };
+    const e = staffOf(st).find((x) => x.id === mid && x.active !== false);
+    if (!e) fail('Оберіть співробітника зі списку');
+    return { master_id: e.id, master_name: e.name };
+  }
+  async function reqAssign(r) {
+    const st = await mySto(r);
+    const q = await db.find('requests', 'id', s_(r.id));
+    if (!q || q.sto_id !== st.id) fail('Заявку не знайдено');
+    if (['accepted', 'in_work'].indexOf(q.status) === -1) fail('Призначити майстра можна на прийняту заявку');
+    const m = masterOf(st, s_(r.master_id));
+    const nq = await db.update('requests', q.id, { master_id: m.master_id, updated: now() });
+    if (m.master_id && m.master_id !== q.master_id) {
+      const car = await db.find('cars', 'id', q.car_id);
+      await notifyMaster(st, m.master_id, { emoji: '🔧', title: 'Вам призначено роботу', quote: q.description,
+        rows: [['Що', q.category], ['Авто', car ? carTitle(car) : ''], ['Пробіг', car && car.mileage ? Number(car.mileage).toLocaleString('uk-UA') + ' км' : ''], ['Візит', q.visit_at ? slotText(q.visit_at) : q.visit], ['Строк', durText(q.dur_value, q.dur_unit)]] });
+    }
+    return { request: Object.assign(pubReq(nq), { master_name: m.master_name }) };
+  }
+  const jobMsg = (j) => ({ emoji: '🔧', title: 'Вам призначено роботу', quote: j.work,
+    rows: [['Авто', [j.car, j.plate].filter(Boolean).join(' · ')], ['Клієнт', j.client_name], ['Пробіг', j.mileage ? Number(j.mileage).toLocaleString('uk-UA') + ' км' : ''], ['Дата', j.date], ['Статус', j.status === 'in_work' ? 'в роботі' : 'виконано']] });
   async function jobsList(r) {
     const u = await auth(r, 'sto');
     const rows = await db.where('sto_jobs', 'sto_id', u.sto_id || '-');
@@ -753,8 +825,10 @@ function makeApi(db, deps) {
     const f = jobFields(r, false);
     if (!f.work) fail('Опишіть роботи');
     if (!f.car && !f.plate && !f.client_name) fail('Вкажіть клієнта, авто або номер');
-    const j = Object.assign({ id: id(), sto_id: u.sto_id, source: 'власний', request_id: '', created: now() }, f);
+    const st = await db.find('stos', 'id', u.sto_id);
+    const j = Object.assign({ id: id(), sto_id: u.sto_id, source: 'власний', request_id: '', created: now() }, f, masterOf(st, s_(r.master_id)));
     await db.insert('sto_jobs', j);
+    if (j.master_id) await notifyMaster(st, j.master_id, jobMsg(j));
     return { job: pubJob(j) };
   }
   async function jobsUpdate(r) {
@@ -763,7 +837,11 @@ function makeApi(db, deps) {
     if (!j || j.sto_id !== u.sto_id) fail('Запис не знайдено');
     const f = jobFields(r, true);
     if (f.work !== undefined && !f.work) fail('Опишіть роботи');
-    return { job: pubJob(await db.update('sto_jobs', j.id, f)) };
+    const st = await db.find('stos', 'id', u.sto_id);
+    if (r.master_id !== undefined) Object.assign(f, masterOf(st, s_(r.master_id)));
+    const nj = await db.update('sto_jobs', j.id, f);
+    if (nj.master_id && nj.master_id !== j.master_id) await notifyMaster(st, nj.master_id, jobMsg(nj));
+    return { job: pubJob(nj) };
   }
   async function jobsDelete(r) {
     const u = await auth(r, 'sto');
@@ -1527,6 +1605,8 @@ function makeApi(db, deps) {
       if (u.role !== 'admin') await tgGroup(chat, u);
       return {};
     }
+    const emp = text.match(/^\/start\s+emp_([a-f0-9]{16})$/);
+    if (emp) { await tgEmpJoin(chat, emp[1], msg.from); return {}; }
     const login = text.match(/^\/start\s+in_([a-f0-9]{20})$/);
     if (login) { await tgLoginAsk(chat, login[1]); return {}; }
     const plain = text.match(/^\/start(?:\s+(\S+))?$/);
@@ -1907,6 +1987,7 @@ function makeApi(db, deps) {
     'tg.auth': tgAuth, 'tg.bind': tgBind, 'tg.prereg': tgPrereg, 'tg.login': tgLoginStart, 'tg.login.check': tgLoginCheck, 'sto.photo': stoPhoto, 'admin.sto.photo': adminStoPhoto,
     'ria.mods': riaMods, 'ria.equips': riaEquips, 'ria.price': riaPrice, 'cars.info': carInfo, 'ai.doc': aiDoc,
     'review.add': reviewAdd,
+    'staff.list': staffList, 'staff.save': staffSave, 'staff.invite': staffInvite, 'req.assign': reqAssign,
     'jobs.list': jobsList, 'jobs.add': jobsAdd, 'jobs.update': jobsUpdate, 'jobs.delete': jobsDelete,
     'history.list': async (r) => {
       const u = await auth(r, 'driver'); const c = await ownCar(u, r.car_id);
