@@ -340,6 +340,20 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
 .pr-off{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line2)}
 .ob-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid rgba(0,0,0,.06)}.ob-p{text-align:right;white-space:nowrap}
 .pp-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line2)}.pp-in{display:flex;gap:6px;flex:none}.pp-in .i{width:74px;min-height:38px;padding:6px 8px;text-align:center}
+.pass{background:#fff;border-radius:18px;padding:18px;border:1px solid var(--line2)}.pass-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.pass-head img{width:120px;height:84px;object-fit:cover;border-radius:12px}
+.pass-k{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--volt)}.pass h1{font-size:24px;margin:4px 0}
+.pass-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:14px 0}.pass-tiles div{background:var(--paper,#F3F6FA);border-radius:12px;padding:10px}.pass-tiles b{display:block;font-size:20px}.pass-tiles span{font-size:12px;color:var(--soft)}
+.pass-sec{margin-top:14px}.vin-big{font-family:ui-monospace,Menlo,monospace;font-size:17px;letter-spacing:.08em}
+.pass-row{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--line2)}.pass-d{width:86px;flex:none;font-size:13px;font-weight:600}.pass-d small{display:block;color:var(--soft);font-weight:400}
+body.is-pass .viewbar{display:none}
+@media print{header.bar,nav.tabs,.viewbar,.no-print{display:none!important}body{background:#fff}.pass{border:0;padding:0}main{padding:0!important}}
+.fnd{display:inline-block;font-size:11px;font-weight:700;color:#8A5A00;background:#FFF4D6;border-radius:99px;padding:2px 8px;white-space:nowrap}
+.tool-w{grid-column:1/-1}.win .disc{background:#E8F7EE;color:#137A3F;font-weight:800;border-radius:10px;padding:6px 10px;font-size:16px}.win-t{margin-top:8px}
+.qr-card{background:#fff;border-radius:20px;padding:28px 20px;text-align:center;border:1px solid var(--line2)}.qr-k{font-weight:800;letter-spacing:.08em;color:var(--volt);text-transform:uppercase;font-size:13px}
+.qr-card h1{font-size:26px;margin:6px 0 4px}.qr-h{font-size:22px;font-weight:700;margin:6px 0 16px}#qrBox{display:inline-block;padding:12px;background:#fff;border-radius:14px;box-shadow:0 0 0 2px var(--line2)}.qr-s{margin:14px 0 0;font-weight:600}.qr-s small{font-weight:400;color:var(--soft)}
+.rate-stars{display:flex;justify-content:center;gap:6px}.rate-stars button{font-size:42px;line-height:1;background:none;border:0;color:#D5DDE8;cursor:pointer;padding:0 2px}.rate-stars button.on{color:#F5A524}
+.rb-row{display:grid;grid-template-columns:120px 1fr 30px;gap:8px;align-items:center;font-size:13px;padding:3px 0}.rb{height:8px;background:var(--line2);border-radius:99px;overflow:hidden}.rb span{display:block;height:100%;background:var(--volt);border-radius:99px}.rb-row b{text-align:right}
+@media print{.qr-card{border:0}}
 .km-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .km-row:first-of-type{border-top:0}.km-row small{display:block;color:var(--soft);font-size:12px}
 </style>
@@ -500,19 +514,24 @@ function route() {
   var who = document.getElementById('who');
   drawViewbar();
   who.innerHTML = state.user ? '<b>' + esc(state.user.name) + '</b>' + esc(state.sto ? state.sto.name : ({ admin: 'Адміністратор', sto: 'Сервіс' }[state.user.role] || 'Водій')) : '';
+  var pm = h.match(/^\/p\/([a-f0-9]{20})$/);
+  document.body.classList.toggle('is-pass', !!pm);
+  if (pm) { document.body.classList.remove('is-login'); return renderPassport(pm[1]); }
   document.body.classList.toggle('is-login', !state.token);
-  if (!state.token) { if (h !== '/login') { if (h.indexOf('/new') === 0) store('ah_next', location.hash.slice(1)); return go('/login'); } setTabs(null); return renderLogin(); }
+  if (!state.token) { if (h !== '/login') { if (h.indexOf('/new') === 0 || h.indexOf('/rate/') === 0) store('ah_next', location.hash.slice(1)); return go('/login'); } setTabs(null); return renderLogin(); }
   var next = store('ah_next'); if (next && state.user.role === 'driver') { store('ah_next', null); if (location.hash !== '#' + next) return go(next); }
   if (h === '/' || h === '/login') return go({ sto: '/sto', admin: '/admin' }[state.user.role] || '/garage');
   window.scrollTo(0, 0);
   var m;
   if (state.user.role === 'driver') {
-    setTabs(DRIVER_TABS, h.indexOf('/car/') === 0 || h === '/prices' || h === '/ai' ? '/garage' : h);
+    setTabs(DRIVER_TABS, h.indexOf('/car/') === 0 || h === '/prices' || h === '/ai' || h === '/windows' || h.indexOf('/rate/') === 0 ? '/garage' : h);
     if (h === '/garage') return renderGarage();
     if (h === '/new') return renderNew();
     if (h === '/requests') return renderRequests();
     if (h === '/prices') return renderPrices();
     if (h === '/ai') return renderAi();
+    if (h === '/windows') return renderWindows();
+    if ((m = h.match(/^\/rate\/(\w+)$/))) return renderRate(m[1]);
     if ((m = h.match(/^\/car\/(\w+)$/))) return renderCar(m[1]);
     if (h === '/profile') return renderProfile();
     return go('/garage');
@@ -528,7 +547,8 @@ function route() {
     if (h === '/profile') return renderProfile();
     return go('/admin');
   }
-  setTabs(STO_TABS, h);
+  setTabs(STO_TABS, h === '/sto/qr' ? '/sto/profile' : h);
+  if (h === '/sto/qr') return renderStoQr();
   if (h === '/sto') return renderStoRequests();
   if (h === '/sto/profile') return renderStoProfile();
   if (h === '/sto/jobs') return renderStoJobs();
@@ -577,7 +597,7 @@ function stoSheet(s, onPick) {
   var pics = s.photos || [], n = s.reviews || 0;
   var html = '<div class="sto-sheet">' +
     '<div class="sto-head" style="gap:12px;margin-bottom:8px">' + (s.logo ? '<img class="sto-logo" style="width:56px;height:56px" src="' + esc(s.logo) + '" alt="">' : '') +
-    '<div><h2 style="margin:0">' + esc(s.name) + '</h2><div class="small">' + (s.rating ? stars(s.rating) + ' ' + esc(s.rating) + ' <span class="muted">· ' + n + ' ' + (n % 10 === 1 && n % 100 !== 11 ? 'відгук' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'відгуки' : 'відгуків') + '</span>' : s.listed ? '<span class="muted">ще не в АвтоХабі</span>' : '<span class="tag">новий партнер</span>') + '</div></div></div>' +
+    '<div><h2 style="margin:0">' + esc(s.name) + '</h2>' + (s.founder ? '<div class="fnd" style="margin:2px 0">⭐ Партнер-засновник АвтоХабу</div>' : '') + '<div class="small">' + (s.rating ? stars(s.rating) + ' ' + esc(s.rating) + ' <span class="muted">· ' + n + ' ' + (n % 10 === 1 && n % 100 !== 11 ? 'відгук' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'відгуки' : 'відгуків') + '</span>' : s.listed ? '<span class="muted">ще не в АвтоХабі</span>' : '<span class="tag">новий партнер</span>') + '</div></div></div>' +
     (pics.length ? '<div class="sto-gal">' + pics.map(function (u, i) { return '<img src="' + esc(u) + '" alt="Фото сервісу ' + (i + 1) + '" data-big="' + i + '">'; }).join('') + '</div>' : '') +
     (s.about ? '<p style="margin:10px 0">' + esc(s.about) + '</p>' : '') +
     '<dl class="kv"><dt>Адреса</dt><dd>' + esc([s.address, s.district].filter(Boolean).join(', ') || 'Кривий Ріг') + ' · <a href="' + esc(map) + '" target="_blank" rel="noopener">на карті</a></dd>' +
@@ -699,6 +719,7 @@ function renderAdminSettings() {
           '<div class="set-link"><code>https://autohubkr.com/app/</code><button type="button" class="link" data-copy="https://autohubkr.com/app/">Копіювати</button></div></details>' +
         '<div class="lbl" style="margin-top:14px">Групи спільноти</div><p class="mini" style="margin:2px 0 6px">Бот надсилає посилання на групу кожному одразу після реєстрації чи підключення (один раз). Порожньо: не надсилати.</p>' +
         '<label class="f" for="gD" style="margin-top:4px">Група водіїв</label><input class="i set-txt" id="gD" data-k="group_drivers" value="' + esc(S.group_drivers || '') + '" placeholder="https://t.me/+AbCdEf...">' +
+        '<label class="f" for="gC" style="margin-top:8px">Канал для постів про партнерів <span>бот має бути адміністратором каналу</span></label><input class="i set-txt" id="gC" data-k="channel" value="' + esc(S.channel || '') + '" placeholder="@autohubkr">' +
         '<label class="f" for="gS" style="margin-top:8px">Група сервісів-партнерів</label><input class="i set-txt" id="gS" data-k="group_services" value="' + esc(S.group_services || '') + '" placeholder="https://t.me/+XyZ...">' +
         '<div class="row" style="margin-top:10px;flex-wrap:wrap;gap:8px"><button type="button" class="btn sm ghost" id="grpTest">Надіслати мені для перевірки</button><button type="button" class="btn sm ghost" id="grpSend">Надіслати тим, хто вже зареєструвався</button></div><div id="grpR"></div>' +
         (T.bot ? '<div class="lbl" style="margin-top:14px">Посилання для реклами</div><p class="mini" style="margin:2px 0 8px">Додайте до посилання <b>_джерело</b> (наприклад _insta), щоб бачити його у воронці.</p>' +
@@ -1061,7 +1082,7 @@ function renderGarage() {
   loading();
   (state.cars ? Promise.resolve(state.cars) : loadCars()).then(function (cars) {
     view.innerHTML = '<div class="page-head"><h1>Мій гараж</h1><button class="btn sm ghost" id="addCar">Додати авто</button></div>' + groupCard() +
-      '<div class="tools"><a href="#/ai" class="tool"><span>🔎</span><b>Розшифрувати помилку</b><small>Код OBD або звук → причини й ціни</small></a><a href="#/prices" class="tool"><span>💰</span><b>Скільки коштує</b><small>Ціни сервісів міста</small></a></div>' +
+      '<div class="tools"><a href="#/ai" class="tool"><span>🔎</span><b>Розшифрувати помилку</b><small>Код OBD або звук → причини й ціни</small></a><a href="#/prices" class="tool"><span>💰</span><b>Скільки коштує</b><small>Ціни сервісів міста</small></a><a href="#/windows" class="tool tool-w"><span>⏱</span><b>Вільні вікна зі знижкою</b><small>Без черги, запис одразу підтверджено</small></a></div>' +
       (cars.length ? cars.map(function (c) {
         var spec = carSpec(c);
         return '<a class="dash' + (c.photo ? ' has-photo' : '') + '" href="#/car/' + esc(c.id) + '" aria-label="' + esc(c.make + ' ' + c.model) + ': історія і план ТО">' +
@@ -1301,7 +1322,7 @@ function renderCar(id) {
       (spec ? '<div class="spec">' + esc(spec) + '</div>' : '') + (car.modification ? '<div class="spec" style="opacity:.8">' + esc(car.modification) + '</div>' : '') +
       '<div class="dash-row"><div>' + plateHtml(car.plate) + '</div><button type="button" id="odoBtn" class="odo-btn" aria-label="Оновити пробіг"><div class="odo-l">Пробіг ✎</div>' + odoHtml(car.mileage) + '</button></div>' +
       (car.vin ? '<div class="vin">VIN ' + esc(car.vin) + '</div>' : '') +
-      '<div class="acts"><a class="btn sm" href="#/new?car=' + esc(car.id) + '">Заявка в СТО</a><button class="btn sm ghost" id="kmBtn">Оновити пробіг</button><button class="btn sm ghost" id="addHist">Додати запис</button><button class="btn sm ghost" id="editCar">Редагувати</button>' +
+      '<div class="acts"><a class="btn sm" href="#/new?car=' + esc(car.id) + '">Заявка в СТО</a><button class="btn sm ghost" id="kmBtn">Оновити пробіг</button><button class="btn sm ghost" id="passBtn">Паспорт для продажу</button><button class="btn sm ghost" id="addHist">Додати запис</button><button class="btn sm ghost" id="editCar">Редагувати</button>' +
       '<label class="btn sm ghost" id="photoBtn">' + (car.photo ? 'Змінити фото' : 'Додати фото') + '<input type="file" accept="image/*" id="carPhoto" class="sr"></label></div></div>' +
       '<div class="card"><div class="between" style="margin-bottom:6px"><h2>План обслуговування</h2>' + (car.mileage ? '' : '<span class="mini">вкажіть пробіг</span>') + '</div>' +
         (urgent.length ? urgent.map(planRow).join('') : (car.mileage ? '<p class="small" style="margin:4px 0 8px">Термінових робіт немає' + (okc ? ': ' + okc + ' позицій за графіком.' : '.') + '</p>' : '<p class="small muted" style="margin:4px 0">Додайте пробіг у «Редагувати», і план порахується автоматично.</p>')) +
@@ -1335,6 +1356,7 @@ function renderCar(id) {
     if ($('#addHist2')) $('#addHist2').onclick = function () { histDialog(car, M); };
     $('#editCar').onclick = function () { carDialog(car); };
     $('#odoBtn').onclick = $('#kmBtn').onclick = function () { kmDialog(car); };
+    $('#passBtn').onclick = function () { passportDialog(car); };
     bindAbout(car);
     if ($('#mtsbu') && car.plate) $('#mtsbu').onclick = function () { try { navigator.clipboard.writeText(car.plate); toast('Номер ' + car.plate + ' скопійовано, вставте його на сайті МТСБУ'); } catch (e) {} };
     if ($('#docFile')) $('#docFile').onchange = function () {
@@ -1540,7 +1562,7 @@ function renderNew() {
           '<div id="stoListWrap" ' + (sel.view === 'map' ? 'hidden' : '') + '>' + (partners.length ? '' : '<div class="note info" style="margin-bottom:10px">Партнерів АвтоХабу для «' + esc(sel.category) + '» поки немає. Нижче інші сервіси міста: зв\'яжіться з ними напряму.</div>') +
           partners.map(function (s) {
           return '<div class="sto-pick" role="radio" tabindex="0" aria-checked="false" data-id="' + esc(s.id) + '"><div class="between"><span class="sto-head">' + (s.logo ? '<img class="sto-logo" src="' + esc(s.logo) + '" alt="" loading="lazy">' : '') + '<b>' + esc(s.name) + '</b></span>' +
-            (s.rating ? '<span class="small">' + stars(s.rating) + ' ' + esc(s.rating) + ' <span class="muted">(' + s.reviews + ')</span></span>' : '<span class="tag">новий партнер</span>') + '</div>' +
+            (s.founder ? '<span class="fnd">⭐ Партнер-засновник</span> ' : '') + (s.rating ? '<span class="small">' + stars(s.rating) + ' ' + esc(s.rating) + ' <span class="muted">(' + s.reviews + ')</span></span>' : '<span class="tag">новий партнер</span>') + '</div>' +
             '<div class="small muted">' + esc([s.district, s.address].filter(Boolean).join(' · ')) + '</div>' +
             (s.hours ? '<div class="small muted">' + esc(s.hours) + '</div>' : '') +
             (s.about ? '<div class="small" style="margin-top:4px">' + esc(s.about) + '</div>' : '') +
@@ -1934,6 +1956,44 @@ function jobDialog(j, all, staff) {
   };
 }
 
+/* ---------- паспорт авто для продажу ---------- */
+function passportDialog(car) {
+  var draw = function (url) {
+    openDialog('<h2 style="margin-bottom:6px">Паспорт авто для продажу</h2><p class="small" style="margin:0 0 10px">Сторінка з історією обслуговування, пробігом і документами. Записи з виконаних заявок АвтоХабу позначено як підтверджені сервісом. Ваше ім\'я й телефон там не показуються.</p>' +
+      (url ? '<div class="set-link"><code style="flex:1">' + esc(url) + '</code></div><div class="row" style="margin-top:10px;flex-wrap:wrap"><button class="btn" id="psCp" style="flex:1">Копіювати</button>' + (navigator.share ? '<button class="btn dark" id="psSh" style="flex:1">Надіслати</button>' : '') +
+        '<a class="btn ghost" style="flex:1" href="' + esc(url.replace(/^.*#/, '#')) + '" id="psOpen">Відкрити й зберегти PDF</a></div><button type="button" class="link" id="psOff" style="margin-top:12px;color:var(--soft)">Вимкнути посилання</button>'
+        : '<label class="small" style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" id="psVin" checked> Показувати повний VIN (покупці перевіряють авто за ним)</label><button class="btn wide" id="psMake">Створити паспорт</button>') +
+      '<div class="row" style="margin-top:10px"><button class="btn ghost" data-close style="flex:1">Закрити</button></div>');
+    if ($('#psMake')) $('#psMake').onclick = function () { var b = this; busy(b, true); api('cars.passport', { id: car.id, vin: $('#psVin').checked }).then(function (r) { car.passport = r.url; state.cars = null; draw(r.url); }).catch(function (e) { busy(b, false); fail(e); }); };
+    if ($('#psCp')) $('#psCp').onclick = function () { try { navigator.clipboard.writeText(url); toast('Посилання скопійовано'); } catch (e) { toast(url); } };
+    if ($('#psSh')) $('#psSh').onclick = function () { navigator.share({ title: 'Паспорт авто ' + car.make + ' ' + car.model, url: url }).catch(function () {}); };
+    if ($('#psOpen')) $('#psOpen').addEventListener('click', function () { closeDialog(); });
+    if ($('#psOff')) $('#psOff').onclick = function () { if (!confirm('Вимкнути посилання? Хто його має, більше не побачить паспорт.')) return; api('cars.passport', { id: car.id, off: true }).then(function () { car.passport = ''; state.cars = null; draw(''); toast('Посилання вимкнено'); }).catch(fail); };
+  };
+  draw(car.passport || '');
+}
+function renderPassport(tok) {
+  setTabs(null);
+  view.innerHTML = '<div class="spin">Завантаження паспорта…</div>';
+  api('passport.get', { token: tok }).then(function (r) {
+    var P = r.passport, c = P.car, title = [c.make, c.model, c.year].filter(Boolean).join(' ');
+    var spec = [c.modification, c.equipment, c.engine ? Number(c.engine).toFixed(1) + ' л' : '', c.fuel, c.power ? c.power + ' к.с.' : '', c.gearbox, c.drive, c.body].filter(Boolean).join(' · ');
+    document.title = 'Паспорт ' + title + ' · АвтоХаб';
+    view.innerHTML = '<div class="pass">' +
+      '<div class="pass-head"><div><div class="pass-k">Паспорт авто · АвтоХаб</div><h1>' + esc(title) + '</h1>' + (spec ? '<div class="small">' + esc(spec) + '</div>' : '') + '</div>' + (P.photo ? '<img src="' + esc(P.photo) + '" alt="">' : '') + '</div>' +
+      '<div class="pass-tiles"><div><b>' + (c.mileage ? Number(c.mileage).toLocaleString('uk-UA') : '—') + '</b><span>км пробіг</span></div><div><b>' + P.stats.records + '</b><span>записів обслуговування</span></div><div><b>' + P.stats.confirmed + '</b><span>підтверджено сервісами</span></div>' + (P.per_year ? '<div><b>' + Number(P.per_year).toLocaleString('uk-UA') + '</b><span>км на рік</span></div>' : '') + '</div>' +
+      (P.vin ? '<div class="pass-sec"><div class="lbl">VIN</div><div class="vin-big">' + esc(P.vin) + '</div></div>' : '') +
+      '<div class="pass-sec"><div class="lbl">Історія обслуговування</div>' + (P.history.length ? P.history.map(function (h) {
+        return '<div class="pass-row"><div class="pass-d">' + esc(dt(h.date)) + (h.mileage ? '<small>' + esc(km(h.mileage)) + '</small>' : '') + '</div><div style="flex:1"><b>' + esc(h.services.join(', ') || h.work) + '</b>' + (h.services.length && h.work ? '<div class="small">' + esc(h.work) + '</div>' : '') +
+          '<div class="mini">' + esc(h.place || '') + (h.confirmed ? ' <span class="vtag">✓ підтверджено сервісом через АвтоХаб</span>' : h.disputed ? ' <span class="vtag no">спірний запис</span>' : ' · запис власника') + '</div></div></div>';
+      }).join('') : '<p class="small muted">Записів поки немає.</p>') + '</div>' +
+      (P.mileage_log.length > 1 ? '<div class="pass-sec"><div class="lbl">Пробіг</div>' + P.mileage_log.map(function (e) { return '<div class="between small" style="padding:3px 0"><span>' + esc(dt(e.date)) + '</span><b>' + esc(km(e.km)) + '</b></div>'; }).join('') + '</div>' : '') +
+      (P.docs.length ? '<div class="pass-sec"><div class="lbl">Документи</div>' + P.docs.map(function (d) { return '<div class="between small" style="padding:3px 0"><span>' + esc(d.name) + '</span><span>до ' + esc(dt(d.until)) + '</span></div>'; }).join('') + '</div>' : '') +
+      '<p class="mini" style="margin-top:14px">Сформовано ' + esc(dt(P.made)) + ' на autohubkr.com. «Підтверджено сервісом» означає, що роботу виконав сервіс через АвтоХаб, а власник підтвердив виконання. Записи власника внесено ним самостійно. Перед купівлею радимо діагностику на СТО.</p>' +
+      '<div class="row no-print" style="margin-top:14px;flex-wrap:wrap"><button class="btn" id="psPrint" style="flex:1">Зберегти PDF</button>' + (state.token ? '' : '<a class="btn ghost" style="flex:1" href="../">Що таке АвтоХаб</a>') + '</div></div>';
+    $('#psPrint').onclick = function () { window.print(); };
+  }).catch(function (e) { view.innerHTML = '<div class="card empty"><b>Паспорт недоступний</b>' + esc(e.message) + '</div>'; });
+}
 /* ---------- водій: ціни по місту ---------- */
 function rangeTxt(a, b) { a = Number(a) || 0; b = Number(b) || 0; return a && b && a !== b ? a.toLocaleString('uk-UA') + '–' + b.toLocaleString('uk-UA') + ' грн' : (a || b) ? (a || b).toLocaleString('uk-UA') + ' грн' : ''; }
 function renderPrices() {
@@ -2029,6 +2089,132 @@ function priceBlock(box, stoServices) {
     };
   }).catch(function (e) { box.innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
 }
+/* ---------- вільні вікна: водій ---------- */
+function renderWindows() {
+  loading();
+  Promise.all([meta(), api('win.list'), state.cars ? Promise.resolve(state.cars) : loadCars()]).then(function (res) {
+    var M = res[0], list = res[1].windows, cars = res[2], cat = '';
+    view.innerHTML = '<a href="#/garage" class="back">‹ Гараж</a><h1 style="margin-bottom:6px">Вільні вікна зі знижкою</h1>' +
+      '<p class="small muted" style="margin:0 0 12px">Сервіси виставляють години, коли в них немає черги, і дають знижку. Бронюєте вікно, і запис одразу підтверджено.</p>' +
+      '<div class="chips" id="wCat" style="margin-bottom:12px"><span class="chip on" data-c="">Усі</span>' + M.categories.map(function (c) { return '<span class="chip" data-c="' + esc(c) + '">' + esc(c) + '</span>'; }).join('') + '</div><div id="wL"></div>';
+    function draw() {
+      var ls = list.filter(function (w) { return !cat || !w.category || w.category === cat; });
+      $('#wL').innerHTML = ls.length ? ls.map(function (w) {
+        return '<div class="card win"><div class="between"><div class="sto-head">' + (w.sto.logo ? '<img class="sto-logo" src="' + esc(w.sto.logo) + '" alt="">' : '') + '<div><b>' + esc(w.sto.name) + '</b>' + (w.sto.founder ? ' <span class="fnd">⭐ засновник</span>' : '') + '<div class="mini">' + esc([w.sto.district, w.sto.address].filter(Boolean).join(' · ')) + '</div></div></div>' +
+          '<span class="disc">−' + w.discount + '%</span></div><div class="win-t"><b>' + esc(w.when) + '</b> · ' + esc(durTxt(w.dur_value, w.dur_unit)) + (w.category ? ' · ' + esc(w.category) : '') + '</div>' + (w.note ? '<div class="small">' + esc(w.note) + '</div>' : '') +
+          '<button class="btn sm" data-book="' + esc(w.id) + '" style="margin-top:10px">Забронювати</button></div>';
+      }).join('') : '<div class="card empty"><b>Зараз вільних вікон немає</b>Сервіси додають їх, коли з\'являється час. Загляньте пізніше або створіть звичайну заявку.<div style="margin-top:12px"><a class="btn sm" href="#/new">Створити заявку</a></div></div>';
+      $$('[data-book]').forEach(function (b) { b.onclick = function () { bookWindow(list.filter(function (w) { return w.id === b.dataset.book; })[0], cars, M); }; });
+    }
+    $('#wCat').onclick = function (e) { var c = e.target.closest('[data-c]'); if (!c) return; cat = c.dataset.c; $$('#wCat .chip').forEach(function (x) { x.classList.toggle('on', x === c); }); draw(); };
+    draw();
+  }).catch(fail);
+}
+function bookWindow(w, cars, M) {
+  if (!cars.length) { toast('Спершу додайте авто в гараж', true); return go('/garage'); }
+  openDialog('<h2 style="margin-bottom:6px">' + esc(w.sto.name) + '</h2><p class="small" style="margin:0 0 10px"><b>' + esc(w.when) + '</b>, знижка ' + w.discount + '%</p><div class="stack">' +
+    '<div><label class="f" for="bCar">Авто</label><select class="i" id="bCar">' + cars.map(function (c) { return '<option value="' + esc(c.id) + '">' + esc(c.make + ' ' + c.model + (c.year ? ' ' + c.year : '')) + '</option>'; }).join('') + '</select></div>' +
+    (w.category ? '' : '<div><label class="f" for="bCat">Що потрібно</label><select class="i" id="bCat">' + M.categories.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select></div>') +
+    '<div><label class="f" for="bD">Що зробити</label><textarea class="i" id="bD" rows="3" placeholder="Заміна оливи й фільтрів"></textarea></div><div id="bErr"></div>' +
+    '<div class="row"><button class="btn ghost" data-close style="flex:1">Скасувати</button><button class="btn" id="bGo" style="flex:1">Забронювати</button></div></div>');
+  $('#bGo').onclick = function () {
+    var b = this; busy(b, true);
+    api('win.book', { id: w.id, car_id: $('#bCar').value, category: $('#bCat') ? $('#bCat').value : '', description: $('#bD').value }).then(function () { closeDialog(); toast('Заброньовано! Сервіс чекає вас ' + w.when); go('/requests'); })
+      .catch(function (e) { busy(b, false); $('#bErr').innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
+  };
+}
+/* ---------- вільні вікна: сервіс ---------- */
+function windowsBlock(box) {
+  var M = state.meta || { categories: [] };
+  function draw(list) {
+    box.innerHTML = '<div class="between"><h2>Вільні вікна</h2><button type="button" class="btn sm" id="wAdd">Додати вікно</button></div>' +
+      '<p class="mini" style="margin:4px 0 10px">Є простій? Виставте час зі знижкою, і водії забронюють його в АвтоХабі. Бронь одразу стає підтвердженою заявкою.</p>' +
+      (list.length ? list.map(function (w) {
+        return '<div class="st-row"><div style="flex:1"><b>' + esc(w.when) + '</b> · ' + esc(durTxt(w.dur_value, w.dur_unit)) + ' · −' + w.discount + '%<small>' + esc(w.category || 'будь-які роботи') + (w.note ? ' · ' + esc(w.note) : '') + '</small></div>' +
+          (w.status === 'booked' ? '<span class="badge b-done">заброньовано</span>' : '<button type="button" class="link" data-wdel="' + esc(w.id) + '" style="color:var(--soft)">Прибрати</button>') + '</div>';
+      }).join('') : '<div class="small muted">Вікон поки немає.</div>');
+    $('#wAdd', box).onclick = add;
+    $$('[data-wdel]', box).forEach(function (b) { b.onclick = function () { api('win.delete', { id: b.dataset.wdel }).then(load).catch(fail); }; });
+  }
+  function add() {
+    openDialog('<h2 style="margin-bottom:12px">Вільне вікно</h2><div class="stack"><div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Коли</span><div id="wSlot">' + slotRow(0) + '</div></div>' +
+      '<div class="grid2"><div><label class="f" for="wDv">Тривалість</label><input class="i" id="wDv" inputmode="numeric" value="2"></div><div><label class="f" for="wDu">&nbsp;</label><select class="i" id="wDu"><option>год</option><option>дн</option></select></div></div>' +
+      '<div class="grid2"><div><label class="f" for="wDisc">Знижка, %</label><input class="i" id="wDisc" inputmode="numeric" value="15"></div><div><label class="f" for="wCat2">Для робіт</label><select class="i" id="wCat2"><option value="">Будь-які</option>' + M.categories.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select></div></div>' +
+      '<div><label class="f" for="wNote">Примітка <span>необов\'язково</span></label><input class="i" id="wNote" placeholder="Знижка на роботу, запчастини окремо"></div><div id="wErr"></div>' +
+      '<div class="row"><button class="btn ghost" data-close style="flex:1">Скасувати</button><button class="btn" id="wGo" style="flex:1">Виставити</button></div></div>');
+    $('#wGo').onclick = function () {
+      var b = this, at = readSlots($('#wSlot'))[0];
+      if (!at) { $('#wErr').innerHTML = '<div class="note err">Оберіть дату й час</div>'; return; }
+      busy(b, true);
+      api('win.add', { at: at, dur_value: $('#wDv').value, dur_unit: $('#wDu').value, discount: $('#wDisc').value, category: $('#wCat2').value, note: $('#wNote').value }).then(function () { closeDialog(); toast('Вікно виставлено'); load(); })
+        .catch(function (e) { busy(b, false); $('#wErr').innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
+    };
+  }
+  function load() { api('win.mine').then(function (r) { draw(r.windows); }).catch(function (e) { box.innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; }); }
+  box.innerHTML = '<div class="mini">Завантажую вікна…</div>'; load();
+}
+/* ---------- QR-відгуки ---------- */
+function qrUrl(stoId) { var bot = state.meta && state.meta.tgBot; return bot ? 'https://t.me/' + bot + '?startapp=rate_' + stoId : 'https://autohubkr.com/app/#/rate/' + stoId; }
+function qrBlock(box, s) {
+  box.innerHTML = '<div class="between"><h2>Відгуки через QR</h2></div><p class="mini" style="margin:4px 0 10px">Роздрукуйте табличку на стійку. Клієнт наводить камеру, ставить зірки за 10 секунд, а відгук з\'являється у вашій картці.</p>' +
+    '<a class="btn sm" href="#/sto/qr">Відкрити табличку для друку</a>';
+}
+function loadQrLib() {
+  if (window.qrcode) return Promise.resolve();
+  return new Promise(function (ok, no) { var s = document.createElement('script'); s.src = 'qrcode.js'; s.onload = ok; s.onerror = function () { no(new Error('Не вдалося завантажити QR')); }; document.head.appendChild(s); });
+}
+function renderStoQr() {
+  var s = state.sto || {};
+  view.innerHTML = '<a href="#/sto/profile" class="back no-print">‹ Мій сервіс</a><div class="qr-card"><div class="qr-k">АвтоХаб</div><h1>' + esc(s.name || '') + '</h1><p class="qr-h">Оцініть нашу роботу<br>за 10 секунд</p>' +
+    '<div id="qrBox"></div><p class="qr-s">Наведіть камеру телефона на код ⭐⭐⭐⭐⭐<br><small>Відгук бачать водії Кривого Рогу в АвтоХабі</small></p></div>' +
+    '<div class="row no-print" style="margin-top:14px"><button class="btn" id="qrPrint" style="flex:1">Надрукувати / PDF</button></div><p class="mini no-print" style="margin-top:8px">Порада: роздрукуйте на А5 або А4 і поставте біля каси чи на стійку видачі авто.</p>';
+  loadQrLib().then(function () { var q = qrcode(0, 'M'); q.addData(qrUrl(s.id)); q.make(); $('#qrBox').innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true }); $('#qrBox svg').setAttribute('style', 'width:240px;height:240px;display:block'); })
+    .catch(function (e) { $('#qrBox').innerHTML = '<div class="note err">' + esc(e.message) + '</div><div class="small" style="word-break:break-all">' + esc(qrUrl(s.id)) + '</div>'; });
+  $('#qrPrint').onclick = function () { window.print(); };
+}
+function renderRate(stoId) {
+  loading();
+  api('sto.public', { id: stoId }).then(function (r) {
+    var s = r.sto, rating = 0;
+    view.innerHTML = '<div class="card" style="text-align:center">' + (s.logo ? '<img class="sto-logo" src="' + esc(s.logo) + '" alt="" style="width:64px;height:64px;margin:0 auto 8px;display:block">' : '') +
+      '<h1 style="font-size:22px">' + esc(s.name) + '</h1><p class="small muted" style="margin:4px 0 14px">Як вам обслуговування?</p><div class="rate-stars" id="rS">' + [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" data-r="' + n + '" aria-label="' + n + '">★</button>'; }).join('') + '</div>' +
+      '<textarea class="i" id="rT" rows="3" placeholder="Що сподобалось або що покращити (необов\'язково)" style="margin-top:12px"></textarea><div id="rErr"></div><button class="btn wide" id="rGo" style="margin-top:12px" disabled>Надіслати відгук</button></div>';
+    $$('[data-r]').forEach(function (b) { b.onclick = function () { rating = +b.dataset.r; $$('[data-r]').forEach(function (x) { x.classList.toggle('on', +x.dataset.r <= rating); }); $('#rGo').disabled = false; }; });
+    $('#rGo').onclick = function () {
+      var b = this; busy(b, true);
+      api('review.qr', { sto_id: stoId, rating: rating, text: $('#rT').value }).then(function () {
+        view.innerHTML = '<div class="card empty"><b>Дякуємо за відгук! 🙌</b>Він допоможе іншим водіям обрати сервіс.<div style="margin-top:12px"><a class="btn sm" href="#/garage">Мій гараж</a></div></div>';
+      }).catch(function (e) { busy(b, false); $('#rErr').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; });
+    };
+  }).catch(function (e) { view.innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
+}
+/* ---------- звіт «ваш район» і нагадування клієнтам ---------- */
+function reportBlock(box) {
+  box.innerHTML = '<div class="mini">Готую звіт…</div>';
+  api('sto.report').then(function (r) {
+    var R = r.report, bar = function (x, max) { return '<div class="rb"><span style="width:' + Math.max(6, Math.round(x.n / max * 100)) + '%"></span></div>'; };
+    if (!R.district) { box.innerHTML = '<h2>Ваш район</h2><p class="small muted">Вкажіть район сервісу нижче, і тут з\'явиться звіт.</p>'; return; }
+    var mx = function (a) { return a.length ? a[0].n : 1; };
+    box.innerHTML = '<div class="between"><h2>Ваш район: ' + esc(R.district) + '</h2><span class="mini">30 днів</span></div>' +
+      '<div class="tiles" style="grid-template-columns:repeat(3,1fr);margin:10px 0"><div class="tile"><b>' + R.requests + '</b><span>заявок у районі</span></div><div class="tile"><b>' + R.mine + '</b><span>вам (' + R.share + '%)</span></div><div class="tile"><b>' + R.rivals + '</b><span>сервісів поруч</span></div></div>' +
+      (R.topSearches.length ? '<div class="lbl">Що шукають водії цього місяця</div>' + R.topSearches.map(function (x) { return '<div class="rb-row"><span>' + esc(x.name) + '</span>' + bar(x, mx(R.topSearches)) + '<b>' + x.n + '</b></div>'; }).join('') : '') +
+      (R.topRequests.length ? '<div class="lbl" style="margin-top:10px">Заявки в районі за категоріями</div>' + R.topRequests.map(function (x) { return '<div class="rb-row"><span>' + esc(x.name) + '</span>' + bar(x, mx(R.topRequests)) + '<b>' + x.n + '</b></div>'; }).join('') : '') +
+      (R.gaps.length ? '<div class="note info" style="margin-top:10px">Шукають, а у вас не позначено: <b>' + esc(R.gaps.map(function (x) { return x.name; }).join(', ')) + '</b>. Якщо робите це, додайте послуги в картку.</div>' : '') +
+      (!R.requests && !R.topSearches.length ? '<p class="small muted">Даних поки мало: звіт наповнюватиметься з кожною заявкою й пошуком.</p>' : '') +
+      '<p class="mini" style="margin-top:8px">1-го числа звіт приходить вам у Telegram.</p>';
+  }).catch(function (e) { box.innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
+}
+function remindBlock(box) {
+  api('sto.remind').then(function (r) {
+    var R = r.remind;
+    box.innerHTML = '<h2 style="margin-bottom:4px">Автонагадування клієнтам</h2><p class="mini" style="margin:0 0 6px">АвтоХаб сам нагадає вашим клієнтам у Telegram від імені сервісу з кнопкою «Записатися». Клієнти: ті, хто був у вас через АвтоХаб, і ті, кого ви записали в журнал з телефоном, якщо вони користуються АвтоХабом.</p>' +
+      '<label class="set-row"><span><b>Планове ТО</b><small>Через <input class="i" id="rmM" inputmode="numeric" value="' + R.to_months + '" style="width:54px;min-height:30px;padding:2px 6px;display:inline-block;text-align:center"> міс. після заміни оливи</small></span><input type="checkbox" class="set-sw" id="rmTo"' + (R.to ? ' checked' : '') + '></label>' +
+      '<label class="set-row"><span><b>Сезонна зміна шин</b><small>20 березня – 20 квітня й 20 жовтня – 20 листопада тим, хто міняв шини у вас</small></span><input type="checkbox" class="set-sw" id="rmTi"' + (R.tires ? ' checked' : '') + '></label>' +
+      '<div class="mini">Надіслано нагадувань: ' + r.sent + '</div>';
+    var save = function () { api('sto.remind.set', { remind: { to: $('#rmTo').checked, to_months: $('#rmM').value, tires: $('#rmTi').checked } }).then(function () { toast('Збережено'); }).catch(fail); };
+    $('#rmTo').onchange = save; $('#rmTi').onchange = save; $('#rmM').onchange = save;
+  }).catch(function (e) { box.innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
+}
 /* ---------- СТО: співробітники ---------- */
 var staffCache = null;
 function loadStaff() { return api('staff.list').then(function (r) { staffCache = r.staff; return r.staff; }).catch(function () { staffCache = []; return []; }); }
@@ -2095,8 +2281,9 @@ function renderStoProfile() {
     var s = state.sto || {};
     view.innerHTML = '<h1 style="margin-bottom:12px">Мій сервіс</h1>' +
       (s.active ? '<div class="note ok" style="margin-bottom:12px">Сервіс показується водіям у каталозі.</div>' : '<div class="note warn" style="margin-bottom:12px">Сервіс на перевірці й поки не показується в каталозі.</div>') +
-      '<div class="card" id="staffBox"></div><div class="card" id="priceBox"></div><div class="card" id="stoPh"></div>' +
+      '<div class="card" id="repBox"></div><div class="card" id="winBox"></div><div class="card" id="staffBox"></div><div class="card" id="priceBox"></div><div class="card" id="remBox"></div><div class="card" id="qrBox2"></div><div class="card" id="stoPh"></div>' +
       '<form class="card stack" id="spForm" novalidate>' + stoFields(s) + '<div id="spErr"></div><button class="btn wide" id="spSave">Зберегти</button></form>';
+    reportBlock($('#repBox')); windowsBlock($('#winBox')); remindBlock($('#remBox')); qrBlock($('#qrBox2'), s);
     staffBlock($('#staffBox'));
     priceBlock($('#priceBox'), s.services);
     stoPhotosBlock($('#stoPh'), s, function (body) { return api('sto.photo', body); }, function (sto) { state.sto = sto; });
@@ -2230,6 +2417,7 @@ function adminStoCard(s) {
       (s.active ? '<button class="btn sm ghost" data-act="off">' + (s.owner ? 'Зняти з каталогу' : 'Приховати') + '</button>' : '<button class="btn sm" data-act="on">' + (s.owner ? 'Активувати' : 'Показати') + '</button>') +
       (!s.owner && s.active ? (s.partner ? '<button class="btn sm ghost" data-act="unpartner">Зняти партнерство</button><button class="btn sm ghost" data-act="cabinet">Кабінет сервісу</button>' : '<button class="btn sm dark" data-act="partner">Зробити партнером</button>') : '') +
       (!s.owner && !s.active && s.source === 'анкета' ? '<button class="btn sm dark" data-act="partner">Показати як партнера</button>' : '') +
+      (s.owner || s.partner ? '<button class="btn sm ghost" data-act="founder">' + (s.founder ? '⭐ Засновник: зняти' : '⭐ Зробити засновником') + '</button><button class="btn sm ghost" data-act="post">' + (s.posted ? 'Пост ✓ ' + esc(dt(s.posted)) : 'Пост у канал') + '</button>' : '') +
       '<button class="btn sm ghost" data-act="edit">Редагувати</button><a class="btn sm ghost" target="_blank" rel="noopener" href="' + esc(mapsLink(s)) + '">Google Maps</a><button class="btn sm ghost del-btn" data-act="delete">Видалити</button></div></div>';
 }
 
@@ -2272,6 +2460,8 @@ function renderAdminSto() {
       var b = e.target.closest('[data-act]'); if (!b) return;
       var card = b.closest('[data-sid]'), s = all.filter(function (x) { return x.id === card.dataset.sid; })[0];
       if (b.dataset.act === 'edit') return adminStoDialog(M, s, replace);
+      if (b.dataset.act === 'founder') { busy(b, true); return api('admin.sto.set', { id: s.id, founder: !s.founder }).then(function (r) { toast(r.sto.founder ? 'Статус «Партнер-засновник» додано' : 'Статус знято'); replace(r.sto); }).catch(function (e2) { busy(b, false); fail(e2); }); }
+      if (b.dataset.act === 'post') return stoPostDialog(s, function () { s.posted = new Date().toISOString().slice(0, 10); replace(s); });
       if (b.dataset.act === 'delete') return stoDeleteDialog(s, function () { all = all.filter(function (x) { return x.id !== s.id; }); draw(); });
       if (b.dataset.act === 'cabinet') return setView('sto', s.id);
       if (b.dataset.act === 'partner' || b.dataset.act === 'unpartner') {
@@ -2306,6 +2496,15 @@ function renderAdminSto() {
   }).catch(fail);
 }
 
+function stoPostDialog(s, done) {
+  openDialog('<h2 style="margin-bottom:6px">Пост у канал: ' + esc(s.name) + '</h2><div id="poB" class="small muted">Готую текст…</div>');
+  api('admin.sto.post', { id: s.id, preview: true }, { admin: true }).then(function (r) {
+    $('#poB').outerHTML = '<p class="mini" style="margin:0 0 6px">Канал: <b>' + esc(r.channel || 'не вказано (Налаштування)') + '</b>. Фото: перше фото сервісу або логотип. Під постом кнопка «Записатися онлайн». Можна редагувати текст (HTML: &lt;b&gt;жирний&lt;/b&gt;).</p>' +
+      '<textarea class="i" id="poT" rows="12">' + esc(r.text) + '</textarea><div id="poErr"></div><div class="row" style="margin-top:10px"><button class="btn ghost" data-close style="flex:1">Скасувати</button><button class="btn" id="poGo" style="flex:1">Опублікувати</button></div>';
+    $$('[data-close]').forEach(function (b) { b.onclick = function (e) { e.preventDefault(); closeDialog(); }; });
+    $('#poGo').onclick = function () { var b = this; busy(b, true); api('admin.sto.post', { id: s.id, text: $('#poT').value }, { admin: true }).then(function () { closeDialog(); toast('Пост опубліковано в каналі'); done(); }).catch(function (e) { busy(b, false); $('#poErr').innerHTML = '<div class="note err" style="margin-top:8px">' + esc(e.message) + '</div>'; }); };
+  }).catch(function (e) { $('#poB').innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
+}
 // Видалення сервісу: крок 1 — що зачепить, крок 2 — ввести назву
 function stoDeleteDialog(s, done) {
   openDialog('<h2 style="margin-bottom:6px">Видалити «' + esc(s.name) + '»?</h2><div id="sdBody" class="small muted">Перевіряю, що пов\'язано із сервісом…</div>');
@@ -2590,6 +2789,12 @@ state.token = store('ah_token');
 // з бота: «Відкрити кабінет сервісу» → одразу режим сервісу
 if (/[?&]view=sto/.test(location.search)) { store('ah_view', 'sto'); store('ah_as_sto', null); try { history.replaceState(null, '', location.pathname + '#/sto'); } catch (e) {} }
 if (TG) { try { TG.ready(); TG.expand(); document.body.classList.add('in-tg'); } catch (e) {} }
+// міні-застосунок відкрито з параметром: QR-відгук (rate_<id>) або запис до сервісу з поста в каналі (sto_<id>)
+(function () {
+  var sp = TG && TG.initDataUnsafe ? String(TG.initDataUnsafe.start_param || '') : '', m;
+  if ((m = sp.match(/^rate_(\w+)$/))) location.hash = '#/rate/' + m[1];
+  else if ((m = sp.match(/^sto_(\w+)$/))) location.hash = '#/new?sto=' + m[1];
+})();
 try { state.user = JSON.parse(store('ah_user') || 'null'); } catch (e) {}
 if (!API) { view.innerHTML = '<div class="card note warn">Застосунок ще не підключено до сервера. Зверніться до адміністратора.</div>'; return; }
 if (state.token) boot().catch(function (e) { if (!state.token) return; route(); fail(e); });
