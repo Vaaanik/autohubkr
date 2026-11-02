@@ -331,6 +331,8 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
 .del-btn{color:#C62828;border-color:#F3C1C1}
 .grp-card{padding:0;overflow:hidden;position:relative}.grp-card img{width:100%;display:block;aspect-ratio:1200/630;object-fit:cover}.grp-b{padding:12px 16px 16px}
 .grp-x{position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;border:0;background:rgba(0,0,0,.45);color:#fff;font-size:20px;line-height:1;cursor:pointer}
+.st-row{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line2)}.st-row:first-of-type{border-top:0}.st-row small{display:block;color:var(--soft);font-size:13px;margin-top:2px}
+.st-av{width:38px;height:38px;border-radius:50%;background:var(--volt);color:#fff;display:grid;place-items:center;font-weight:700;flex:none}
 .km-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .km-row:first-of-type{border-top:0}.km-row small{display:block;color:var(--soft);font-size:12px}
 </style>
@@ -1717,7 +1719,8 @@ function bindVisit(root, list, side, after) {
 var stoTab = 'active';
 function renderStoRequests() {
   loading();
-  api('req.list').then(function (r) {
+  Promise.all([api('req.list'), staffCache ? Promise.resolve(staffCache) : loadStaff()]).then(function (res) {
+    var r = res[0], staff = res[1];
     var all = r.requests;
     var groups = { new: all.filter(function (q) { return q.status === 'new'; }),
       active: all.filter(function (q) { return q.status === 'accepted' || q.status === 'in_work'; }),
@@ -1744,6 +1747,8 @@ function renderStoRequests() {
         (q.sto_comment ? '<dt>Ваш коментар</dt><dd>' + esc(q.sto_comment) + '</dd>' : '') +
         (q.work_done ? '<dt>Виконано</dt><dd>' + esc(q.work_done) + '</dd>' : '') + '</dl>';
       if (q.review) body += '<div class="small" style="margin-top:8px">Відгук: ' + stars(q.review.rating) + (q.review.text ? ' ' + esc(q.review.text) : '') + '</div>';
+      if (staff.length && (q.status === 'accepted' || q.status === 'in_work')) body += '<div class="row" style="gap:8px;margin-top:10px;align-items:center"><span class="small" style="white-space:nowrap">👷 Майстер</span>' + masterSelect('m_' + q.id, q.master_id || '', staff).replace('<select class="i"', '<select class="i" data-master="' + esc(q.id) + '"') + '</div>';
+      else if (q.master_name) body += '<div class="small" style="margin-top:8px">👷 ' + esc(q.master_name) + '</div>';
       body += visitBlock(q, 'sto');
       if (q.visited !== undefined && (q.status === 'accepted' || q.status === 'in_work' || q.status === 'done')) body += q.visited ? '<span class="vtag">Візит підтверджено кодом</span>' : '<span class="vtag no">Візит не підтверджено кодом</span>';
       if (q.confirmed === 'так') body += ' <span class="vtag">Водій підтвердив виконання</span>';
@@ -1758,6 +1763,15 @@ function renderStoRequests() {
       (stoTab === 'new' ? 'Коли водій обере ваш сервіс, заявка з\'явиться тут, а телефон водія відкриється після того, як ви її приймете.' : '') + '</div>';
     $$('[data-act]').forEach(function (b) { b.onclick = function () { stoAction(b.dataset.act, all.filter(function (q) { return q.id === b.dataset.id; })[0]); }; });
     bindVisit($('#stoReqs'), all, 'sto', renderStoRequests);
+    $$('[data-master]').forEach(function (sel) {
+      sel.onchange = function () {
+        var v = sel.value; sel.disabled = true;
+        api('req.assign', { id: sel.dataset.master, master_id: v }).then(function () {
+          sel.disabled = false; var e = staff.filter(function (x) { return x.id === v; })[0];
+          toast(e ? 'Призначено: ' + e.name + (e.tg ? '. Йому надіслано роботу в Telegram' : '') : 'Майстра знято');
+        }).catch(function (x) { sel.disabled = false; fail(x); });
+      };
+    });
   }).catch(fail);
 }
 
@@ -1808,9 +1822,11 @@ function stoAction(act, q) {
 
 /* ---------- СТО: журнал робіт (власні клієнти й роботи через АвтоХаб) ---------- */
 var jobsFilter = 'all', jobsQ = '';
+var jobsMaster = '';
 function renderStoJobs() {
   loading();
-  api('jobs.list').then(function (r) {
+  Promise.all([api('jobs.list'), loadStaff()]).then(function (res) {
+    var r = res[0], staff = res[1];
     var all = r.jobs, month = new Date().toISOString().slice(0, 7);
     var inMonth = all.filter(function (j) { return j.date.slice(0, 7) === month && j.status === 'done'; });
     var sum = inMonth.reduce(function (a, j) { return a + (Number(j.price) || 0); }, 0);
@@ -1822,6 +1838,12 @@ function renderStoJobs() {
       '<input class="i search" id="jQ" type="search" placeholder="Пошук: номер авто, телефон, ім\'я, марка" value="' + esc(jobsQ) + '">' +
       '<div class="seg" id="jF" style="margin:10px 0 12px">' + [['all', 'Усі'], ['in_work', 'В роботі'], ['done', 'Виконані'], ['autohub', 'Через АвтоХаб']].map(function (t) {
         return '<button type="button" data-f="' + t[0] + '" class="' + (jobsFilter === t[0] ? 'on' : '') + '">' + t[1] + '</button>'; }).join('') + '</div>' +
+      (staff.length ? '<div class="row" style="gap:8px;margin-bottom:10px;align-items:center"><span class="small muted">Майстер</span>' + masterSelect('jM', jobsMaster, staff, 'Усі майстри') + '</div>' +
+        (function () {
+          var per = {}; inMonth.forEach(function (j) { if (!j.master_name) return; var k = j.master_name; per[k] = per[k] || { n: 0, s: 0 }; per[k].n++; per[k].s += Number(j.price) || 0; });
+          var ks = Object.keys(per).sort(function (a, b) { return per[b].s - per[a].s; });
+          return ks.length ? '<details class="plan-more" style="margin-bottom:10px"><summary>Майстри цього місяця</summary>' + ks.map(function (k) { return '<div class="between small" style="padding:4px 0"><span>' + esc(k) + '</span><span>' + per[k].n + ' робіт · <b>' + esc(money(per[k].s) || '0 грн') + '</b></span></div>'; }).join('') + '</details>' : '';
+        })() : '') +
       '<div id="jSum"></div><div id="jL"></div>' +
       '<p class="mini" style="margin-top:10px">Записуйте всі роботи, навіть клієнтів, які прийшли не через АвтоХаб: за номером авто знайдете всю історію клієнта. Клієнтів у журналі: ' + Object.keys(clients).length + '.</p>';
     function draw() {
@@ -1830,6 +1852,7 @@ function renderStoJobs() {
         if (jobsFilter === 'in_work' && j.status !== 'in_work') return false;
         if (jobsFilter === 'done' && j.status !== 'done') return false;
         if (jobsFilter === 'autohub' && j.source !== 'АвтоХаб') return false;
+        if (jobsMaster && j.master_id !== jobsMaster) return false;
         return !q || norm([j.plate, j.client_phone, j.client_name, j.car, j.vin, j.work].join(' ')).indexOf(q) !== -1;
       });
       // точний збіг номера: короткий підсумок по авто клієнта
@@ -1840,23 +1863,25 @@ function renderStoJobs() {
         return '<div class="card" data-jid="' + esc(j.id) + '" style="cursor:pointer"><div class="between"><div><b>' + esc(j.car || 'Авто не вказано') + '</b>' + (j.plate ? ' ' + plateHtml(j.plate) : '') +
           '<div class="mini">' + esc(dt(j.date)) + (j.mileage ? ' · ' + esc(km(j.mileage)) : '') + '</div></div>' +
           (j.status === 'in_work' ? '<span class="badge b-in_work">В роботі</span>' : j.source === 'АвтоХаб' ? '<span class="badge b-done">АвтоХаб</span>' : '<span class="badge b-accepted">Виконано</span>') + '</div>' +
-          '<div style="margin:8px 0 4px">' + esc(j.work) + '</div>' +
+          '<div style="margin:8px 0 4px">' + esc(j.work) + '</div>' + (j.master_name ? '<div class="small" style="margin-bottom:4px">👷 ' + esc(j.master_name) + '</div>' : '') +
           '<div class="between"><span class="small muted">' + esc(j.client_name || '') + (j.client_phone ? ' · <a href="' + esc(telHref(j.client_phone)) + '">' + esc(fmtPhone(j.client_phone)) + '</a>' : '') + '</span><b>' + esc(money(j.price)) + '</b></div></div>';
       }).join('') : '<div class="card empty"><b>' + (all.length ? 'Нічого не знайдено' : 'Журнал порожній') + '</b>' + (all.length ? 'Спробуйте інший номер чи телефон.' : 'Додайте першу роботу: клієнт, авто, що зробили й скільки коштувало. Виконані заявки з АвтоХабу потрапляють сюди самі.') + '</div>';
     }
     $('#jQ').oninput = function () { jobsQ = this.value; draw(); };
+    if ($('#jM')) $('#jM').onchange = function () { jobsMaster = this.value; draw(); };
     $('#jF').onclick = function (e) { var b = e.target.closest('[data-f]'); if (!b) return; jobsFilter = b.dataset.f; $$('#jF button').forEach(function (x) { x.classList.toggle('on', x === b); }); draw(); };
     $('#jL').onclick = function (e) {
       if (e.target.closest('a')) return;
       var c = e.target.closest('[data-jid]'); if (!c) return;
-      jobDialog(all.filter(function (j) { return j.id === c.dataset.jid; })[0], all);
+      jobDialog(all.filter(function (j) { return j.id === c.dataset.jid; })[0], all, staff);
     };
-    $('#jAdd').onclick = function () { jobDialog(null, all); };
+    $('#jAdd').onclick = function () { jobDialog(null, all, staff); };
     draw();
   }).catch(fail);
 }
 
-function jobDialog(j, all) {
+function jobDialog(j, all, staff) {
+  staff = staff || [];
   var edit = !!j, ro = edit && j.source === 'АвтоХаб'; j = j || { date: new Date().toISOString().slice(0, 10), status: 'done' };
   var f = function (id, label, val, extra) { return '<div><label class="f" for="' + id + '">' + label + '</label><input class="i" id="' + id + '" value="' + esc(val == null ? '' : val) + '"' + (extra || '') + (ro ? ' disabled' : '') + '></div>'; };
   openDialog('<h2 style="margin-bottom:12px">' + (edit ? (ro ? 'Робота через АвтоХаб' : 'Запис у журналі') : 'Нова робота') + '</h2><form class="stack" id="jForm" novalidate>' +
@@ -1867,6 +1892,7 @@ function jobDialog(j, all) {
     '<div class="grid2">' + f('jPrice', 'Сума, грн', j.price, ' inputmode="numeric"') + f('jKm', 'Пробіг, км', j.mileage, ' inputmode="numeric"') + '</div>' +
     '<div class="grid2">' + f('jDate', 'Дата', j.date, ' type="date" max="' + new Date().toISOString().slice(0, 10) + '"') +
       '<div><label class="f" for="jSt">Статус</label><select class="i" id="jSt"' + (ro ? ' disabled' : '') + '><option value="done"' + (j.status === 'done' ? ' selected' : '') + '>Виконано</option><option value="in_work"' + (j.status === 'in_work' ? ' selected' : '') + '>В роботі</option></select></div></div>' +
+    (staff.length ? '<div><label class="f" for="jM2">Виконавець <span>отримає роботу в Telegram</span></label>' + masterSelect('jM2', j.master_id || '', staff) + '</div>' : '') +
     '<div><label class="f" for="jNote">Нотатка <span>видна лише вам</span></label><input class="i" id="jNote" value="' + esc(j.note || '') + '" placeholder="Наступного разу замінити задні колодки"></div>' +
     '<div id="jErr"></div><div class="row">' + (edit && !ro ? '<button type="button" class="btn sm danger" id="jDel">Видалити</button>' : '') +
     '<button type="button" class="btn ghost" data-close>Скасувати</button><button class="btn" style="flex:1" id="jSave">Зберегти</button></div></form>');
@@ -1884,6 +1910,7 @@ function jobDialog(j, all) {
     var data = ro ? { note: $('#jNote').value } : { plate: $('#jPlate').value, car: $('#jCar').value, client_name: $('#jName').value, client_phone: $('#jPhone').value, work: $('#jWork').value,
       price: $('#jPrice').value, mileage: $('#jKm').value, date: $('#jDate').value, status: $('#jSt').value, note: $('#jNote').value };
     if (!ro && !data.work.trim()) { $('#jErr').innerHTML = '<div class="note err">Опишіть, що зробили</div>'; return; }
+    if ($('#jM2')) data.master_id = $('#jM2').value;
     if (edit) data.id = j.id;
     var btn = $('#jSave'); busy(btn, true);
     api(edit ? 'jobs.update' : 'jobs.add', data).then(function () { closeDialog(); toast(edit ? 'Збережено' : 'Роботу додано в журнал'); renderStoJobs(); })
@@ -1895,6 +1922,63 @@ function jobDialog(j, all) {
   };
 }
 
+/* ---------- СТО: співробітники ---------- */
+var staffCache = null;
+function loadStaff() { return api('staff.list').then(function (r) { staffCache = r.staff; return r.staff; }).catch(function () { staffCache = []; return []; }); }
+function masterSelect(id, cur, list, placeholder) {
+  var act = list.filter(function (e) { return e.active || e.id === cur; });
+  return '<select class="i" id="' + id + '"><option value="">' + (placeholder || 'Не призначено') + '</option>' +
+    act.map(function (e) { return '<option value="' + esc(e.id) + '"' + (e.id === cur ? ' selected' : '') + '>' + esc(e.name) + (e.role ? ' · ' + esc(e.role) : '') + '</option>'; }).join('') + '</select>';
+}
+function staffBlock(box) {
+  function draw(list) {
+    var act = list.filter(function (e) { return e.active; });
+    box.innerHTML = '<div class="between" style="margin-bottom:6px"><h2>Співробітники</h2><button type="button" class="btn sm" id="stAdd">Додати</button></div>' +
+      '<p class="mini" style="margin:0 0 10px">Призначайте майстра на заявку чи роботу в журналі. Хто підключив Telegram, одразу отримує свої роботи з авто й описом.</p>' +
+      (act.length ? act.map(function (e) {
+        return '<div class="st-row"><div class="st-av">' + esc((e.name || '?').trim().charAt(0).toUpperCase()) + '</div><div style="flex:1;min-width:0"><b>' + esc(e.name) + '</b><small>' + esc([e.role, e.phone ? fmtPhone(e.phone) : ''].filter(Boolean).join(' · ') || 'без посади') + '</small>' +
+          '<small>' + (e.tg ? '<span class="vtag">Telegram ✓</span>' : '<button type="button" class="link" data-inv="' + esc(e.id) + '">Запросити в Telegram</button>') + '</small></div>' +
+          '<button type="button" class="link" data-ed="' + esc(e.id) + '">Змінити</button></div>';
+      }).join('') : '<div class="small muted" style="padding:6px 0">Поки нікого. Додайте майстрів, щоб розподіляти між ними роботи.</div>');
+    $('#stAdd', box).onclick = function () { edit(null, list); };
+    $$('[data-ed]', box).forEach(function (b) { b.onclick = function () { edit(list.filter(function (e) { return e.id === b.dataset.ed; })[0], list); }; });
+    $$('[data-inv]', box).forEach(function (b) {
+      b.onclick = function () {
+        busy(b, true);
+        api('staff.invite', { id: b.dataset.inv }).then(function (r) {
+          busy(b, false);
+          var txt = 'Вітаю! Підключись до АвтоХабу, щоб отримувати свої роботи в Telegram: ' + r.url;
+          openDialog('<h2 style="margin-bottom:6px">Запрошення для ' + esc(r.name) + '</h2><p class="small" style="margin:0 0 10px">Надішліть посилання співробітнику. Він відкриє бота й натисне «Почати», і роботи почнуть приходити йому в Telegram. Посилання діє 30 днів.</p>' +
+            '<div class="set-link"><code style="flex:1">' + esc(r.url) + '</code></div>' +
+            '<div class="row" style="margin-top:12px;flex-wrap:wrap"><button class="btn ghost" data-close style="flex:1">Закрити</button><button class="btn" id="invCp" style="flex:1">Копіювати</button>' +
+            (navigator.share ? '<button class="btn dark" id="invSh" style="flex:1">Надіслати</button>' : '') + '</div>');
+          $('#invCp').onclick = function () { try { navigator.clipboard.writeText(txt); toast('Скопійовано'); } catch (e) { toast(r.url); } };
+          if ($('#invSh')) $('#invSh').onclick = function () { navigator.share({ text: txt }).catch(function () {}); };
+        }).catch(function (e) { busy(b, false); fail(e); });
+      };
+    });
+  }
+  function edit(e, list) {
+    e = e || {};
+    openDialog('<h2 style="margin-bottom:12px">' + (e.id ? 'Співробітник' : 'Новий співробітник') + '</h2><form class="stack" id="stF" novalidate>' +
+      '<div><label class="f" for="stN">Ім\'я</label><input class="i" id="stN" value="' + esc(e.name || '') + '" placeholder="Андрій"></div>' +
+      '<div><label class="f" for="stR">Посада або спеціалізація <span>необов\'язково</span></label><input class="i" id="stR" value="' + esc(e.role || '') + '" placeholder="Ходова, електрика, приймальник"></div>' +
+      '<div><label class="f" for="stP">Телефон <span>необов\'язково</span></label><input class="i" id="stP" inputmode="tel" value="' + esc(e.phone ? fmtPhone(e.phone) : '') + '" placeholder="067…"></div>' +
+      '<div id="stErr"></div><div class="row">' + (e.id ? '<button type="button" class="btn sm danger" id="stDel">Звільнити</button>' : '') +
+      '<button type="button" class="btn ghost" data-close>Скасувати</button><button class="btn" style="flex:1" id="stSave">Зберегти</button></div></form>');
+    var save = function (body, msg) {
+      return api('staff.save', { staff: body }).then(function (r) { closeDialog(); toast(msg); staffCache = r.staff; draw(r.staff); })
+        .catch(function (x) { $('#stErr').innerHTML = '<div class="note err">' + esc(x.message) + '</div>'; });
+    };
+    $('#stF').onsubmit = function (ev) { ev.preventDefault(); var b = $('#stSave'); busy(b, true); save({ id: e.id, name: $('#stN').value, role: $('#stR').value, phone: $('#stP').value }, 'Збережено').then(function () { busy(b, false); }); };
+    if ($('#stDel')) $('#stDel').onclick = function () {
+      if (!confirm('Прибрати ' + e.name + ' зі списку? Історія робіт з його іменем залишиться.')) return;
+      save({ id: e.id, name: e.name, role: e.role, phone: e.phone, active: false }, 'Співробітника прибрано');
+    };
+  }
+  box.innerHTML = '<div class="mini">Завантажую співробітників…</div>';
+  loadStaff().then(draw);
+}
 /* ---------- СТО: профіль ---------- */
 function renderStoProfile() {
   loading();
@@ -1903,8 +1987,9 @@ function renderStoProfile() {
     var s = state.sto || {};
     view.innerHTML = '<h1 style="margin-bottom:12px">Мій сервіс</h1>' +
       (s.active ? '<div class="note ok" style="margin-bottom:12px">Сервіс показується водіям у каталозі.</div>' : '<div class="note warn" style="margin-bottom:12px">Сервіс на перевірці й поки не показується в каталозі.</div>') +
-      '<div class="card" id="stoPh"></div>' +
+      '<div class="card" id="staffBox"></div><div class="card" id="stoPh"></div>' +
       '<form class="card stack" id="spForm" novalidate>' + stoFields(s) + '<div id="spErr"></div><button class="btn wide" id="spSave">Зберегти</button></form>';
+    staffBlock($('#staffBox'));
     stoPhotosBlock($('#stoPh'), s, function (body) { return api('sto.photo', body); }, function (sto) { state.sto = sto; });
     bindChips(view);
     $('#spForm').onsubmit = function (e) {
@@ -2379,6 +2464,7 @@ function boot() {
     if (store('ah_view') && /Оберіть сервіс/.test(e.message)) { store('ah_view', null); store('ah_as_sto', null); return api('boot'); }
     throw e;
   }).then(function (r) {
+    staffCache = null;
     state.user = r.user; state.sto = r.sto; state.meta = r.meta; state.group = r.group || ''; if (r.user.role === 'driver') state.cars = r.cars;
     store('ah_user', JSON.stringify(r.user));
     // у міні-застосунку Telegram: тихо прив'язуємо акаунт, щоб наступного разу вхід був автоматичним і йшли сповіщення
