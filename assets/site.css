@@ -309,3 +309,4 @@ details.form-more > fieldset, details.form-more > div{margin-top:18px}
 .tg-ic{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.2);display:grid;place-items:center;font-size:20px;flex:none}
 .app-web{display:inline-block;margin-left:14px;color:inherit;opacity:.8;font-size:15px;text-decoration:underline;text-underline-offset:3px}
 @media (max-width:520px){.app-web{display:block;margin:10px 0 0}}
+.foot .contacts{display:inline-block;margin-top:6px;font-weight:500}
