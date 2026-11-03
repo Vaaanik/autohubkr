@@ -74,7 +74,7 @@
 .fc h4{font:700 17px/1.25 var(--head);margin:0 0 8px}
 .fc p{font-size:15px;color:var(--ink-soft);margin:0;line-height:1.5}
 .fc.hot{background:linear-gradient(160deg,#0C1C33,#06111F);color:#fff;border-color:transparent;position:relative}
-.fc.hot::after{content:"до −70%";position:absolute;top:16px;right:16px;background:var(--stop);color:#fff;font:800 12px/1 var(--head);padding:6px 8px;border-radius:8px}
+.fc.hot::after{content:"до −30%";position:absolute;top:16px;right:16px;background:var(--stop);color:#fff;font:800 12px/1 var(--head);padding:6px 8px;border-radius:8px}
 .fc.hot .ic{background:rgba(31,123,255,.25)}
 .fc.hot p{color:#B9C7D6}
 
