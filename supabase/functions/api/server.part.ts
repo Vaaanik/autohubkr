@@ -82,6 +82,18 @@ async function tg(method, payload) {
   return j;
 }
 
+// Файл (PDF, фото) у чат: multipart sendDocument
+async function tgDoc(chat, bytes, filename, caption, mime) {
+  if (!TG_TOKEN) return { ok: false };
+  const fd = new FormData();
+  fd.append('chat_id', String(chat)); if (caption) { fd.append('caption', caption); fd.append('parse_mode', 'HTML'); }
+  fd.append('document', new Blob([bytes], { type: mime || 'application/pdf' }), filename);
+  const r = await fetch('https://api.telegram.org/bot' + TG_TOKEN + '/sendDocument', { method: 'POST', body: fd });
+  const j = await r.json().catch(() => ({ ok: false }));
+  if (!j.ok) console.error('tg sendDocument', j.description || r.status);
+  return j;
+}
+
 const hex = (buf) => Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
 // Перевірка initData міні-застосунку Telegram (HMAC за токеном бота). Повертає користувача Telegram або null.
 async function tgCheck(initData) {
@@ -117,7 +129,7 @@ const api = makeApi(db, {
     get TURBOSMS_TOKEN() { return Deno.env.get('TURBOSMS_TOKEN') || ''; }, get TURBOSMS_SENDER() { return Deno.env.get('TURBOSMS_SENDER') || ''; }, get TURBOSMS_VIBER_SENDER() { return Deno.env.get('TURBOSMS_VIBER_SENDER') || ''; }, TG_ON: !!TG_TOKEN, TG_SECRET, API_URL: Deno.env.get('SUPABASE_URL') + '/functions/v1/api' },
   fetch: (u, o) => fetch(u, o),
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-  notify, storage, storagePub, b64decode, mail, tg, bg, tgCheck, vinShard
+  notify, storage, storagePub, b64decode, mail, tg, tgDoc, bg, tgCheck, vinShard
 });
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS',

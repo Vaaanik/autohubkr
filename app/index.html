@@ -346,6 +346,9 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
 .pass-sec{margin-top:14px}.vin-big{font-family:ui-monospace,Menlo,monospace;font-size:17px;letter-spacing:.08em}
 .pass-row{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--line2)}.pass-d{width:86px;flex:none;font-size:13px;font-weight:600}.pass-d small{display:block;color:var(--soft);font-weight:400}
 body.is-pass .viewbar{display:none}
+.hb-back{background:rgba(255,255,255,.12);border:0;color:#fff;width:36px;height:36px;border-radius:12px;font-size:26px;line-height:1;cursor:pointer;flex:none;margin-right:-4px;padding-bottom:3px}
+header.bar .logo{margin-right:auto}
+body.pdf-mode .no-print{display:none!important}
 @media print{header.bar,nav.tabs,.viewbar,.no-print{display:none!important}body{background:#fff}.pass{border:0;padding:0}main{padding:0!important}}
 .fnd{display:inline-block;font-size:11px;font-weight:700;color:#8A5A00;background:#FFF4D6;border-radius:99px;padding:2px 8px;white-space:nowrap}
 .tool-w{grid-column:1/-1}.win .disc{background:#E8F7EE;color:#137A3F;font-weight:800;border-radius:10px;padding:6px 10px;font-size:16px}.win-t{margin-top:8px}
@@ -361,6 +364,7 @@ body.is-pass .viewbar{display:none}
 <body>
 <div class="shell">
   <header class="bar">
+    <button type="button" class="hb-back" id="hbBack" aria-label="Назад" hidden>‹</button>
     <a class="logo" href="#/" aria-label="AutoHubKR — на головну"><img src="logo-head.webp" width="127" height="44" alt="AutoHubKR"></a>
     <div class="who" id="who"></div>
   </header>
@@ -509,8 +513,30 @@ var DRIVER_TABS = [['/garage', 'Гараж', 'car'], ['/new', 'Заявка', 'p
 var ADMIN_TABS = [['/admin', 'Огляд', 'chart'], ['/admin/sto', 'СТО', 'shop'], ['/admin/req', 'Заявки', 'list'], ['/admin/leads', 'Анкети', 'inbox'], ['/admin/users', 'Люди', 'user'], ['/admin/settings', 'Налаштування', 'gear']];
 var STO_TABS = [['/sto', 'Заявки', 'wrench'], ['/sto/jobs', 'Журнал', 'list'], ['/sto/profile', 'Мій сервіс', 'shop'], ['/profile', 'Профіль', 'user']];
 
+// Крок назад: батьківська сторінка для кожного вкладеного екрана (кнопка в шапці й системна кнопка Telegram)
+var ROOTS = ['/', '/login', '/garage', '/new', '/requests', '/profile', '/sto', '/sto/jobs', '/sto/profile', '/admin', '/admin/sto', '/admin/req', '/admin/leads', '/admin/users', '/admin/settings'];
+function parentOf(h) {
+  if (/^\/(car\/|prices|ai|windows|rate\/)/.test(h)) return '/garage';
+  if (h === '/sto/qr') return '/sto/profile';
+  if (/^\/p\//.test(h)) return state.token ? '/garage' : '';
+  return '';
+}
+function goBack() {
+  var h = location.hash.replace(/^#/, '').split('?')[0] || '/', p = parentOf(h);
+  if (p) return go(p);
+  if (history.length > 1) history.back(); else go('/');
+}
+var tgBackBound = false;
+function drawBack(h) {
+  var isRoot = ROOTS.indexOf(h) !== -1 || (!parentOf(h) && !state.token);
+  if (TG && TG.BackButton) {
+    try { if (!tgBackBound) { TG.BackButton.onClick(goBack); tgBackBound = true; } if (isRoot) TG.BackButton.hide(); else TG.BackButton.show(); } catch (e) {}
+  }
+  var b = document.getElementById('hbBack'); if (b) { b.hidden = isRoot; b.onclick = goBack; }
+}
 function route() {
   var h = location.hash.replace(/^#/, '').split('?')[0] || '/';
+  drawBack(h);
   var who = document.getElementById('who');
   drawViewbar();
   who.innerHTML = state.user ? '<b>' + esc(state.user.name) + '</b>' + esc(state.sto ? state.sto.name : ({ admin: 'Адміністратор', sto: 'Сервіс' }[state.user.role] || 'Водій')) : '';
@@ -1972,6 +1998,27 @@ function passportDialog(car) {
   };
   draw(car.passport || '');
 }
+// PDF: у браузері — завантаження файлу; у Telegram — файл надходить у чат з ботом (WebView Telegram не вміє ні друкувати, ні завантажувати)
+var h2pP = null;
+function loadHtml2pdf() {
+  if (window.html2pdf) return Promise.resolve();
+  if (h2pP) return h2pP;
+  h2pP = new Promise(function (ok, no) { var s = document.createElement('script'); s.src = 'html2pdf.min.js'; s.onload = ok; s.onerror = function () { h2pP = null; no(new Error('Не вдалося завантажити PDF-модуль')); }; document.head.appendChild(s); });
+  return h2pP;
+}
+function savePdf(el, filename, caption, btn) {
+  var label = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Готую PDF…'; }
+  var done = function () { document.body.classList.remove('pdf-mode'); if (btn) { btn.disabled = false; btn.textContent = label; } };
+  if (TG && !state.token) { done(); try { TG.openLink(location.href); } catch (e) {} return; }
+  loadHtml2pdf().then(function () {
+    document.body.classList.add('pdf-mode');
+    var w = html2pdf().set({ margin: [8, 8, 8, 8], filename: filename, image: { type: 'jpeg', quality: 0.9 }, html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['css', 'legacy'], avoid: ['.pass-row', '.qr-card'] } }).from(el);
+    if (TG) return w.outputPdf('datauristring').then(function (d) { document.body.classList.remove('pdf-mode'); return api('tg.file', { data: d, name: filename, caption: caption }); })
+      .then(function () { done(); toast('PDF надіслано вам у чат з ботом АвтоХабу'); });
+    return w.save().then(function () { done(); toast('PDF збережено'); });
+  }).catch(function (e) { done(); if (TG) return fail(e); try { window.print(); } catch (x) { fail(e); } });
+}
 function renderPassport(tok) {
   setTabs(null);
   view.innerHTML = '<div class="spin">Завантаження паспорта…</div>';
@@ -1991,7 +2038,7 @@ function renderPassport(tok) {
       (P.docs.length ? '<div class="pass-sec"><div class="lbl">Документи</div>' + P.docs.map(function (d) { return '<div class="between small" style="padding:3px 0"><span>' + esc(d.name) + '</span><span>до ' + esc(dt(d.until)) + '</span></div>'; }).join('') + '</div>' : '') +
       '<p class="mini" style="margin-top:14px">Сформовано ' + esc(dt(P.made)) + ' на autohubkr.com. «Підтверджено сервісом» означає, що роботу виконав сервіс через АвтоХаб, а власник підтвердив виконання. Записи власника внесено ним самостійно. Перед купівлею радимо діагностику на СТО.</p>' +
       '<div class="row no-print" style="margin-top:14px;flex-wrap:wrap"><button class="btn" id="psPrint" style="flex:1">Зберегти PDF</button>' + (state.token ? '' : '<a class="btn ghost" style="flex:1" href="../">Що таке АвтоХаб</a>') + '</div></div>';
-    $('#psPrint').onclick = function () { window.print(); };
+    $('#psPrint').onclick = function () { savePdf($('.pass'), 'pasport-' + (c.make + '-' + c.model + (c.year ? '-' + c.year : '')).toLowerCase().replace(/[^a-z0-9а-яіїєґ-]+/gi, '-') + '.pdf', 'Паспорт ' + title, this); };
   }).catch(function (e) { view.innerHTML = '<div class="card empty"><b>Паспорт недоступний</b>' + esc(e.message) + '</div>'; });
 }
 /* ---------- водій: ціни по місту ---------- */
@@ -2167,10 +2214,10 @@ function renderStoQr() {
   var s = state.sto || {};
   view.innerHTML = '<a href="#/sto/profile" class="back no-print">‹ Мій сервіс</a><div class="qr-card"><div class="qr-k">АвтоХаб</div><h1>' + esc(s.name || '') + '</h1><p class="qr-h">Оцініть нашу роботу<br>за 10 секунд</p>' +
     '<div id="qrBox"></div><p class="qr-s">Наведіть камеру телефона на код ⭐⭐⭐⭐⭐<br><small>Відгук бачать водії Кривого Рогу в АвтоХабі</small></p></div>' +
-    '<div class="row no-print" style="margin-top:14px"><button class="btn" id="qrPrint" style="flex:1">Надрукувати / PDF</button></div><p class="mini no-print" style="margin-top:8px">Порада: роздрукуйте на А5 або А4 і поставте біля каси чи на стійку видачі авто.</p>';
+    '<div class="row no-print" style="margin-top:14px"><button class="btn" id="qrPrint" style="flex:1">Зберегти PDF для друку</button></div><p class="mini no-print" style="margin-top:8px">Порада: роздрукуйте на А5 або А4 і поставте біля каси чи на стійку видачі авто.</p>';
   loadQrLib().then(function () { var q = qrcode(0, 'M'); q.addData(qrUrl(s.id)); q.make(); $('#qrBox').innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true }); $('#qrBox svg').setAttribute('style', 'width:240px;height:240px;display:block'); })
     .catch(function (e) { $('#qrBox').innerHTML = '<div class="note err">' + esc(e.message) + '</div><div class="small" style="word-break:break-all">' + esc(qrUrl(s.id)) + '</div>'; });
-  $('#qrPrint').onclick = function () { window.print(); };
+  $('#qrPrint').onclick = function () { savePdf($('.qr-card'), 'qr-vidguky.pdf', 'Табличка з QR-кодом для відгуків: роздрукуйте й поставте на стійку', this); };
 }
 function renderRate(stoId) {
   loading();

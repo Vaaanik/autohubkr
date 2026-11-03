@@ -2223,6 +2223,21 @@ function makeApi(db, deps) {
     await db.update('stos', st.id, { posted: today() });
     return { ok: true };
   }
+  // Файл із застосунку в чат з ботом (у Telegram-міні-застосунку не можна завантажити файл напряму)
+  async function tgFile(r) {
+    const u = await auth(r);
+    const me = await db.find('users', 'id', u.id);
+    if (!me || !me.tg_chat) fail('Підключіть Telegram у профілі, щоб отримати файл у чат');
+    if (!deps.tgDoc) fail('Надсилання файлів недоступне');
+    const m = String(r.data || '').match(/^data:(application\/pdf|image\/png)(?:;[^,]*)?;base64,([A-Za-z0-9+/=]+)$/);
+    if (!m) fail('Файл не сформовано');
+    const bytes = deps.b64decode(m[2]);
+    if (bytes.length > 9 * 1024 * 1024) fail('Файл завеликий');
+    const name = s_(r.name).replace(/[^\w.\-а-яіїєґА-ЯІЇЄҐ ]/g, '').slice(0, 80) || 'autohub.pdf';
+    const res = await deps.tgDoc(me.tg_chat, bytes, name, s_(r.caption).slice(0, 300), m[1]);
+    if (!res || !res.ok) fail('Telegram не прийняв файл. Спробуйте ще раз.');
+    return {};
+  }
   /* --- паспорт авто для продажу: публічне посилання без даних власника --- */
   async function carPassport(r) {
     const u = await auth(r, 'driver'); const c = await ownCar(u, r.id);
@@ -2336,7 +2351,7 @@ function makeApi(db, deps) {
     'review.add': reviewAdd,
     'win.mine': winMine, 'win.add': winAdd, 'win.delete': winDelete, 'win.list': winList, 'win.book': winBook,
     'sto.public': stoPublic, 'review.qr': reviewQr, 'sto.report': stoReport, 'sto.remind': stoRemindGet, 'sto.remind.set': stoRemindSet, 'cron.daily': cronDaily, 'admin.sto.post': adminStoPost,
-    'cars.passport': carPassport, 'passport.get': passportGet, 'sto.prices': stoPricesGet, 'sto.prices.set': stoPricesSet, 'prices.city': pricesCity, 'ai.obd': aiObd,
+    'cars.passport': carPassport, 'tg.file': tgFile, 'passport.get': passportGet, 'sto.prices': stoPricesGet, 'sto.prices.set': stoPricesSet, 'prices.city': pricesCity, 'ai.obd': aiObd,
     'staff.list': staffList, 'staff.save': staffSave, 'staff.invite': staffInvite, 'req.assign': reqAssign,
     'jobs.list': jobsList, 'jobs.add': jobsAdd, 'jobs.update': jobsUpdate, 'jobs.delete': jobsDelete,
     'history.list': async (r) => {
@@ -2485,6 +2500,18 @@ async function tg(method, payload) {
   return j;
 }
 
+// Файл (PDF, фото) у чат: multipart sendDocument
+async function tgDoc(chat, bytes, filename, caption, mime) {
+  if (!TG_TOKEN) return { ok: false };
+  const fd = new FormData();
+  fd.append('chat_id', String(chat)); if (caption) { fd.append('caption', caption); fd.append('parse_mode', 'HTML'); }
+  fd.append('document', new Blob([bytes], { type: mime || 'application/pdf' }), filename);
+  const r = await fetch('https://api.telegram.org/bot' + TG_TOKEN + '/sendDocument', { method: 'POST', body: fd });
+  const j = await r.json().catch(() => ({ ok: false }));
+  if (!j.ok) console.error('tg sendDocument', j.description || r.status);
+  return j;
+}
+
 const hex = (buf) => Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
 // Перевірка initData міні-застосунку Telegram (HMAC за токеном бота). Повертає користувача Telegram або null.
 async function tgCheck(initData) {
@@ -2520,7 +2547,7 @@ const api = makeApi(db, {
     get TURBOSMS_TOKEN() { return Deno.env.get('TURBOSMS_TOKEN') || ''; }, get TURBOSMS_SENDER() { return Deno.env.get('TURBOSMS_SENDER') || ''; }, get TURBOSMS_VIBER_SENDER() { return Deno.env.get('TURBOSMS_VIBER_SENDER') || ''; }, TG_ON: !!TG_TOKEN, TG_SECRET, API_URL: Deno.env.get('SUPABASE_URL') + '/functions/v1/api' },
   fetch: (u, o) => fetch(u, o),
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-  notify, storage, storagePub, b64decode, mail, tg, bg, tgCheck, vinShard
+  notify, storage, storagePub, b64decode, mail, tg, tgDoc, bg, tgCheck, vinShard
 });
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS',
