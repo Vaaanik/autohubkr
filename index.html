@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700;800&family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css?v=7">
-<link rel="stylesheet" href="assets/home.css?v=1">
+<link rel="stylesheet" href="assets/home.css?v=2">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Organization", "name": "АвтоХаб", "alternateName": "AutoHubKR", "url": "https://autohubkr.com/", "logo": "https://autohubkr.com/assets/icon-512.png", "email": "info@autohubkr.com", "areaServed": {"@type": "City", "name": "Кривий Ріг"}, "telephone": "+380955908808", "contactPoint": {"@type": "ContactPoint", "telephone": "+380955908808", "email": "info@autohubkr.com", "contactType": "customer support", "areaServed": "UA", "availableLanguage": "uk"}}</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebSite", "name": "АвтоХаб", "url": "https://autohubkr.com/", "inLanguage": "uk"}</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "inLanguage": "uk", "mainEntity": [
@@ -42,8 +42,14 @@
 </header>
 
 <section class="h-hero" aria-labelledby="h1">
+  <div class="wrap">
+    <div class="aud" role="tablist" aria-label="Для кого">
+      <button type="button" role="tab" id="tabD" aria-controls="h1" aria-selected="true" data-aud="driver"><span aria-hidden="true">🚗</span> Для водіїв</button>
+      <button type="button" role="tab" id="tabS" aria-controls="h1" aria-selected="false" data-aud="sto"><span aria-hidden="true">🔧</span> Для сервісів</button>
+    </div>
+  </div>
   <div class="wrap h-hero-grid">
-    <div class="h-copy">
+    <div class="h-copy for-d">
       <p class="h-eye"><span class="dot" aria-hidden="true"></span>Кривий Ріг · безкоштовно для водіїв</p>
       <h1 id="h1">Авто під контролем.<br><span class="hl">Ремонт без переплат.</span></h1>
       <p class="h-lead">Нагадаємо про ТО й страховку вчасно, підкажемо, що зламалося і скільки це коштує в місті, та знайдемо сервіс з вільним вікном і знижкою.</p>
@@ -58,28 +64,31 @@
         <li><b>до −70%</b><span>на вільні вікна сервісів</span></li>
       </ul>
     </div>
-
-    <div class="h-visual" aria-hidden="true">
-      <div class="phone">
-        <div class="ph-notch"></div>
-        <div class="ph-screen">
-          <div class="ph-top"><b>Мій гараж</b><span>+ авто</span></div>
-          <div class="ph-dash">
-            <div class="ph-car"><b>Skoda Octavia</b><span>2017</span></div>
-            <div class="ph-spec">1.4 TSI · Бензин · Автомат</div>
-            <div class="ph-row">
-              <span class="ph-plate">AE 4821 KP</span>
-              <span class="ph-odo"><small>Пробіг</small><b>148 300</b></span>
-            </div>
-          </div>
-          <div class="ph-al warn"><i>⚠</i><div><b>ОСЦПВ закінчується</b><small>через 7 днів · нагадаємо ще за 1 день</small></div></div>
-          <div class="ph-al"><i>🛢</i><div><b>Заміна оливи</b><small>через 1 200 км</small></div></div>
-          <div class="ph-al bad"><i>⛓</i><div><b>Ремінь ГРМ</b><small>прострочено на 4 000 км</small></div></div>
-          <div class="ph-btn">Нова заявка в СТО</div>
-        </div>
+    <div class="h-copy for-s">
+      <p class="h-eye"><span class="dot" aria-hidden="true"></span>Кривий Ріг · безкоштовно для сервісів</p>
+      <h2 class="h1like">Нові клієнти без реклами.<br><span class="hl">Порядок без зошита.</span></h2>
+      <p class="h-lead">Заявки від водіїв міста з описом проблеми й авто, вільні вікна, що заповнюють простій, журнал робіт з виручкою й майстри в Telegram. Картка й кабінет безкоштовні.</p>
+      <div class="h-cta">
+        <a class="btn h-btn" href="app/?reg=sto" data-reg="sto" id="heroCtaS">Підключити сервіс безкоштовно</a>
+        <a class="h-alt" href="#sto" data-go-sto>Усі можливості для сервісів ↓</a>
       </div>
-      <div class="bub b1"><small>AI · код P0171</small><b>Бідна суміш: підсос повітря або датчик</b><span>600–1 800 грн у місті</span></div>
-      <div class="bub b2"><small>Вільне вікно</small><b>Сьогодні 15:00 · Розвал-сходження</b><span class="disc">−30%</span></div>
+      <p class="h-note">Реєстрація за хвилину: назва, адреса, види робіт. Після перевірки картка з’являється в каталозі.</p>
+      <ul class="h-proof" aria-label="Коротко для сервісів">
+        <li><b>0 грн</b><span>картка в каталозі й кабінет</span></li>
+        <li><b>30</b><span>місць «Партнер-засновник»</span></li>
+        <li><b data-n="catalog">170+</b><span>сервісів міста вже в каталозі</span></li>
+      </ul>
+    </div>
+
+    <div class="h-visual for-d">
+      <figure class="phone back"><img src="assets/shots/car-plan.webp" width="540" height="1169" alt="Сторінка авто: пробіг, кнопки й план обслуговування" loading="lazy"></figure>
+      <figure class="phone"><img src="assets/shots/garage.webp" width="540" height="1169" alt="Екран «Мій гараж» у застосунку АвтоХаб: інструменти й картка авто з пробігом і нагадуванням про ОСЦПВ" fetchpriority="high"></figure>
+      <p class="real">Справжні екрани застосунку</p>
+    </div>
+    <div class="h-visual for-s">
+      <figure class="phone back"><img src="assets/shots/sto-jobs.webp" width="540" height="1169" alt="Журнал робіт сервісу з виручкою за місяць" loading="lazy"></figure>
+      <figure class="phone"><img src="assets/shots/sto-requests.webp" width="540" height="1169" alt="Кабінет сервісу: нові заявки від водіїв з кнопками «Прийняти» й «Відхилити»" loading="lazy"></figure>
+      <p class="real">Справжні екрани кабінету сервісу</p>
     </div>
   </div>
 </section>
@@ -108,32 +117,51 @@
 
     <div class="fgroup">
       <h3 class="fg-t"><span>01</span>Економите на ремонті</h3>
-      <div class="fcards">
+      <div class="fg-body"><div class="fcards">
         <article class="fc"><div class="ic" aria-hidden="true">💰</div><h4>Ціни по місту</h4><p>Скільки коштує заміна колодок чи розвал саме в Кривому Розі: діапазони з реальних прайсів сервісів. Більше не переплачуєте наосліп.</p></article>
         <article class="fc"><div class="ic" aria-hidden="true">🔎</div><h4>AI-розшифровка помилок</h4><p>Код OBD або «стукає спереду на ямах» → ймовірні причини, рівень терміновості й орієнтовна ціна ремонту.</p></article>
         <article class="fc hot"><div class="ic" aria-hidden="true">⏱</div><h4>Вільні вікна зі знижкою</h4><p>Сервіси викладають вільний час зі знижкою до 70%. Бронюєте одним натиском, поки хтось інший не встиг.</p></article>
         <article class="fc"><div class="ic" aria-hidden="true">🧾</div><h4>Витрати під контролем</h4><p>Сфотографуйте чек або заказ-наряд: запис в історії й підсумок витрат за рік складуться самі.</p></article>
       </div>
+      <figure class="phone sm"><img src="assets/shots/prices.webp" width="540" height="1169" alt="Ціни по місту: діапазони з прайсів сервісів Кривого Рогу" loading="lazy"></figure></div>
     </div>
 
     <div class="fgroup">
       <h3 class="fg-t"><span>02</span>Нічого не забуваєте</h3>
-      <div class="fcards">
+      <div class="fg-body"><div class="fcards">
         <article class="fc"><div class="ic" aria-hidden="true">🛠</div><h4>План ТО за пробігом</h4><p>63 роботи до 300 000 км з урахуванням палива, коробки й приводу вашої модифікації. Видно, що прострочено, а що скоро.</p></article>
         <article class="fc"><div class="ic" aria-hidden="true">📄</div><h4>Документи й страховка</h4><p>Сфотографуйте поліс, AI сам внесе дату. Нагадування про ОСЦПВ, КАСКО, техогляд і зелену карту прийде в Telegram.</p></article>
         <article class="fc"><div class="ic" aria-hidden="true">🚗</div><h4>Гараж за хвилину</h4><p>Введіть VIN, і ми заповнимо марку, модель і рік. Або оберіть зі списку 400+ марок. Кілька авто чи автопарк теж можна.</p></article>
         <article class="fc"><div class="ic" aria-hidden="true">🔔</div><h4>Сповіщення в Telegram</h4><p>Відповідь сервісу, статус ремонту й нагадування приходять повідомленням. Застосунок відкривати не потрібно.</p></article>
       </div>
+      <figure class="phone sm"><img src="assets/shots/car-plan.webp" width="540" height="1169" alt="Сторінка авто: пробіг, документи й план обслуговування" loading="lazy"></figure></div>
     </div>
 
     <div class="fgroup">
       <h3 class="fg-t"><span>03</span>Знаходите свого майстра</h3>
-      <div class="fcards">
+      <div class="fg-body"><div class="fcards">
         <article class="fc"><div class="ic" aria-hidden="true">🗺</div><h4>Каталог і карта</h4><p><span data-n="catalog">170+</span> сервісів Кривого Рогу за районами й видами робіт. Видно адресу, графік і рейтинг.</p></article>
         <article class="fc"><div class="ic" aria-hidden="true">📨</div><h4>Заявка замість дзвінків</h4><p>Опишіть проблему один раз, оберіть сервіс і час. Відповідь і статус ремонту бачите в застосунку.</p></article>
         <article class="fc"><div class="ic" aria-hidden="true">⭐</div><h4>Чесні відгуки</h4><p>Оцінку ставлять лише ті, хто справді був у сервісі: візит підтверджується кодом, роботу підтверджує водій.</p></article>
       </div>
+      <figure class="phone sm"><img src="assets/shots/requests.webp" width="540" height="1169" alt="Мої заявки: статус, відповідь сервісу й підтвердження роботи" loading="lazy"></figure></div>
     </div>
+  </div>
+</section>
+
+<section class="h-gal" aria-labelledby="galH">
+  <div class="wrap">
+    <div class="h-head"><p class="kick">Без прикрас</p><h2 id="galH">Ось так це виглядає в застосунку</h2><p>Справжні екрани АвтоХабу з демо-даними. Гортайте вбік.</p></div>
+  </div>
+  <div class="gal" tabindex="0" aria-label="Екрани застосунку для водіїв">
+    <figure><img src="assets/shots/garage.webp" width="540" height="1169" alt="Мій гараж" loading="lazy"><figcaption>Гараж і нагадування</figcaption></figure>
+    <figure><img src="assets/shots/car-plan.webp" width="540" height="1169" alt="План обслуговування авто" loading="lazy"><figcaption>План ТО за пробігом</figcaption></figure>
+    <figure><img src="assets/shots/car-km.webp" width="540" height="1169" alt="Журнал пробігу" loading="lazy"><figcaption>Журнал пробігу</figcaption></figure>
+    <figure><img src="assets/shots/prices.webp" width="540" height="1169" alt="Ціни по місту" loading="lazy"><figcaption>Ціни по місту</figcaption></figure>
+    <figure><img src="assets/shots/windows.webp" width="540" height="1169" alt="Вільні вікна зі знижкою" loading="lazy"><figcaption>Вільні вікна зі знижкою</figcaption></figure>
+    <figure><img src="assets/shots/new-request.webp" width="540" height="1169" alt="Нова заявка в СТО" loading="lazy"><figcaption>Заявка з AI-підказкою</figcaption></figure>
+    <figure><img src="assets/shots/requests.webp" width="540" height="1169" alt="Мої заявки" loading="lazy"><figcaption>Статус ремонту</figcaption></figure>
+    <figure><img src="assets/shots/passport.webp" width="540" height="1169" alt="Паспорт авто" loading="lazy"><figcaption>Паспорт для продажу</figcaption></figure>
   </div>
 </section>
 
@@ -150,14 +178,7 @@
       </ul>
       <a class="btn" href="app/?reg=driver" data-reg="driver">Почати вести історію</a>
     </div>
-    <div class="pass-card" aria-hidden="true">
-      <div class="pc-k">Паспорт авто · АвтоХаб</div>
-      <div class="pc-t">Skoda Octavia 2017</div>
-      <div class="pc-tiles"><div><b>148 300</b><span>км</span></div><div><b>14</b><span>записів</span></div><div><b>9</b><span>підтверджено</span></div></div>
-      <div class="pc-row"><time>03.2026</time><div><b>Заміна оливи двигуна й фільтра</b><small><span class="v">✓ підтверджено сервісом</span></small></div></div>
-      <div class="pc-row"><time>11.2025</time><div><b>Шиномонтаж, сезонна заміна</b><small><span class="v">✓ підтверджено сервісом</span></small></div></div>
-      <div class="pc-row"><time>06.2025</time><div><b>Заміна гальмівних колодок</b><small>запис власника</small></div></div>
-    </div>
+    <div class="pass-vis"><figure class="phone"><img src="assets/shots/passport.webp" width="540" height="1169" alt="Паспорт авто: пробіг, кількість записів, VIN і історія з позначкою «підтверджено сервісом»" loading="lazy"></figure></div>
   </div>
 </section>
 
@@ -179,6 +200,12 @@
       <p class="kick">Для автосервісів і майстрів</p>
       <h2 id="stoH">Більше клієнтів, менше простою. І порядок у роботі.</h2>
       <p>Безкоштовна картка в каталозі та кабінет сервісу, який замінює зошит, дзвінки й Excel.</p>
+    </div>
+    <div class="sshots" tabindex="0" aria-label="Екрани кабінету сервісу">
+      <figure><img src="assets/shots/sto-requests.webp" width="540" height="1169" alt="Нові заявки від водіїв" loading="lazy"><figcaption>Заявки від водіїв</figcaption></figure>
+      <figure><img src="assets/shots/sto-jobs.webp" width="540" height="1169" alt="Журнал робіт з виручкою" loading="lazy"><figcaption>Журнал робіт і виручка</figcaption></figure>
+      <figure><img src="assets/shots/sto-report.webp" width="540" height="1169" alt="Звіт «Ваш район» і вільні вікна" loading="lazy"><figcaption>Звіт «Ваш район» і вікна</figcaption></figure>
+      <figure><img src="assets/shots/sto-prices.webp" width="540" height="1169" alt="Прайс сервісу" loading="lazy"><figcaption>Прайс для «Цін по місту»</figcaption></figure>
     </div>
     <div class="sgrid">
       <article class="sc2"><h4>📨 Нові клієнти</h4><p>Заявки від водіїв з описом проблеми, авто й терміновістю. Ви приймаєте й призначаєте час.</p></article>
@@ -234,7 +261,7 @@
   </div>
 </footer>
 <script src="assets/config.js?v=6"></script>
-<script src="assets/home.js?v=1"></script>
+<script src="assets/home.js?v=2"></script>
 <script src="assets/track.js"></script>
 </body>
 </html>
