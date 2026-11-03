@@ -18,8 +18,8 @@
 /* АвтоХаб · система: «нічна приладова панель». Темне — лише шапка, вхід і приладка авто; решта світла для читання надворі. */
 :root{
   --night:#06111F;--night2:#0C1C33;--glow:#4DA3FF;--chrome:#C9D3DE;
-  --volt:#1F7BFF;--volt-d:#1462D6;--volt-bg:#E6F0FF;
-  --ink:#0F2340;--soft:#51637A;--faint:#8494A8;--line:#D8E0EA;--line2:#E7ECF2;
+  --volt:#1F7BFF;--volt-d:#1462D6;--volt-bg:#E6F0FF;--btn:#1A6CE6;--tg:#167AB0;
+  --ink:#0F2340;--soft:#51637A;--faint:#64748B;--line:#D8E0EA;--line2:#E7ECF2;
   --paper:#EEF2F6;--card:#fff;
   --stop:#D42B26;--stop-bg:#FDECEB;--ok:#16794A;--ok-bg:#E3F5EB;--amber:#8A5A00;--amber-bg:#FFF2D6;
   --r-card:18px;--r-ctl:12px;
@@ -71,7 +71,7 @@ nav.tabs a.on::before{content:"";position:absolute;top:-1px;left:28%;right:28%;h
 
 /* кнопки */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;cursor:pointer;font-weight:600;padding:13px 18px;border-radius:var(--r-ctl);
-  background:var(--volt);color:#fff;text-decoration:none;min-height:48px;transition:background .15s,transform .1s}
+  background:var(--btn);color:#fff;text-decoration:none;min-height:48px;transition:background .15s,transform .1s}
 .btn:hover{background:var(--volt-d)}
 .btn:active{transform:translateY(1px)}
 .btn.wide{width:100%}
@@ -81,12 +81,12 @@ nav.tabs a.on::before{content:"";position:absolute;top:-1px;left:28%;right:28%;h
 .btn.ghost:hover{border-color:var(--volt);color:var(--volt-d)}
 .btn.danger{background:#fff;border:1.5px solid #F1C2BF;color:var(--stop)}
 .btn.danger:hover{background:var(--stop-bg)}
-.btn.sm{min-height:40px;padding:8px 14px;font-size:14px}
+.btn.sm{min-height:44px;padding:9px 14px;font-size:14px}
 .btn.ai-btn{background:var(--volt-bg);border:0;color:var(--volt-d)}
 .btn.ai-btn:hover{background:#D6E6FF}
 .btn[disabled]{opacity:.55;cursor:wait}
-.link{background:none;border:0;padding:0;color:var(--volt-d);font-weight:600;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-size:14px}
-.back{display:inline-flex;align-items:center;gap:4px;font-weight:600;font-size:14px;color:var(--soft);text-decoration:none;margin-bottom:10px}
+.link{background:none;border:0;padding:0;min-height:44px;display:inline-flex;align-items:center;color:var(--volt-d);font-weight:600;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-size:14px}
+.back{display:inline-flex;align-items:center;gap:4px;font-weight:600;font-size:14px;color:var(--soft);text-decoration:none;margin-bottom:4px;min-height:44px}
 .back:hover{color:var(--volt-d)}
 
 /* форми */
@@ -98,7 +98,7 @@ input.i:focus,select.i:focus,textarea.i:focus{outline:none;border-color:var(--vo
 input.i::placeholder,textarea.i::placeholder{color:#9AA8B8}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:8px 14px;font-size:14px;font-weight:500;cursor:pointer;user-select:none;transition:border-color .15s}
+.chip{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:10px 14px;min-height:44px;display:inline-flex;align-items:center;font-size:14px;font-weight:500;cursor:pointer;user-select:none;transition:border-color .15s}
 .chip:hover{border-color:var(--volt)}
 .chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
 .seg{display:flex;background:#E2E8EF;border-radius:var(--r-ctl);padding:4px;gap:4px}
@@ -327,38 +327,41 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
 .set-key{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line2)}.set-key small{display:block;color:var(--soft);font-size:12px;margin-top:2px}
 .set-key code,.set-link code{font-size:12px;background:var(--paper,#F3F6FA);padding:2px 6px;border-radius:6px;word-break:break-all}
 .set-link{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0}.vtag.off{opacity:.45}
-.tg-btn{background:#229ED9;color:#fff;border-color:#229ED9;gap:10px}.tg-logo{width:22px;height:22px;flex:none;vertical-align:middle}
+.tg-btn{background:var(--tg);color:#fff;border-color:var(--tg);gap:10px}.tg-btn:hover{background:#12668F}.tg-logo{width:22px;height:22px;flex:none;vertical-align:middle}
 .del-btn{color:#C62828;border-color:#F3C1C1}
 .grp-card{padding:0;overflow:hidden;position:relative}.grp-card img{width:100%;display:block;aspect-ratio:1200/630;object-fit:cover}.grp-b{padding:12px 16px 16px}
 .grp-x{position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;border:0;background:rgba(0,0,0,.45);color:#fff;font-size:20px;line-height:1;cursor:pointer}
 .st-row{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line2)}.st-row:first-of-type{border-top:0}.st-row small{display:block;color:var(--soft);font-size:13px;margin-top:2px}
 .st-av{width:38px;height:38px;border-radius:50%;background:var(--volt);color:#fff;display:grid;place-items:center;font-weight:700;flex:none}
 .tools{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.tool{display:block;background:#fff;border:1px solid var(--line2);border-radius:16px;padding:12px;text-decoration:none;color:inherit}
-.tool span{font-size:22px}.tool b{display:block;font-size:14px;margin-top:4px}.tool small{display:block;color:var(--soft);font-size:12px;margin-top:2px}
+.tool .tool-ic{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:var(--volt-bg);color:var(--volt-d)}.tool .tool-ic svg{width:22px;height:22px}.tool b{display:block;font-size:14px;margin-top:4px}.tool small{display:block;color:var(--soft);font-size:12px;margin-top:2px}
 .pr-row{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line2);padding:10px 0;cursor:pointer;font:inherit;color:inherit}.pr-row:first-of-type{border-top:0}
 .pr-row small,.pr-off small,.ob-row small{display:block;color:var(--soft);font-size:12px;margin-top:2px}.pr-v{text-align:right;white-space:nowrap}
 .pr-off{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line2)}
 .ob-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid rgba(0,0,0,.06)}.ob-p{text-align:right;white-space:nowrap}
 .pp-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line2)}
 .pp-ck{display:flex;gap:10px;align-items:center;flex:1;cursor:pointer;min-width:0}.pp-ck input{width:20px;height:20px;flex:none;accent-color:var(--volt)}
-.pp-row .pp-in{opacity:.45}.pp-row.on .pp-in{opacity:1}.pp-all{display:block;margin:2px 0 6px;font-size:13px}.pp-in{display:flex;gap:6px;flex:none}.pp-in .i{width:74px;min-height:38px;padding:6px 8px;text-align:center}
+.pp-row .pp-in{opacity:.45}.pp-row.on .pp-in{opacity:1}.pp-all{display:block;margin:2px 0 6px;font-size:13px}.pp-in{display:flex;gap:6px;flex:none}.pp-in .i{width:74px;min-height:44px;padding:6px 8px;text-align:center}
 .pass{background:#fff;border-radius:18px;padding:18px;border:1px solid var(--line2)}.pass-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.pass-head img{width:120px;height:84px;object-fit:cover;border-radius:12px}
 .pass-k{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--volt)}.pass h1{font-size:24px;margin:4px 0}
 .pass-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:14px 0}.pass-tiles div{background:var(--paper,#F3F6FA);border-radius:12px;padding:10px}.pass-tiles b{display:block;font-size:20px}.pass-tiles span{font-size:12px;color:var(--soft)}
 .pass-sec{margin-top:14px}.vin-big{font-family:ui-monospace,Menlo,monospace;font-size:17px;letter-spacing:.08em}
 .pass-row{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--line2)}.pass-d{width:86px;flex:none;font-size:13px;font-weight:600}.pass-d small{display:block;color:var(--soft);font-weight:400}
 body.is-pass .viewbar{display:none}
-.hb-back{background:rgba(255,255,255,.12);border:0;color:#fff;width:36px;height:36px;border-radius:12px;font-size:26px;line-height:1;cursor:pointer;flex:none;margin-right:-4px;padding-bottom:3px}
+.hb-back{background:rgba(255,255,255,.12);border:0;color:#fff;width:44px;height:44px;border-radius:12px;font-size:26px;line-height:1;cursor:pointer;flex:none;margin-right:-4px;padding-bottom:3px}
 header.bar .logo{margin-right:auto}
 body.pdf-mode .no-print{display:none!important}
 @media print{header.bar,nav.tabs,.viewbar,.no-print{display:none!important}body{background:#fff}.pass{border:0;padding:0}main{padding:0!important}}
-.fnd{display:inline-block;font-size:11px;font-weight:700;color:#8A5A00;background:#FFF4D6;border-radius:99px;padding:2px 8px;white-space:nowrap}
+.fnd{display:inline-block;font-size:12px;font-weight:700;color:#8A5A00;background:#FFF4D6;border-radius:99px;padding:2px 8px;white-space:nowrap}
 .tool-w{grid-column:1/-1}.win .disc{background:#E8F7EE;color:#137A3F;font-weight:800;border-radius:10px;padding:6px 10px;font-size:16px}.win-t{margin-top:8px}
 .qr-card{background:#fff;border-radius:20px;padding:28px 20px;text-align:center;border:1px solid var(--line2)}.qr-k{font-weight:800;letter-spacing:.08em;color:var(--volt);text-transform:uppercase;font-size:13px}
 .qr-card h1{font-size:26px;margin:6px 0 4px}.qr-h{font-size:22px;font-weight:700;margin:6px 0 16px}#qrBox{display:inline-block;padding:12px;background:#fff;border-radius:14px;box-shadow:0 0 0 2px var(--line2)}.qr-s{margin:14px 0 0;font-weight:600}.qr-s small{font-weight:400;color:var(--soft)}
 .rate-stars{display:flex;justify-content:center;gap:6px}.rate-stars button{font-size:42px;line-height:1;background:none;border:0;color:#D5DDE8;cursor:pointer;padding:0 2px}.rate-stars button.on{color:#F5A524}
 .rb-row{display:grid;grid-template-columns:120px 1fr 30px;gap:8px;align-items:center;font-size:13px;padding:3px 0}.rb{height:8px;background:var(--line2);border-radius:99px;overflow:hidden}.rb span{display:block;height:100%;background:var(--volt);border-radius:99px}.rb-row b{text-align:right}
 @media print{.qr-card{border:0}}
+.plan-more>summary{padding:12px 0}
+.login-foot a{display:inline-block;padding:12px 4px}
+main .back{display:none}
 .km-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .km-row:first-of-type{border-top:0}.km-row small{display:block;color:var(--soft);font-size:12px}
 </style>
@@ -535,7 +538,8 @@ function drawBack(h) {
   if (TG && TG.BackButton) {
     try { if (!tgBackBound) { TG.BackButton.onClick(goBack); tgBackBound = true; } if (isRoot) TG.BackButton.hide(); else TG.BackButton.show(); } catch (e) {}
   }
-  var b = document.getElementById('hbBack'); if (b) { b.hidden = isRoot; b.onclick = goBack; }
+  // у Telegram — лише системна кнопка «Назад», у браузері — кнопка в шапці; дубль «‹ Гараж» у тілі сторінки ховаємо
+  var b = document.getElementById('hbBack'); if (b) { b.hidden = isRoot || !!(TG && TG.BackButton); b.onclick = goBack; }
 }
 function route() {
   var h = location.hash.replace(/^#/, '').split('?')[0] || '/';
@@ -829,7 +833,7 @@ function renderLogin() {
       (TG && TG.requestContact ? '<div class="card tg-one" style="margin-bottom:12px"><h2 style="margin-bottom:4px">Увійти одним натиском</h2><p class="small" style="margin:0 0 12px">Telegram передасть ваш номер, і акаунт буде готовий. Без паролів.</p>' +
         '<div class="stack"><button type="button" class="btn wide" data-quick="driver">🚗 Я водій</button><button type="button" class="btn wide ghost" data-quick="sto">🔧 У мене автосервіс</button></div><div id="quickErr"></div>' +
         '<p class="mini" style="margin:12px 0 0;text-align:center">або з номером і PIN-кодом нижче</p></div>' : '') +
-      '<div class="seg" role="tablist"><button type="button" data-m="login" class="' + (mode === 'login' ? 'on' : '') + '">Увійти</button><button type="button" data-m="reg" class="' + (mode === 'reg' ? 'on' : '') + '">Реєстрація</button></div>' +
+      '<div class="seg" role="group" aria-label="Вхід або реєстрація"><button type="button" data-m="login" class="' + (mode === 'login' ? 'on' : '') + '">Увійти</button><button type="button" data-m="reg" class="' + (mode === 'reg' ? 'on' : '') + '">Реєстрація</button></div>' +
       '<form class="card stack" id="authForm" novalidate>' +
         (state.tgHint && !(TG && TG.requestContact) ? '<div class="note info">Ви в Telegram 👋 Увійдіть або зареєструйтеся один раз, далі АвтоХаб відкриватиметься тут без входу, а сповіщення приходитимуть у цей чат.</div>' : '') +
         (mode === 'reg' ? '<div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Хто ви?</span><div class="seg"><button type="button" data-r="driver" class="' + (role === 'driver' ? 'on' : '') + '">Я водій</button><button type="button" data-r="sto" class="' + (role === 'sto' ? 'on' : '') + '">Я сервіс / майстер</button></div></div>' +
@@ -1113,7 +1117,7 @@ function renderGarage() {
   loading();
   (state.cars ? Promise.resolve(state.cars) : loadCars()).then(function (cars) {
     view.innerHTML = '<div class="page-head"><h1>Мій гараж</h1><button class="btn sm ghost" id="addCar">Додати авто</button></div>' + groupCard() +
-      '<div class="tools"><a href="#/ai" class="tool"><span>🔎</span><b>Розшифрувати помилку</b><small>Код OBD або звук → причини й ціни</small></a><a href="#/prices" class="tool"><span>💰</span><b>Скільки коштує</b><small>Ціни сервісів міста</small></a><a href="#/windows" class="tool tool-w"><span>⏱</span><b>Вільні вікна зі знижкою</b><small>Без черги, запис одразу підтверджено</small></a></div>' +
+      '<div class="tools"><a href="#/ai" class="tool"><span class="tool-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2M8.5 11h5M11 8.5v5"/></svg></span><b>Розшифрувати помилку</b><small>Код OBD або звук → причини й ціни</small></a><a href="#/prices" class="tool"><span class="tool-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9-9-9z"/><circle cx="8" cy="8" r="1.6"/></svg></span><b>Скільки коштує</b><small>Ціни сервісів міста</small></a><a href="#/windows" class="tool tool-w"><span class="tool-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2h5"/></svg></span><b>Вільні вікна зі знижкою</b><small>Без черги, запис одразу підтверджено</small></a></div>' +
       (cars.length ? cars.map(function (c) {
         var spec = carSpec(c);
         return '<a class="dash' + (c.photo ? ' has-photo' : '') + '" href="#/car/' + esc(c.id) + '" aria-label="' + esc(c.make + ' ' + c.model) + ': історія і план ТО">' +
@@ -1524,7 +1528,7 @@ function renderNew() {
       '<div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Що потрібно</span><div class="chips" id="nCat">' +
         M.categories.map(function (c) { return '<span class="chip" role="radio" tabindex="0" aria-checked="false" data-v="' + esc(c) + '">' + esc(c) + '</span>'; }).join('') + '</div></div>' +
       '<div><label class="f" for="nWhen">Коли зручно <span>необов\'язково</span></label><input class="i" id="nWhen" placeholder="Будні після 17:00, або субота зранку"></div></div>' +
-      '<div class="card"><div class="between" style="margin-bottom:10px;align-items:center"><h2 style="white-space:nowrap">Оберіть сервіс</h2><select class="i" id="nDistrict" style="width:auto;min-height:40px;padding:6px 10px;font-size:14px"><option value="">Усі райони</option>' +
+      '<div class="card"><div class="between" style="margin-bottom:10px;align-items:center"><h2 style="white-space:nowrap">Оберіть сервіс</h2><select class="i" id="nDistrict" aria-label="Район" style="width:auto;min-height:40px;padding:6px 10px;font-size:14px"><option value="">Усі райони</option>' +
         M.districts.map(function (d) { return '<option>' + esc(d) + '</option>'; }).join('') + '</select></div><div id="stoList"><div class="muted small">Спершу оберіть, що потрібно зробити.</div></div></div>' +
       '<div id="nErr"></div><button class="btn wide" id="nSend">Надіслати заявку</button></form>';
     bindChips($('#nCat'), true);
@@ -2295,7 +2299,7 @@ function remindBlock(box) {
   api('sto.remind').then(function (r) {
     var R = r.remind;
     box.innerHTML = '<h2 style="margin-bottom:4px">Автонагадування клієнтам</h2><p class="mini" style="margin:0 0 6px">АвтоХаб сам нагадає вашим клієнтам у Telegram від імені сервісу з кнопкою «Записатися». Клієнти: ті, хто був у вас через АвтоХаб, і ті, кого ви записали в журнал з телефоном, якщо вони користуються АвтоХабом.</p>' +
-      '<label class="set-row"><span><b>Планове ТО</b><small>Через <input class="i" id="rmM" inputmode="numeric" value="' + R.to_months + '" style="width:54px;min-height:30px;padding:2px 6px;display:inline-block;text-align:center"> міс. після заміни оливи</small></span><input type="checkbox" class="set-sw" id="rmTo"' + (R.to ? ' checked' : '') + '></label>' +
+      '<label class="set-row"><span><b>Планове ТО</b><small>Через <input class="i" id="rmM" inputmode="numeric" aria-label="Місяців до нагадування" value="' + R.to_months + '" style="width:58px;min-height:44px;padding:2px 6px;display:inline-block;text-align:center"> міс. після заміни оливи</small></span><input type="checkbox" class="set-sw" id="rmTo"' + (R.to ? ' checked' : '') + '></label>' +
       '<label class="set-row"><span><b>Сезонна зміна шин</b><small>20 березня – 20 квітня й 20 жовтня – 20 листопада тим, хто міняв шини у вас</small></span><input type="checkbox" class="set-sw" id="rmTi"' + (R.tires ? ' checked' : '') + '></label>' +
       '<div class="mini">Надіслано нагадувань: ' + r.sent + '</div>';
     var save = function () { api('sto.remind.set', { remind: { to: $('#rmTo').checked, to_months: $('#rmM').value, tires: $('#rmTi').checked } }).then(function () { toast('Збережено'); }).catch(fail); };
@@ -2305,10 +2309,10 @@ function remindBlock(box) {
 /* ---------- СТО: співробітники ---------- */
 var staffCache = null;
 function loadStaff() { return api('staff.list').then(function (r) { staffCache = r.staff; return r.staff; }).catch(function () { staffCache = []; return []; }); }
-function masterState(st) { return st === 'started' ? ' <span class="badge b-in_work" style="font-size:11px">взяв у роботу</span>' : st === 'done' ? ' <span class="badge b-done" style="font-size:11px">майстер: готово</span>' : ''; }
+function masterState(st) { return st === 'started' ? ' <span class="badge b-in_work">взяв у роботу</span>' : st === 'done' ? ' <span class="badge b-done">майстер: готово</span>' : ''; }
 function masterSelect(id, cur, list, placeholder) {
   var act = list.filter(function (e) { return e.active || e.id === cur; });
-  return '<select class="i" id="' + id + '"><option value="">' + (placeholder || 'Не призначено') + '</option>' +
+  return '<select class="i" id="' + id + '" aria-label="Майстер"><option value="">' + (placeholder || 'Не призначено') + '</option>' +
     act.map(function (e) { return '<option value="' + esc(e.id) + '"' + (e.id === cur ? ' selected' : '') + '>' + esc(e.name) + (e.role ? ' · ' + esc(e.role) : '') + '</option>'; }).join('') + '</select>';
 }
 function staffBlock(box) {
