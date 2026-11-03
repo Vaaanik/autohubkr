@@ -1556,12 +1556,14 @@ function makeApi(db, deps) {
     await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml(ROLE_ASK),
       reply_markup: { inline_keyboard: [[{ text: '🚗 Я водій', callback_data: 'role:driver' }], [{ text: '🔧 У мене автосервіс', callback_data: 'role:sto' }]] } });
   }
+  const MANUAL = '✍️ Ввести номер вручну';
+  const CONTACT_KB = { keyboard: [[{ text: '📱 Поділитися номером', request_contact: true }], [{ text: MANUAL }]], resize_keyboard: true, one_time_keyboard: true };
   async function tgAskContact(chat, role) {
     const intro = role === 'sto'
-      ? 'Сервіси-партнери отримують заявки від водіїв з описом проблеми, фото й даними авто, а відповідають і пропонують час прямо в застосунку.\n\nЩоб створити акаунт, натисніть «Поділитися номером» внизу.'
+      ? 'Сервіси-партнери отримують заявки від водіїв з описом проблеми, фото й даними авто, а відповідають і пропонують час прямо в застосунку.\n\nЩоб створити акаунт, натисніть «Поділитися номером» внизу або введіть номер вручну.'
       : 'Додасте авто, і АвтоХаб нагадає про ТО й страховку, підкаже ймовірну причину несправності й надішле заявку в сервіс.\n\nЩоб створити акаунт, натисніть «Поділитися номером» внизу.';
     await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml({ emoji: role === 'sto' ? '🔧' : '🚗', title: role === 'sto' ? 'Для автосервісів' : 'Для водіїв', intro }),
-      reply_markup: { keyboard: [[{ text: '📱 Поділитися номером', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true } });
+      reply_markup: CONTACT_KB });
   }
   async function tgFunnelStart(chat, payload) {
     const linked = (await db.where('users', 'tg_chat', chat))[0];
@@ -1579,7 +1581,7 @@ function makeApi(db, deps) {
         const who = lead.kind === 'service' ? s_((lead.data || {}).name) || lead.name : lead.name;
         await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml({ emoji: '🙌', title: 'Дякуємо за анкету' + (who ? ', ' + who : ''),
           intro: role === 'sto' ? 'Картку «' + lead.name + '» уже створено. Натисніть «Поділитися номером» внизу: створимо акаунт сервісу й прив\'яжемо до нього картку.' : 'Натисніть «Поділитися номером» внизу, і акаунт водія буде готовий за кілька секунд. Гараж, заявки в СТО й нагадування відкриваються прямо тут, у Telegram.' }),
-          reply_markup: { keyboard: [[{ text: '📱 Поділитися номером', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true } });
+          reply_markup: CONTACT_KB });
         return;
       }
     }
@@ -1646,19 +1648,56 @@ function makeApi(db, deps) {
     if (!st || !st.role) { await tgAskRole(chat); return; }
     if (!from || String(contact.user_id) !== String(from.id)) { await tgSend(chat, { emoji: '⚠️', title: 'Це чужий контакт', intro: 'Натисніть саме кнопку «Поділитися номером».' }); return; }
     let phone = ''; try { phone = phone_(contact.phone_number); } catch (e) { phone = ''; }
-    if (!phone) { await tgSend(chat, { emoji: '⚠️', title: 'Потрібен український номер', intro: 'Поки АвтоХаб працює лише з номерами +380. Зареєструйтеся на autohubkr.com/app/ з українським номером.' }); return; }
+    if (phone) return tgFunnelFinish(chat, from, phone, st, true, s_(contact.first_name));
+    { await tgSend(chat, { emoji: '⚠️', title: 'Потрібен український номер', intro: 'Поки АвтоХаб працює лише з номерами +380. Зареєструйтеся на autohubkr.com/app/ з українським номером.' }); return; }
+  }
+  // Ручне введення: номер текстом (без підтвердження), далі ім'я. Наявний номер так не прив'язуємо: лише через «Поділитися номером».
+  async function tgFunnelText(chat, from, text) {
+    const st = JSON.parse(await kvGet('tgreg_' + chat) || 'null');
+    if (!st) return false;
+    if (text === MANUAL) {
+      if (!st.role) { await tgAskRole(chat); return true; }
+      st.step = 'phone'; await kvPut('tgreg_' + chat, JSON.stringify(st), 7 * 86400);
+      await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml({ emoji: '✍️', title: 'Введіть номер телефону', intro: 'Наприклад: 0671234567 або +380671234567.' }),
+        reply_markup: { keyboard: [[{ text: '📱 Поділитися номером', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true, input_field_placeholder: '0671234567' } });
+      return true;
+    }
+    if (st.step === 'phone') {
+      let phone = ''; try { phone = phone_(text); } catch (e) { phone = ''; }
+      if (!phone) { await tgSend(chat, { emoji: '⚠️', title: 'Не схоже на український номер', intro: 'Введіть 10 цифр, наприклад 0671234567.' }); return true; }
+      if (await db.find('users', 'phone', phone)) {
+        await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml({ emoji: '🔐', title: 'Цей номер уже зареєстровано', intro: 'Щоб увійти, підтвердіть, що номер ваш: натисніть «Поділитися номером». Або введіть інший номер.' }), reply_markup: CONTACT_KB });
+        return true;
+      }
+      st.phone = phone; st.step = 'name'; await kvPut('tgreg_' + chat, JSON.stringify(st), 7 * 86400);
+      const tn = [from && from.first_name, from && from.last_name].filter(Boolean).join(' ').slice(0, 60);
+      await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml({ emoji: '🙂', title: st.role === 'sto' ? 'Як вас звати?' : 'Як до вас звертатися?', intro: st.role === 'sto' ? 'Ім\'я контактної особи сервісу. Назву сервісу вкажете далі в картці.' : 'Ім\'я бачитиме сервіс у вашій заявці.' }),
+        reply_markup: tn ? { keyboard: [[{ text: tn }]], resize_keyboard: true, one_time_keyboard: true } : { remove_keyboard: true } });
+      return true;
+    }
+    if (st.step === 'name') {
+      const name = s_(text).replace(/\s+/g, ' ').slice(0, 60);
+      if (name.length < 2) { await tgSend(chat, { emoji: '⚠️', title: 'Введіть ім\'я', intro: 'Хоча б 2 літери.' }); return true; }
+      if (await db.find('users', 'phone', st.phone)) { st.step = 'phone'; await kvPut('tgreg_' + chat, JSON.stringify(st), 7 * 86400); await tgSend(chat, { emoji: '🔐', title: 'Цей номер уже зареєстровано', intro: 'Натисніть «Поділитися номером» або введіть інший номер.' }); return true; }
+      await tgFunnelFinish(chat, from, st.phone, st, false, name);
+      return true;
+    }
+    return false;
+  }
+  async function tgFunnelFinish(chat, from, phone, st, verified, nameHint) {
     await fnHit('contact', st.role);
     for (const o of await db.where('users', 'tg_chat', chat)) if (o.phone !== phone) await db.update('users', o.id, { tg_chat: '' });
     const lead = st.lead ? await db.find('leads', 'id', st.lead) : null;
     let u = await db.find('users', 'phone', phone), fresh = false;
+    if (u && !verified) { await tgSend(chat, { emoji: '🔐', title: 'Цей номер уже зареєстровано', intro: 'Натисніть «Поділитися номером», щоб увійти.' }); return; }
     if (u) u = await db.update('users', u.id, { tg_chat: chat, phone_ok: true });
     else {
       const leadName = lead ? (lead.kind === 'service' ? s_((lead.data || {}).name) : lead.name) : '';
-      const name = (leadName || [from.first_name, from.last_name].filter(Boolean).join(' ') || s_(contact.first_name) || 'Водій').slice(0, 60);
-      u = { id: id(), role: 'driver', name, phone, pin_hash: '', salt: '', sto_id: '', created: now(), phone_ok: true, tg_chat: chat, source: ('tg:' + st.role + (st.src ? ':' + st.src : '')).slice(0, 60) };
+      const name = (verified ? (leadName || [from.first_name, from.last_name].filter(Boolean).join(' ') || nameHint) : (nameHint || leadName) || 'Водій').slice(0, 60);
+      u = { id: id(), role: 'driver', name, phone, pin_hash: '', salt: '', sto_id: '', created: now(), phone_ok: !!verified, tg_chat: chat, source: ('tg:' + st.role + (st.src ? ':' + st.src : '')).slice(0, 60) };
       await db.insert('users', u); fresh = true;
       await fnHit('reg', st.role);
-      notify((st.role === 'sto' ? 'Сервіс' : 'Водій') + ' зареєструвався через Telegram: ' + name, 'Телефон: ' + phone + (st.src ? '\nДжерело: ' + st.src : '') + (st.role === 'sto' ? '\nКартку сервісу ще треба заповнити в застосунку.' : ''));
+      notify((st.role === 'sto' ? 'Сервіс' : 'Водій') + ' зареєструвався через Telegram: ' + name, 'Телефон: ' + phone + (verified ? '' : ' (введено вручну, не підтверджено)') + (st.src ? '\nДжерело: ' + st.src : '') + (st.role === 'sto' ? '\nКартку сервісу ще треба заповнити в застосунку.' : ''));
     }
     await kvDel('tgreg_' + chat);
     if (st.login) { const lk = 'tgin_' + st.login, lb = JSON.parse(await kvGet(lk) || 'null'); if (lb) { lb.uid = u.id; await kvPut(lk, JSON.stringify(lb), 300); } }
@@ -1739,6 +1778,7 @@ function makeApi(db, deps) {
       await tgSend(chat, { emoji: '👋', title: 'Сповіщення вимкнено', intro: 'Підключити знову можна в застосунку, розділ «Профіль».' });
       return {};
     }
+    if (text && text[0] !== '/' && (await tgFunnelText(chat, msg.from, text))) return {};
     if (!(await db.where('users', 'tg_chat', chat)).length) { await tgFunnelStart(chat, ''); return {}; }
     await tgKeyboard(chat, tgHtml({ emoji: '🚗', title: 'АвтоХаб — автосервіси Кривого Рогу', intro: 'Гараж вашого авто, заявки в перевірені СТО й відповіді сервісів — прямо тут, у Telegram. Натисніть «Відкрити АвтоХаб» внизу. Увійдіть один раз, і бот підключиться сам.' }));
     return {};
