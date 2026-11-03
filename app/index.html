@@ -585,9 +585,7 @@ function route() {
     if (h === '/garage') return renderGarage();
     if (h === '/new') return renderNew();
     if (h === '/requests') return renderRequests();
-    if (h === '/prices') return renderPrices();
-    if (h === '/ai') return renderAi();
-    if (h === '/windows') return renderWindows();
+    if (h === '/prices' || h === '/ai' || h === '/windows') return needCar(h === '/prices' ? renderPrices : h === '/ai' ? renderAi : renderWindows);
     if ((m = h.match(/^\/rate\/(\w+)$/))) return renderRate(m[1]);
     if ((m = h.match(/^\/car\/(\w+)$/))) return renderCar(m[1]);
     if (h === '/profile') return renderProfile();
@@ -992,6 +990,16 @@ function bindChips(root, single) {
 }
 
 /* ---------- водій: гараж ---------- */
+/* Розшифровка, ціни й вільні вікна працюють для конкретного авто: спершу авто в гараж */
+function needCar(render) {
+  loading();
+  (state.cars ? Promise.resolve(state.cars) : loadCars()).then(function (cars) {
+    if (cars.length) return render();
+    view.innerHTML = '<a href="#/garage" class="back">‹ Гараж</a><div class="card empty"><b>Спершу додайте авто</b>Розшифровка помилок, ціни сервісів і вільні вікна підбираються під ваше авто: марку, модель, рік і двигун. Додавання займе хвилину.' +
+      '<div style="margin-top:14px"><button class="btn" id="needCarAdd">Додати авто</button></div></div>';
+    $('#needCarAdd').onclick = function () { carDialog(); };
+  }).catch(fail);
+}
 function loadCars() { return api('cars.list').then(function (r) { state.cars = r.cars; return r.cars; }); }
 
 /* ---------- каталог марок і моделей ---------- */
@@ -1234,7 +1242,7 @@ function renderGarage() {
   loading();
   (state.cars ? Promise.resolve(state.cars) : loadCars()).then(function (cars) {
     view.innerHTML = '<div class="page-head"><h1>Мій гараж</h1><button class="btn sm ghost" id="addCar">Додати авто</button></div>' + groupCard() +
-      '<div class="tools"><a href="#/ai" class="tool"><span class="tool-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2M8.5 11h5M11 8.5v5"/></svg></span><b>Розшифрувати помилку</b><small>Код OBD або звук → причини й ціни</small></a><a href="#/prices" class="tool"><span class="tool-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9-9-9z"/><circle cx="8" cy="8" r="1.6"/></svg></span><b>Скільки коштує</b><small>Ціни сервісів міста</small></a><a href="#/windows" class="tool tool-w"><span class="tool-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2h5"/></svg></span><b>Вільні вікна зі знижкою</b><small>Без черги, запис одразу підтверджено</small></a></div>' +
+      (cars.length ? '<div class="tools"><a href="#/ai" class="tool"><span class="tool-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2M8.5 11h5M11 8.5v5"/></svg></span><b>Розшифрувати помилку</b><small>Код OBD або звук → причини й ціни</small></a><a href="#/prices" class="tool"><span class="tool-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9-9-9z"/><circle cx="8" cy="8" r="1.6"/></svg></span><b>Скільки коштує</b><small>Ціни сервісів міста</small></a><a href="#/windows" class="tool tool-w"><span class="tool-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2h5"/></svg></span><b>Вільні вікна зі знижкою</b><small>Без черги, запис одразу підтверджено</small></a></div>' : '') +
       (cars.length ? cars.map(function (c) {
         var spec = carSpec(c);
         return '<a class="dash' + (carHasPhoto(c) ? ' has-photo' : '') + '" data-car="' + esc(c.id) + '" href="#/car/' + esc(c.id) + '" aria-label="' + esc(c.make + ' ' + c.model) + ': історія і план ТО">' +
