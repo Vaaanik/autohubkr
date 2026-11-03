@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>АвтоХаб: автомобільна спільнота Кривого Рогу</title>
-<meta name="description" content="Водії й автосервіси Кривого Рогу в одному місці: гараж з історією авто, чесні відгуки, заявки на ремонт. Закритий тест, долучайтеся.">
+<title>АвтоХаб: авто під контролем, ремонт без переплат · Кривий Ріг</title>
+<meta name="description" content="Безкоштовний застосунок для водіїв Кривого Рогу: нагадування про ТО й страховку, ціни сервісів міста, AI-розшифровка помилок, вільні вікна зі знижкою й паспорт авто для продажу. Реєстрація за 30 секунд.">
 <link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" href="/assets/icon-192.png" type="image/png" sizes="192x192"><link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <meta name="theme-color" content="#06111F">
 <meta name="google-site-verification" content="_ZWoK-29Y8p4JDcvxWXnQMcRoWivAv5N2Z_1sTq1LiM" />
 <meta property="og:type" content="website">
-<meta property="og:title" content="АвтоХаб: автомобільна спільнота Кривого Рогу">
-<meta property="og:description" content="Водії й автосервіси Кривого Рогу в одному місці. Закритий тест, долучайтеся.">
+<meta property="og:title" content="АвтоХаб: авто під контролем, ремонт без переплат">
+<meta property="og:description" content="Нагадування про ТО й страховку, ціни сервісів Кривого Рогу, AI-діагностика й знижки на вільні вікна. Безкоштовно.">
 <meta property="og:locale" content="uk_UA">
 <link rel="canonical" href="https://autohubkr.com/">
 <meta property="og:url" content="https://autohubkr.com/">
@@ -20,75 +20,221 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700&family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600;700;800&family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css?v=7">
+<link rel="stylesheet" href="assets/home.css?v=1">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Organization", "name": "АвтоХаб", "alternateName": "AutoHubKR", "url": "https://autohubkr.com/", "logo": "https://autohubkr.com/assets/icon-512.png", "email": "info@autohubkr.com", "areaServed": {"@type": "City", "name": "Кривий Ріг"}, "telephone": "+380955908808", "contactPoint": {"@type": "ContactPoint", "telephone": "+380955908808", "email": "info@autohubkr.com", "contactType": "customer support", "areaServed": "UA", "availableLanguage": "uk"}}</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebSite", "name": "АвтоХаб", "url": "https://autohubkr.com/", "inLanguage": "uk"}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "inLanguage": "uk", "mainEntity": [
+{"@type": "Question", "name": "Скільки це коштує?", "acceptedAnswer": {"@type": "Answer", "text": "Для водіїв АвтоХаб безкоштовний. Сервіси отримують картку в каталозі й кабінет безкоштовно, перші 30 партнерів-засновників також отримують заявки без комісії."}},
+{"@type": "Question", "name": "Чи потрібен Telegram?", "acceptedAnswer": {"@type": "Answer", "text": "Ні. Через Telegram реєстрація займає одну кнопку, а нагадування приходять повідомленням. Але застосунок працює й у звичайному браузері: вхід за номером телефону й PIN-кодом."}},
+{"@type": "Question", "name": "Хто бачить мої дані?", "acceptedAnswer": {"@type": "Answer", "text": "Ваш гараж бачите лише ви. Сервіс бачить ваш телефон і авто тільки після того, як ви самі надішлете йому заявку. Паспорт авто відкривається лише за посиланням, яке ви поділите."}}
+]}</script>
 <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18551903172"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','AW-18551903172');</script>
 </head>
-<body>
+<body class="home">
 
+<div class="h-night">
 <header class="wrap top">
   <a class="logo" href="./" aria-label="AutoHubKR, на головну"><img src="app/logo-head.webp" width="150" height="52" alt="AutoHubKR — навігатор автопослуг"></a>
-  <nav class="topnav"><a class="sw" href="services/">Для сервісів</a><a class="small" href="drivers/">Для водіїв</a><a class="app" href="app/">Увійти</a></nav>
+  <nav class="topnav"><a class="sw" href="#sto">Для сервісів</a><a class="app" href="app/">Увійти</a></nav>
 </header>
 
-<main>
-<section class="hero" style="padding:28px 0 56px">
-  <div class="wrap">
-    <h1 style="max-width:16em">Автомобільна спільнота Кривого Рогу</h1>
-    <p class="lead" style="font-size:19px;color:var(--ink-soft);max-width:38em;margin:22px 0 34px">Водії й автосервіси міста в одному місці: гараж з історією ремонтів, чесні відгуки, заявки на ремонт і проста система обліку для сервісів. Ми збираємо перших учасників, щоб Кривий Ріг став прикладом для всієї країни.</p>
-
-    <p class="live-count" id="liveCount" hidden></p>
-    <div class="choose">
-      <div class="pick d">
-        <h2>Я водій</h2>
-        <p>Гараж вашого авто й перевірені майстри міста.</p>
-        <ul>
-          <li>Історія ремонтів і страхування в одному місці</li>
-          <li>Перевірка авто за відкритими базами</li>
-          <li>Кілька авто або автопарк</li>
-          <li>AI-помічник: опишіть проблему, і він підкаже</li>
-        </ul>
-        <a class="btn" href="drivers/">Долучитися до 300 перших</a>
+<section class="h-hero" aria-labelledby="h1">
+  <div class="wrap h-hero-grid">
+    <div class="h-copy">
+      <p class="h-eye"><span class="dot" aria-hidden="true"></span>Кривий Ріг · безкоштовно для водіїв</p>
+      <h1 id="h1">Авто під контролем.<br><span class="hl">Ремонт без переплат.</span></h1>
+      <p class="h-lead">Нагадаємо про ТО й страховку вчасно, підкажемо, що зламалося і скільки це коштує в місті, та знайдемо сервіс з вільним вікном і знижкою.</p>
+      <div class="h-cta">
+        <a class="btn h-btn" href="app/?reg=driver" data-reg="driver" id="heroCta">Зареєструватися за 30 секунд</a>
+        <a class="h-alt" href="app/?reg=driver" data-reg-web="driver">або у браузері</a>
       </div>
-      <div class="pick s">
-        <h2>Я сервіс або майстер</h2>
-        <p>Нові клієнти й порядок у роботі.</p>
-        <ul>
-          <li>Безкоштовна картка в каталозі</li>
-          <li>Заявки від водіїв з описом проблеми</li>
-          <li>Історія клієнтів і нагадування про ТО</li>
-          <li>Ідея: проста система обліку замовлень і складу</li>
-        </ul>
-        <a class="btn dark" href="services/">Стати одним із перших 30</a>
+      <p class="h-note">Без оплати й без картки. Одна кнопка в Telegram або номер телефону.</p>
+      <ul class="h-proof" aria-label="Коротко про АвтоХаб">
+        <li><b data-n="catalog">170+</b><span>сервісів міста на карті</span></li>
+        <li><b>63</b><span>робіт у плані ТО до 300 тис. км</span></li>
+        <li><b>до −70%</b><span>на вільні вікна сервісів</span></li>
+      </ul>
+    </div>
+
+    <div class="h-visual" aria-hidden="true">
+      <div class="phone">
+        <div class="ph-notch"></div>
+        <div class="ph-screen">
+          <div class="ph-top"><b>Мій гараж</b><span>+ авто</span></div>
+          <div class="ph-dash">
+            <div class="ph-car"><b>Skoda Octavia</b><span>2017</span></div>
+            <div class="ph-spec">1.4 TSI · Бензин · Автомат</div>
+            <div class="ph-row">
+              <span class="ph-plate">AE 4821 KP</span>
+              <span class="ph-odo"><small>Пробіг</small><b>148 300</b></span>
+            </div>
+          </div>
+          <div class="ph-al warn"><i>⚠</i><div><b>ОСЦПВ закінчується</b><small>через 7 днів · нагадаємо ще за 1 день</small></div></div>
+          <div class="ph-al"><i>🛢</i><div><b>Заміна оливи</b><small>через 1 200 км</small></div></div>
+          <div class="ph-al bad"><i>⛓</i><div><b>Ремінь ГРМ</b><small>прострочено на 4 000 км</small></div></div>
+          <div class="ph-btn">Нова заявка в СТО</div>
+        </div>
+      </div>
+      <div class="bub b1"><small>AI · код P0171</small><b>Бідна суміш: підсос повітря або датчик</b><span>600–1 800 грн у місті</span></div>
+      <div class="bub b2"><small>Вільне вікно</small><b>Сьогодні 15:00 · Розвал-сходження</b><span class="disc">−30%</span></div>
+    </div>
+  </div>
+</section>
+</div>
+
+<main>
+
+<section class="h-pain" aria-labelledby="painH">
+  <div class="wrap">
+    <h2 id="painH" class="sr">Що вирішує АвтоХаб</h2>
+    <div class="pain-grid">
+      <div class="pain"><p class="was">«Сказали 6 000 грн. Це нормально?»</p><p class="now">Відкриваєте <b>Ціни по місту</b> і бачите діапазон з прайсів сервісів Кривого Рогу ще до візиту.</p></div>
+      <div class="pain"><p class="was">«Загорівся чек. Їхати чи ні?»</p><p class="now">Вводите код помилки або описуєте звук. AI пояснить причини, наскільки це терміново й скільки коштує ремонт.</p></div>
+      <div class="pain"><p class="was">«Забув про страховку, штраф»</p><p class="now">АвтоХаб сам нагадає про ОСЦПВ, КАСКО, техогляд і зелену карту за 30, 7 і 1 день.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="h-feat" id="drivers" aria-labelledby="featH">
+  <div class="wrap">
+    <div class="h-head">
+      <p class="kick">Для водіїв</p>
+      <h2 id="featH">Усе про ваше авто в одному місці. Безкоштовно.</h2>
+      <p>Кожна функція або економить гроші, або береже нерви. Ось що ви отримуєте одразу після реєстрації.</p>
+    </div>
+
+    <div class="fgroup">
+      <h3 class="fg-t"><span>01</span>Економите на ремонті</h3>
+      <div class="fcards">
+        <article class="fc"><div class="ic" aria-hidden="true">💰</div><h4>Ціни по місту</h4><p>Скільки коштує заміна колодок чи розвал саме в Кривому Розі: діапазони з реальних прайсів сервісів. Більше не переплачуєте наосліп.</p></article>
+        <article class="fc"><div class="ic" aria-hidden="true">🔎</div><h4>AI-розшифровка помилок</h4><p>Код OBD або «стукає спереду на ямах» → ймовірні причини, рівень терміновості й орієнтовна ціна ремонту.</p></article>
+        <article class="fc hot"><div class="ic" aria-hidden="true">⏱</div><h4>Вільні вікна зі знижкою</h4><p>Сервіси викладають вільний час зі знижкою до 70%. Бронюєте одним натиском, поки хтось інший не встиг.</p></article>
+        <article class="fc"><div class="ic" aria-hidden="true">🧾</div><h4>Витрати під контролем</h4><p>Сфотографуйте чек або заказ-наряд: запис в історії й підсумок витрат за рік складуться самі.</p></article>
+      </div>
+    </div>
+
+    <div class="fgroup">
+      <h3 class="fg-t"><span>02</span>Нічого не забуваєте</h3>
+      <div class="fcards">
+        <article class="fc"><div class="ic" aria-hidden="true">🛠</div><h4>План ТО за пробігом</h4><p>63 роботи до 300 000 км з урахуванням палива, коробки й приводу вашої модифікації. Видно, що прострочено, а що скоро.</p></article>
+        <article class="fc"><div class="ic" aria-hidden="true">📄</div><h4>Документи й страховка</h4><p>Сфотографуйте поліс, AI сам внесе дату. Нагадування про ОСЦПВ, КАСКО, техогляд і зелену карту прийде в Telegram.</p></article>
+        <article class="fc"><div class="ic" aria-hidden="true">🚗</div><h4>Гараж за хвилину</h4><p>Введіть VIN, і ми заповнимо марку, модель і рік. Або оберіть зі списку 400+ марок. Кілька авто чи автопарк теж можна.</p></article>
+        <article class="fc"><div class="ic" aria-hidden="true">🔔</div><h4>Сповіщення в Telegram</h4><p>Відповідь сервісу, статус ремонту й нагадування приходять повідомленням. Застосунок відкривати не потрібно.</p></article>
+      </div>
+    </div>
+
+    <div class="fgroup">
+      <h3 class="fg-t"><span>03</span>Знаходите свого майстра</h3>
+      <div class="fcards">
+        <article class="fc"><div class="ic" aria-hidden="true">🗺</div><h4>Каталог і карта</h4><p><span data-n="catalog">170+</span> сервісів Кривого Рогу за районами й видами робіт. Видно адресу, графік і рейтинг.</p></article>
+        <article class="fc"><div class="ic" aria-hidden="true">📨</div><h4>Заявка замість дзвінків</h4><p>Опишіть проблему один раз, оберіть сервіс і час. Відповідь і статус ремонту бачите в застосунку.</p></article>
+        <article class="fc"><div class="ic" aria-hidden="true">⭐</div><h4>Чесні відгуки</h4><p>Оцінку ставлять лише ті, хто справді був у сервісі: візит підтверджується кодом, роботу підтверджує водій.</p></article>
       </div>
     </div>
   </div>
 </section>
 
-<section class="alt">
+<section class="h-pass" aria-labelledby="passH">
+  <div class="wrap pass-grid">
+    <div class="pass-copy">
+      <p class="kick">Коли прийде час продавати</p>
+      <h2 id="passH">Паспорт авто, який додає до ціни</h2>
+      <p>Уся історія обслуговування, пробіг і документи в одному посиланні або PDF. Записи, виконані через АвтоХаб, позначені як <b>підтверджені сервісом</b>: покупець бачить, що авто доглянуте, а не «на слово».</p>
+      <ul class="ticks">
+        <li>Посилання для покупця або PDF одним натиском</li>
+        <li>Журнал пробігу за датами: покупець бачить, як він ріс</li>
+        <li>Ринкова ціна схожих авто з AUTO.RIA для вашої моделі й року</li>
+      </ul>
+      <a class="btn" href="app/?reg=driver" data-reg="driver">Почати вести історію</a>
+    </div>
+    <div class="pass-card" aria-hidden="true">
+      <div class="pc-k">Паспорт авто · АвтоХаб</div>
+      <div class="pc-t">Skoda Octavia 2017</div>
+      <div class="pc-tiles"><div><b>148 300</b><span>км</span></div><div><b>14</b><span>записів</span></div><div><b>9</b><span>підтверджено</span></div></div>
+      <div class="pc-row"><time>03.2026</time><div><b>Заміна оливи двигуна й фільтра</b><small><span class="v">✓ підтверджено сервісом</span></small></div></div>
+      <div class="pc-row"><time>11.2025</time><div><b>Шиномонтаж, сезонна заміна</b><small><span class="v">✓ підтверджено сервісом</span></small></div></div>
+      <div class="pc-row"><time>06.2025</time><div><b>Заміна гальмівних колодок</b><small>запис власника</small></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="h-steps" aria-labelledby="stepsH">
   <div class="wrap">
-    <div class="sec-head"><h2>Як ми це будуємо</h2><p>Пілотна версія застосунку вже працює в Кривому Розі: гараж, план ТО, заявки в сервіси й відгуки. Решту функцій відкриваємо поетапно разом з першими учасниками.</p></div>
-    <div class="app-strip" style="margin:0 0 26px"><p><b>Уже можна спробувати.</b> Зареєструйтеся за номером телефону: як водій або як сервіс.</p><a class="btn" href="app/" data-tg-app="">Відкрити застосунок</a></div>
-    <div class="three">
-      <div><h3>Водії</h3><p>Перші 300 учасників отримують безкоштовний доступ і впливають на функції.</p></div>
-      <div><h3>Сервіси</h3><p>Перші 30 партнерів-засновників отримують безкоштовну картку й заявки без комісії на старті.</p></div>
-      <div><h3>Спільнота</h3><p>Чесні відгуки, відкриті правила й порядок появи функцій, які ми визначаємо разом із вами.</p></div>
+    <div class="h-head center"><h2 id="stepsH">Почати простіше, ніж записатися на мийку</h2></div>
+    <ol class="steps3">
+      <li><span>1</span><h3>Реєстрація</h3><p>Одна кнопка в Telegram або номер телефону. 30 секунд.</p></li>
+      <li><span>2</span><h3>Додайте авто</h3><p>VIN або марка зі списку й пробіг. План ТО складеться сам.</p></li>
+      <li><span>3</span><h3>Їздьте спокійно</h3><p>Нагадування, ціни й вільні вікна прийдуть, коли знадобляться.</p></li>
+    </ol>
+    <div class="center"><a class="btn h-btn" href="app/?reg=driver" data-reg="driver">Зареєструватися безкоштовно</a></div>
+  </div>
+</section>
+
+<section class="h-sto" id="sto" aria-labelledby="stoH">
+  <div class="wrap">
+    <div class="h-head">
+      <p class="kick">Для автосервісів і майстрів</p>
+      <h2 id="stoH">Більше клієнтів, менше простою. І порядок у роботі.</h2>
+      <p>Безкоштовна картка в каталозі та кабінет сервісу, який замінює зошит, дзвінки й Excel.</p>
+    </div>
+    <div class="sgrid">
+      <article class="sc2"><h4>📨 Нові клієнти</h4><p>Заявки від водіїв з описом проблеми, авто й терміновістю. Ви приймаєте й призначаєте час.</p></article>
+      <article class="sc2"><h4>⏱ Жодного порожнього підйомника</h4><p>Виставте вільне вікно зі знижкою, і водії поблизу заберуть його за хвилини.</p></article>
+      <article class="sc2"><h4>🔁 Клієнти повертаються самі</h4><p>Автонагадування вашим клієнтам про ТО й сезонну заміну шин від імені вашого сервісу.</p></article>
+      <article class="sc2"><h4>📒 Журнал робіт і виручка</h4><p>Усі роботи, клієнти й сума за місяць. Пошук за номером авто чи телефоном.</p></article>
+      <article class="sc2"><h4>👷 Команда в Telegram</h4><p>Призначайте майстра, він натискає «Взяв у роботу» й «Готово», а ви бачите статус.</p></article>
+      <article class="sc2"><h4>⭐ Рейтинг через QR</h4><p>Табличка з QR на стійці: клієнт ставить відгук за 10 секунд, рейтинг росте.</p></article>
+      <article class="sc2"><h4>💲 Ваш прайс у «Цінах по місту»</h4><p>Водії бачать ваші ціни ще до дзвінка й приходять вже готові.</p></article>
+      <article class="sc2"><h4>📊 Звіт «Ваш район»</h4><p>Щомісяця: що шукають водії вашого району, ваша частка заявок і послуги, яких бракує на ринку.</p></article>
+    </div>
+    <div class="founder">
+      <div><b>⭐ Партнер-засновник</b><p>Перші 30 сервісів отримують заявки без комісії на старті, позначку «Партнер-засновник» у каталозі й анонс у каналі АвтоХабу.</p></div>
+      <div class="founder-cta"><a class="btn" href="app/?reg=sto" data-reg="sto">Підключити сервіс безкоштовно</a><a class="h-alt light" href="app/?reg=sto" data-reg-web="sto">або у браузері</a></div>
+    </div>
+  </div>
+</section>
+
+<section class="h-faq" aria-labelledby="faqH">
+  <div class="wrap faq-wrap">
+    <h2 id="faqH">Часті питання</h2>
+    <div class="faq">
+      <details><summary>Скільки це коштує?</summary><p>Для водіїв АвтоХаб безкоштовний. Сервіси отримують картку в каталозі й кабінет безкоштовно, а перші 30 партнерів-засновників ще й заявки без комісії на старті.</p></details>
+      <details><summary>Чи потрібен Telegram?</summary><p>Ні. Через Telegram реєстрація займає одну кнопку, а нагадування приходять повідомленням. Але все працює й у звичайному браузері: вхід за номером телефону й PIN-кодом.</p></details>
+      <details><summary>Хто бачить мої дані?</summary><p>Ваш гараж бачите лише ви. Сервіс бачить ваш телефон і авто тільки після того, як ви самі надішлете йому заявку. Паспорт авто відкривається лише за посиланням, яке ви поділите.</p></details>
+      <details><summary>Звідки ціни й поради AI?</summary><p>Ціни беремо з прайсів сервісів міста й показуємо діапазоном. AI-підказка допомагає зорієнтуватися, але не замінює діагностику: остаточно несправність визначає майстер.</p></details>
+      <details><summary>Це вже працює чи лише ідея?</summary><p>Працює. Пілотна версія відкрита для Кривого Рогу: гараж, план ТО, документи, заявки, вільні вікна, ціни й паспорт авто доступні вже зараз. Нові функції додаємо разом з першими учасниками.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="h-final" aria-labelledby="finH">
+  <div class="wrap center">
+    <h2 id="finH">Наступний ремонт може бути дешевшим.</h2>
+    <p>Зареєструйтеся зараз і додайте авто: перше нагадування прийде саме тоді, коли треба.</p>
+    <div class="h-cta center-cta">
+      <a class="btn h-btn" href="app/?reg=driver" data-reg="driver">Зареєструватися за 30 секунд</a>
+      <a class="h-alt light" href="app/?reg=sto" data-reg="sto">У мене автосервіс →</a>
     </div>
   </div>
 </section>
 </main>
 
+<div class="stick" id="stick" hidden>
+  <span>Безкоштовно для водіїв</span>
+  <a class="btn" href="app/?reg=driver" data-reg="driver">Зареєструватися</a>
+</div>
+
 <footer>
   <div class="wrap foot">
-    <span>АвтоХаб. Автомобільна спільнота Кривого Рогу. Пілотна версія, закритий тест.<br><span class="contacts">Контакти: <a href="tel:+380955908808">+38 (095) 590-88-08</a> · <a href="mailto:info@autohubkr.com">info@autohubkr.com</a></span></span>
+    <span>АвтоХаб. Автомобільна спільнота Кривого Рогу. Пілотна версія.<br><span class="contacts">Контакти: <a href="tel:+380955908808">+38 (095) 590-88-08</a> · <a href="mailto:info@autohubkr.com">info@autohubkr.com</a></span></span>
     <nav><a href="app/">Застосунок</a><a href="drivers/">Для водіїв</a><a href="services/">Для сервісів</a><a href="privacy/">Конфіденційність</a></nav>
   </div>
 </footer>
 <script src="assets/config.js?v=6"></script>
-<script src="assets/counter.js"></script>
+<script src="assets/home.js?v=1"></script>
 <script src="assets/track.js"></script>
 </body>
 </html>

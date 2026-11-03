@@ -814,7 +814,8 @@ function renderAdminSettings() {
 }
 /* ---------- вхід і реєстрація ---------- */
 function renderLogin() {
-  var mode = 'login', role = 'driver';
+  var qReg = /[?&]reg=(driver|sto)\b/.exec(location.search);
+  var mode = qReg ? 'reg' : 'login', role = qReg ? qReg[1] : 'driver';
   function draw() {
     view.innerHTML =
       '<div class="login-hero"><img src="logo-full.webp" width="720" height="373" alt="AutoHubKR — навігатор автопослуг"><p>Гараж з історією ремонтів, заявки в перевірені СТО Кривого Рогу й чесні відгуки.</p></div>' +
