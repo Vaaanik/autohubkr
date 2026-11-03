@@ -1549,9 +1549,15 @@ export function makeApi(db, deps) {
   const botName = async () => { try { return (await botReady()) ? await tgBot() : ''; } catch (e) { return ''; } };
   const fnHit = async (stage, role) => { for (const k of ['fn_' + stage, 'fn_' + stage + '_' + (role || 'x')]) { const n = Number(await kvGet(k) || 0); await kvPut(k, n + 1, 10 * 365 * 86400); } };
   const ROLE_ASK = { emoji: '👋', title: 'Вітаємо в АвтоХабі', intro: 'Сервіс для водіїв і автосервісів Кривого Рогу: гараж з історією, заявки в перевірені СТО, відповіді й нагадування прямо в Telegram.\n\nХто ви?' };
-  async function tgAskRole(chat) {
-    await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml(ROLE_ASK),
-      reply_markup: { inline_keyboard: [[{ text: '🚗 Я водій', callback_data: 'role:driver' }], [{ text: '🔧 У мене автосервіс', callback_data: 'role:sto' }]] } });
+  async function tgAskRole(chat, after) {
+    const rows = [[{ text: '🚗 Я водій', callback_data: 'role:driver' }], [{ text: '🔧 У мене автосервіс', callback_data: 'role:sto' }]];
+    if (!after) rows.push([{ text: '✍️ Ввести номер вручну', callback_data: 'manual' }]);
+    await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml(after ? { emoji: '👌', title: 'Останній крок: хто ви?' } : ROLE_ASK), reply_markup: { inline_keyboard: rows } });
+  }
+  async function tgAskPhone(chat, st) {
+    st.step = 'phone'; await kvPut('tgreg_' + chat, JSON.stringify(st), 7 * 86400);
+    await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml({ emoji: '✍️', title: 'Введіть номер телефону', intro: 'Наприклад: 0671234567 або +380671234567.' }),
+      reply_markup: { keyboard: [[{ text: '📱 Поділитися номером', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true, input_field_placeholder: '0671234567' } });
   }
   const MANUAL = '✍️ Ввести номер вручну';
   const CONTACT_KB = { keyboard: [[{ text: '📱 Поділитися номером', request_contact: true }], [{ text: MANUAL }]], resize_keyboard: true, one_time_keyboard: true };
@@ -1634,17 +1640,21 @@ export function makeApi(db, deps) {
       await edit(tgHtml({ emoji: '✅', title: 'Вхід підтверджено', intro: 'Поверніться в браузер: АвтоХаб уже відкривається.' }));
       return;
     }
+    if (data === 'manual') { const s0 = JSON.parse(await kvGet('tgreg_' + chat) || '{}'); await tgAskPhone(chat, s0); return; }
     const m = data.match(/^role:(driver|sto)$/); if (!m) return;
     const st = JSON.parse(await kvGet('tgreg_' + chat) || '{}'); st.role = m[1];
     await kvPut('tgreg_' + chat, JSON.stringify(st), 7 * 86400);
     await fnHit('role', st.role);
+    if (st.vphone) return tgFunnelFinish(chat, cq.from, st.vphone, st, true, st.name || '');          // номер уже підтверджено контактом
+    if (st.step === 'role' && st.phone && st.name) return tgFunnelFinish(chat, cq.from, st.phone, st, false, st.name);   // ввів вручну
     await tgAskContact(chat, st.role);
   }
   async function tgFunnelContact(chat, from, contact) {
     const st = JSON.parse(await kvGet('tgreg_' + chat) || 'null');
-    if (!st || !st.role) { await tgAskRole(chat); return; }
+    if (!st) { await tgAskRole(chat); return; }
     if (!from || String(contact.user_id) !== String(from.id)) { await tgSend(chat, { emoji: '⚠️', title: 'Це чужий контакт', intro: 'Натисніть саме кнопку «Поділитися номером».' }); return; }
     let phone = ''; try { phone = phone_(contact.phone_number); } catch (e) { phone = ''; }
+    if (phone && !st.role) { st.vphone = phone; await kvPut('tgreg_' + chat, JSON.stringify(st), 7 * 86400); await tgAskRole(chat, true); return; }
     if (phone) return tgFunnelFinish(chat, from, phone, st, true, s_(contact.first_name));
     { await tgSend(chat, { emoji: '⚠️', title: 'Потрібен український номер', intro: 'Поки АвтоХаб працює лише з номерами +380. Зареєструйтеся на autohubkr.com/app/ з українським номером.' }); return; }
   }
@@ -1652,13 +1662,7 @@ export function makeApi(db, deps) {
   async function tgFunnelText(chat, from, text) {
     const st = JSON.parse(await kvGet('tgreg_' + chat) || 'null');
     if (!st) return false;
-    if (text === MANUAL) {
-      if (!st.role) { await tgAskRole(chat); return true; }
-      st.step = 'phone'; await kvPut('tgreg_' + chat, JSON.stringify(st), 7 * 86400);
-      await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml({ emoji: '✍️', title: 'Введіть номер телефону', intro: 'Наприклад: 0671234567 або +380671234567.' }),
-        reply_markup: { keyboard: [[{ text: '📱 Поділитися номером', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true, input_field_placeholder: '0671234567' } });
-      return true;
-    }
+    if (text === MANUAL) { await tgAskPhone(chat, st); return true; }
     if (st.step === 'phone') {
       let phone = ''; try { phone = phone_(text); } catch (e) { phone = ''; }
       if (!phone) { await tgSend(chat, { emoji: '⚠️', title: 'Не схоже на український номер', intro: 'Введіть 10 цифр, наприклад 0671234567.' }); return true; }
@@ -1668,7 +1672,7 @@ export function makeApi(db, deps) {
       }
       st.phone = phone; st.step = 'name'; await kvPut('tgreg_' + chat, JSON.stringify(st), 7 * 86400);
       const tn = [from && from.first_name, from && from.last_name].filter(Boolean).join(' ').slice(0, 60);
-      await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml({ emoji: '🙂', title: st.role === 'sto' ? 'Як вас звати?' : 'Як до вас звертатися?', intro: st.role === 'sto' ? 'Ім\'я контактної особи сервісу. Назву сервісу вкажете далі в картці.' : 'Ім\'я бачитиме сервіс у вашій заявці.' }),
+      await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml({ emoji: '🙂', title: 'Як вас звати?', intro: st.role === 'sto' ? 'Ім\'я контактної особи сервісу. Назву сервісу вкажете далі в картці.' : st.role === 'driver' ? 'Ім\'я бачитиме сервіс у вашій заявці.' : 'Ім\'я бачитиме сервіс у заявці, а для автосервісу це контактна особа.' }),
         reply_markup: tn ? { keyboard: [[{ text: tn }]], resize_keyboard: true, one_time_keyboard: true } : { remove_keyboard: true } });
       return true;
     }
@@ -1676,6 +1680,7 @@ export function makeApi(db, deps) {
       const name = s_(text).replace(/\s+/g, ' ').slice(0, 60);
       if (name.length < 2) { await tgSend(chat, { emoji: '⚠️', title: 'Введіть ім\'я', intro: 'Хоча б 2 літери.' }); return true; }
       if (await db.find('users', 'phone', st.phone)) { st.step = 'phone'; await kvPut('tgreg_' + chat, JSON.stringify(st), 7 * 86400); await tgSend(chat, { emoji: '🔐', title: 'Цей номер уже зареєстровано', intro: 'Натисніть «Поділитися номером» або введіть інший номер.' }); return true; }
+      if (!st.role) { st.name = name; st.step = 'role'; await kvPut('tgreg_' + chat, JSON.stringify(st), 7 * 86400); await tgAskRole(chat, true); return true; }
       await tgFunnelFinish(chat, from, st.phone, st, false, name);
       return true;
     }

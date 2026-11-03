@@ -9,7 +9,7 @@
     Array.prototype.forEach.call(apps, function (a) {
       var web = a.getAttribute('href'), role = a.getAttribute('data-tg-app');
       a.href = 'https://t.me/' + bot + '?startapp' + (role ? '=' + role : ''); a.rel = 'noopener';
-      a.innerHTML = '<span aria-hidden="true">✈</span> Відкрити в Telegram';
+      a.innerHTML = '<svg style="width:22px;height:22px;flex:none" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#229ED9"/><path fill="#fff" d="M5.4 11.7l11.7-4.5c.55-.2 1.02.13.84.95l-2 9.4c-.14.67-.54.83-1.1.52l-3.04-2.24-1.47 1.41c-.16.16-.3.3-.61.3l.22-3.1 5.62-5.08c.24-.22-.05-.34-.38-.12l-6.95 4.38-3-.94c-.65-.2-.66-.65.14-.97z"/></svg> Відкрити в Telegram';
       var alt = document.createElement('a'); alt.href = web; alt.className = 'app-web'; alt.textContent = 'або у браузері';
       a.parentNode.insertBefore(alt, a.nextSibling);
     });
