@@ -2220,6 +2220,21 @@ export function makeApi(db, deps) {
     await db.update('stos', st.id, { posted: today() });
     return { ok: true };
   }
+  // Файл із застосунку в чат з ботом (у Telegram-міні-застосунку не можна завантажити файл напряму)
+  async function tgFile(r) {
+    const u = await auth(r);
+    const me = await db.find('users', 'id', u.id);
+    if (!me || !me.tg_chat) fail('Підключіть Telegram у профілі, щоб отримати файл у чат');
+    if (!deps.tgDoc) fail('Надсилання файлів недоступне');
+    const m = String(r.data || '').match(/^data:(application\/pdf|image\/png)(?:;[^,]*)?;base64,([A-Za-z0-9+/=]+)$/);
+    if (!m) fail('Файл не сформовано');
+    const bytes = deps.b64decode(m[2]);
+    if (bytes.length > 9 * 1024 * 1024) fail('Файл завеликий');
+    const name = s_(r.name).replace(/[^\w.\-а-яіїєґА-ЯІЇЄҐ ]/g, '').slice(0, 80) || 'autohub.pdf';
+    const res = await deps.tgDoc(me.tg_chat, bytes, name, s_(r.caption).slice(0, 300), m[1]);
+    if (!res || !res.ok) fail('Telegram не прийняв файл. Спробуйте ще раз.');
+    return {};
+  }
   /* --- паспорт авто для продажу: публічне посилання без даних власника --- */
   async function carPassport(r) {
     const u = await auth(r, 'driver'); const c = await ownCar(u, r.id);
@@ -2333,7 +2348,7 @@ export function makeApi(db, deps) {
     'review.add': reviewAdd,
     'win.mine': winMine, 'win.add': winAdd, 'win.delete': winDelete, 'win.list': winList, 'win.book': winBook,
     'sto.public': stoPublic, 'review.qr': reviewQr, 'sto.report': stoReport, 'sto.remind': stoRemindGet, 'sto.remind.set': stoRemindSet, 'cron.daily': cronDaily, 'admin.sto.post': adminStoPost,
-    'cars.passport': carPassport, 'passport.get': passportGet, 'sto.prices': stoPricesGet, 'sto.prices.set': stoPricesSet, 'prices.city': pricesCity, 'ai.obd': aiObd,
+    'cars.passport': carPassport, 'tg.file': tgFile, 'passport.get': passportGet, 'sto.prices': stoPricesGet, 'sto.prices.set': stoPricesSet, 'prices.city': pricesCity, 'ai.obd': aiObd,
     'staff.list': staffList, 'staff.save': staffSave, 'staff.invite': staffInvite, 'req.assign': reqAssign,
     'jobs.list': jobsList, 'jobs.add': jobsAdd, 'jobs.update': jobsUpdate, 'jobs.delete': jobsDelete,
     'history.list': async (r) => {
