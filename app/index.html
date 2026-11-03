@@ -339,7 +339,9 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
 .pr-row small,.pr-off small,.ob-row small{display:block;color:var(--soft);font-size:12px;margin-top:2px}.pr-v{text-align:right;white-space:nowrap}
 .pr-off{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line2)}
 .ob-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid rgba(0,0,0,.06)}.ob-p{text-align:right;white-space:nowrap}
-.pp-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line2)}.pp-in{display:flex;gap:6px;flex:none}.pp-in .i{width:74px;min-height:38px;padding:6px 8px;text-align:center}
+.pp-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line2)}
+.pp-ck{display:flex;gap:10px;align-items:center;flex:1;cursor:pointer;min-width:0}.pp-ck input{width:20px;height:20px;flex:none;accent-color:var(--volt)}
+.pp-row .pp-in{opacity:.45}.pp-row.on .pp-in{opacity:1}.pp-all{display:block;margin:2px 0 6px;font-size:13px}.pp-in{display:flex;gap:6px;flex:none}.pp-in .i{width:74px;min-height:38px;padding:6px 8px;text-align:center}
 .pass{background:#fff;border-radius:18px;padding:18px;border:1px solid var(--line2)}.pass-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.pass-head img{width:120px;height:84px;object-fit:cover;border-radius:12px}
 .pass-k{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--volt)}.pass h1{font-size:24px;margin:4px 0}
 .pass-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:14px 0}.pass-tiles div{background:var(--paper,#F3F6FA);border-radius:12px;padding:10px}.pass-tiles b{display:block;font-size:20px}.pass-tiles span{font-size:12px;color:var(--soft)}
@@ -631,6 +633,7 @@ function stoSheet(s, onPick) {
     (s.phone ? '<dt>Телефон</dt><dd><a href="' + esc(telHref(s.phone)) + '">' + esc(fmtPhone(s.phone)) + '</a></dd>' : '') +
     (s.done ? '<dt>Через АвтоХаб</dt><dd>' + s.done + ' виконаних заявок</dd>' : '') + '</dl>' +
     (s.services && s.services.length ? '<div class="lbl" style="margin-top:10px">Послуги</div><div class="svc-tags">' + s.services.map(function (x) { return '<span class="svc-tag">' + esc(x) + '</span>'; }).join('') + '</div>' : '') +
+    (s.works && s.works.length ? '<details class="plan-more" style="margin-top:8px"><summary>Роботи й ціни (' + s.works.length + ')</summary>' + s.works.map(function (x) { return '<div class="between small" style="padding:4px 0;border-top:1px solid var(--line2)"><span>' + esc(x.name) + '</span><b>' + (x.from ? esc(rangeTxt(x.from, x.to)) : '<span class="muted" style="font-weight:400">ціну уточнюйте</span>') + '</b></div>'; }).join('') + '</details>' : '') +
     (s.lastReviews && s.lastReviews.length ? '<div class="lbl" style="margin-top:12px">Відгуки</div>' + s.lastReviews.map(function (v) {
       return '<div class="rv-row">' + stars(v.rating) + ' <span class="small muted">' + esc(dt(v.date)) + '</span>' + (v.text ? '<div class="small">' + esc(v.text) + '</div>' : '') + '</div>'; }).join('') : '') +
     (s.listed ? '<div class="note info" style="margin-top:12px">Цей сервіс ще не приймає заявки онлайн. Зателефонуйте йому напряму.</div>' : '') +
@@ -2059,7 +2062,7 @@ function renderPrices() {
         var ws = cats[c].filter(function (w) { return !nq || norm(w.name + ' ' + c).indexOf(nq) !== -1; });
         if (!ws.length) return;
         html += '<div class="card"><h2 style="margin-bottom:6px">' + esc(c) + '</h2>' + ws.map(function (w) {
-          return '<button type="button" class="pr-row" data-w="' + esc(w.code) + '"><span><b>' + esc(w.name) + '</b><small>' + (w.n ? w.n + ' ' + (w.n === 1 ? 'сервіс' : w.n < 5 ? 'сервіси' : 'сервісів') : 'ще немає цін') + '</small></span>' +
+          return '<button type="button" class="pr-row" data-w="' + esc(w.code) + '"><span><b>' + esc(w.name) + '</b><small>' + (w.n ? w.n + ' з цінами' : 'ще немає цін') + (w.doesN ? ' · ще ' + w.doesN + ' роблять' : '') + '</small></span>' +
             '<span class="pr-v">' + (w.n ? (w.n >= 2 ? '<b>' + esc(rangeTxt(w.min, w.max)) + '</b><small>зазвичай ' + esc(Number(w.typical).toLocaleString('uk-UA')) + ' грн</small>' : '<b>' + esc(rangeTxt(w.offers[0].from, w.offers[0].to)) + '</b>') : '<small class="muted">—</small>') + '</span></button>';
         }).join('') + '</div>';
       });
@@ -2075,7 +2078,9 @@ function priceSheet(w) {
     (w.n ? '<div class="lbl">Ціни сервісів</div>' + w.offers.map(function (o) {
       return '<div class="pr-off"><div><b>' + esc(o.name) + '</b><small>' + esc(o.district || '') + '</small></div><div style="text-align:right"><b>' + esc(rangeTxt(o.from, o.to)) + '</b>' +
         (o.partner ? '<a class="btn sm" href="#/new?sto=' + esc(o.id) + '&cat=' + encodeURIComponent(w.cat) + '" data-close-go style="margin-top:4px">Заявка</a>' : '') + '</div></div>';
-    }).join('') : '<p class="small muted">Сервіси ще не вказали ціну на цю роботу. Створіть заявку, і сервіси назвуть свою ціну.</p>') +
+    }).join('') : '') + (w.does && w.does.length ? '<div class="lbl" style="margin-top:10px">Роблять, ціну уточнюйте</div>' + w.does.map(function (o) {
+      return '<div class="pr-off"><div><b>' + esc(o.name) + '</b><small>' + esc(o.district || '') + '</small></div><div style="text-align:right">' + (o.partner ? '<a class="btn sm" href="#/new?sto=' + esc(o.id) + '&cat=' + encodeURIComponent(w.cat) + '" data-close-go>Заявка</a>' : '') + '</div></div>'; }).join('') : '') +
+    (!w.n && !(w.does && w.does.length) ? '<p class="small muted">Сервіси ще не вказали ціну на цю роботу. Створіть заявку, і сервіси назвуть свою ціну.</p>' : '') +
     '<div class="row" style="margin-top:12px"><button class="btn ghost" data-close style="flex:1">Закрити</button><a class="btn" style="flex:1" href="#/new?cat=' + encodeURIComponent(w.cat) + '" data-close-go>Створити заявку</a></div>');
   $$('[data-close-go]').forEach(function (a) { a.addEventListener('click', function () { closeDialog(); }); });
 }
@@ -2111,29 +2116,62 @@ function renderAi() {
   }).catch(fail);
 }
 function URG_IDX(u) { return ['Можна планувати', 'Варто не відкладати', 'Небезпечно їхати'].indexOf(u); }
-/* ---------- СТО: прайс ---------- */
+/* ---------- СТО: прайс і роботи, які робить сервіс ---------- */
 function priceBlock(box, stoServices) {
   box.innerHTML = '<div class="mini">Завантажую прайс…</div>';
   api('sto.prices').then(function (r) {
     var P = r.prices || {}, mine = stoServices || [];
     var cats = {}; r.works.forEach(function (w) { (cats[w[2]] = cats[w[2]] || []).push(w); });
     var order = Object.keys(cats).sort(function (a, b) { return (mine.indexOf(b) !== -1) - (mine.indexOf(a) !== -1); });
-    var filled = Object.keys(P).length;
-    box.innerHTML = '<div class="between"><h2>Прайс</h2><span class="mini">' + filled + ' з ' + r.works.length + '</span></div>' +
-      '<p class="mini" style="margin:4px 0 10px">Вкажіть ціну «від–до» на роботи, які робите. Водії бачать вилки цін по місту й ваш сервіс серед пропозицій. Порожнє поле: не показувати.</p>' +
+    box.innerHTML = '<div class="between"><h2>Роботи й прайс</h2><span class="mini" id="ppCnt"></span></div>' +
+      '<p class="mini" style="margin:4px 0 10px">Позначте галочкою все, що ви робите, навіть якщо це не ваш основний профіль: наприклад, кузовний сервіс, який також міняє оливу. Ціну «від–до» вказувати не обов\'язково. Водії знайдуть вас за кожною позначеною роботою.</p>' +
       order.map(function (c) {
-        return '<details class="plan-more"' + (mine.indexOf(c) !== -1 ? ' open' : '') + '><summary>' + esc(c) + '</summary>' + cats[c].map(function (w) {
-          var p = P[w[0]] || {};
-          return '<div class="pp-row"><span class="small">' + esc(w[1]) + '</span><span class="pp-in"><input class="i" inputmode="numeric" data-pf="' + w[0] + '" value="' + esc(p.from || '') + '" placeholder="від">' +
-            '<input class="i" inputmode="numeric" data-pt="' + w[0] + '" value="' + esc(p.to && p.to !== p.from ? p.to : '') + '" placeholder="до"></span></div>';
-        }).join('') + '</details>';
-      }).join('') + '<div id="ppErr"></div><button class="btn wide" id="ppSave" style="margin-top:10px">Зберегти прайс</button>';
+        var on = cats[c].filter(function (w) { return P[w[0]]; }).length;
+        return '<details class="plan-more pp-cat"' + (mine.indexOf(c) !== -1 || on ? ' open' : '') + '><summary>' + esc(c) + ' <span class="mini" data-cc="' + esc(c) + '"></span></summary>' +
+          '<button type="button" class="link pp-all" data-all="' + esc(c) + '">Відмітити всі</button>' + cats[c].map(function (w) {
+            var p = P[w[0]] || {};
+            return '<div class="pp-row' + (P[w[0]] ? ' on' : '') + '" data-cat="' + esc(c) + '"><label class="pp-ck"><input type="checkbox" data-ck="' + w[0] + '"' + (P[w[0]] ? ' checked' : '') + '><span class="small">' + esc(w[1]) + '</span></label>' +
+              '<span class="pp-in"><input class="i" inputmode="numeric" data-pf="' + w[0] + '" value="' + esc(p.from || '') + '" placeholder="від"><input class="i" inputmode="numeric" data-pt="' + w[0] + '" value="' + esc(p.to && p.to !== p.from ? p.to : '') + '" placeholder="до"></span></div>';
+          }).join('') + '</details>';
+      }).join('') + '<div id="ppErr"></div><button class="btn wide" id="ppSave" style="margin-top:10px">Зберегти</button>';
+    var count = function () {
+      var ch = $$('[data-ck]', box).filter(function (c) { return c.checked; });
+      var pr = ch.filter(function (c) { return $('[data-pf="' + c.dataset.ck + '"]', box).value; }).length;
+      $('#ppCnt', box).textContent = ch.length ? 'робите ' + ch.length + ', з цінами ' + pr : 'нічого не позначено';
+      order.forEach(function (c) {
+        var k = $$('[data-cat="' + c + '"] [data-ck]', box).filter(function (x) { return x.checked; }).length;
+        var el = $('[data-cc="' + c + '"]', box); if (el) el.textContent = k ? '· ' + k : '';
+      });
+    };
+    $$('[data-ck]', box).forEach(function (c) { c.onchange = function () { c.closest('.pp-row').classList.toggle('on', c.checked); count(); }; });
+    // вписали ціну — робота позначається сама
+    $$('[data-pf],[data-pt]', box).forEach(function (i) {
+      i.oninput = function () {
+        var k = i.dataset.pf || i.dataset.pt, ck = $('[data-ck="' + k + '"]', box);
+        if (i.value && !ck.checked) { ck.checked = true; ck.closest('.pp-row').classList.add('on'); count(); }
+      };
+    });
+    $$('[data-all]', box).forEach(function (b) {
+      b.onclick = function () {
+        var rows = $$('[data-cat="' + b.dataset.all + '"] [data-ck]', box), all = rows.every(function (c) { return c.checked; });
+        rows.forEach(function (c) { c.checked = !all; c.closest('.pp-row').classList.toggle('on', !all); });
+        b.textContent = all ? 'Відмітити всі' : 'Зняти всі'; count();
+      };
+    });
+    count();
     $('#ppSave', box).onclick = function () {
       var out = {}, b = this;
-      $$('[data-pf]', box).forEach(function (i) { var k = i.dataset.pf, a = i.value.replace(/\D/g, ''), z = ($('[data-pt="' + k + '"]', box).value || '').replace(/\D/g, ''); if (a || z) out[k] = { from: a, to: z }; });
+      $$('[data-ck]', box).forEach(function (c) {
+        var k = c.dataset.ck, a = $('[data-pf="' + k + '"]', box).value.replace(/\D/g, ''), z = $('[data-pt="' + k + '"]', box).value.replace(/\D/g, '');
+        if (c.checked) out[k] = { on: true, from: a, to: z };
+      });
       busy(b, true);
-      api('sto.prices.set', { prices: out }).then(function (x) { busy(b, false); toast('Прайс збережено: ' + Object.keys(x.prices).length + ' робіт'); })
-        .catch(function (e) { busy(b, false); $('#ppErr', box).innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
+      api('sto.prices.set', { prices: out }).then(function (x) {
+        busy(b, false);
+        if (state.sto && x.services) state.sto.services = x.services;
+        $$('#sServices .chip').forEach(function (ch) { var on = x.services.indexOf(ch.dataset.v) !== -1; ch.classList.toggle('on', on); ch.setAttribute('aria-checked', on); });
+        toast('Збережено: ' + Object.keys(x.prices).length + ' робіт. Водії знайдуть вас за ними');
+      }).catch(function (e) { busy(b, false); $('#ppErr', box).innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
     };
   }).catch(function (e) { box.innerHTML = '<div class="note err">' + esc(e.message) + '</div>'; });
 }
