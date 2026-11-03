@@ -1156,27 +1156,50 @@ function stockPhoto(c) {
   var mTok = stockNorm(model).split(' ').filter(function (w) { return w.length > 1 && !/^[a-z]\d$/.test(w); })[0] || stockNorm(model);
   var W = 'https://en.wikipedia.org/w/api.php?origin=*&format=json&action=query&';
   var save = function (v) { stockMem[k] = v; try { localStorage.setItem(k, JSON.stringify({ t: Date.now(), p: v })); } catch (e) {} return v; };
-  var pr = fetch(W + 'generator=search&gsrlimit=4&gsrsearch=' + encodeURIComponent(make + ' ' + model) + '&prop=images|pageimages&imlimit=300&piprop=name')
-    .then(function (r) { return r.json(); }).then(function (r) {
-      var pages = Object.values((r.query || {}).pages || {}).sort(function (a, b) { return a.index - b.index; });
-      // стаття про саму модель: у назві є і марка, і модель
-      var mk = stockNorm(make).split(' ')[0];
-      var page = pages.filter(function (pg) { var t = stockNorm(pg.title); return t.indexOf(mTok) >= 0 && t.indexOf(mk) >= 0; })[0];
-      if (!page) return null;
-      var BAD = /interior|interieur|innenraum|cockpit|dashboard|engine|motor |logo|museum|badge|emblem|wheel|seat|boot|trunk|\.svg|\.ogg|\.gif|\.png/;
-      var best = null;
-      (page.images || []).forEach(function (im) {
-        var f = im.title, n = stockNorm(f.replace(/^File:/, ''));
-        if (BAD.test(f.toLowerCase()) || n.indexOf(mTok) < 0) return;
-        var ys = (f.match(/\b(19[5-9]\d|20[0-4]\d)\b/g) || []).map(Number);
-        var sc = 50;
-        if (ys.length && year) { var lo = Math.min.apply(null, ys), hi = Math.max.apply(null, ys); sc = year >= lo && year <= hi ? 0 : Math.min(Math.abs(year - lo), Math.abs(year - hi)) * 3; }
-        else if (ys.length) sc = 20;
-        if (/\bfront|frontansicht|front view|\bf \d/.test(n)) sc -= 2;
-        if (/\brear|heck|\bh \d|back view/.test(n)) sc += 4;
-        if (!best || sc < best.sc) best = { f: f, sc: sc };
+  var search = function (q) {
+    return fetch(W + 'generator=search&gsrlimit=4&gsrsearch=' + encodeURIComponent(q) + '&prop=images|pageimages&imlimit=300&piprop=name')
+      .then(function (r) { return r.json(); }).then(function (r) { return Object.values((r.query || {}).pages || {}).sort(function (x, y) { return x.index - y.index; }); });
+  };
+  var mk = stockNorm(make).split(' ')[0];
+  // стаття про модель: спершу з маркою й моделлю в назві, далі лише з моделлю (Dacia Logan), далі першу іншу статтю марки (Lada Riva для ВАЗ 2107)
+  var pick = function (pages) {
+    var t = function (pg) { return stockNorm(pg.title); };
+    return pages.filter(function (pg) { return t(pg).indexOf(mTok) >= 0 && t(pg).indexOf(mk) >= 0; })[0] ||
+      pages.filter(function (pg) { return (' ' + t(pg) + ' ').indexOf(' ' + mTok + ' ') >= 0; })[0] ||
+      pages.filter(function (pg) { return t(pg).indexOf(mk) === 0 && t(pg).split(' ').length > 1 && !/\b(auto|motors?|company|group|automobiles?)\b/.test(t(pg)); })[0] || null;
+  };
+  var BAD = /interior|interieur|innenraum|cockpit|dashboard|engine|motor |logo|museum|badge|emblem|wheel|seat|boot|trunk|\.svg|\.ogg|\.gif|\.png|\.tif/;
+  var score = function (page, gen) {
+    var best = null, add = function (f, sc) { if (!best || sc < best.sc) best = { f: f, sc: sc }; };
+    (page.images || []).forEach(function (im) {
+      var f = im.title, base = f.replace(/^File:/, ''), n = stockNorm(base);
+      if (BAD.test(f.toLowerCase())) return;
+      if (n.indexOf(mTok) < 0 && n.indexOf(mk) < 0) return;
+      // рік моделі — лише на початку назви файлу («2016 …», «2009-2010 …»); дати зйомки в дужках не рахуємо
+      var m = base.match(/^(19[5-9]\d|20[0-4]\d)(?:\s*[-–]\s*(19[5-9]\d|20[0-4]\d))?\b/);
+      var sc = n.indexOf(mTok) < 0 ? 30 : 18;
+      if (m && year) { var lo = +m[1], hi = +(m[2] || m[1]); sc = year >= lo && year <= hi ? 0 : Math.min(Math.abs(year - lo), Math.abs(year - hi)) * 3; }
+      else if (m) sc = 12;
+      if (/\bfront|frontansicht|front view|front right|front left|\bf \d/.test(n)) sc -= 2;
+      if (/\brear|heck|\bh \d|back view/.test(n)) sc += 4;
+      add(f, sc);
+    });
+    if (page.pageimage && !/\.svg|\.png|logo/i.test(page.pageimage)) add('File:' + page.pageimage, gen ? 4 : 14);
+    return best;
+  };
+  var pr = search(make + ' ' + model).then(function (p1) {
+    var main = pick(p1), best = main ? score(main, false) : null;
+    if (!year || (best && best.sc <= 3)) return best;
+    // далеко за роком: шукаємо окрему статтю про покоління («Mercedes-Benz E-Class (W213)»)
+    return search(make + ' ' + model + ' ' + year).then(function (p2) {
+      p2.filter(function (pg) { return !main || pg.title !== main.title; }).slice(0, 3).forEach(function (pg) {
+        var tn = stockNorm(pg.title); if (tn.indexOf(mTok) < 0 || tn.indexOf(mk) < 0) return;
+        var b2 = score(pg, /\(/.test(pg.title)); if (b2 && (!best || b2.sc < best.sc)) best = b2;
       });
-      var file = best && best.sc < 40 ? best.f : (page.pageimage && !/\.svg|\.png|logo/i.test(page.pageimage) ? 'File:' + page.pageimage : (best && best.f));
+      return best;
+    }).catch(function () { return best; });
+  }).then(function (best) {
+      var file = best && best.f;
       if (!file) return null;
       return fetch(W + 'prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=900&titles=' + encodeURIComponent(file)).then(function (r2) { return r2.json(); }).then(function (r2) {
         var ii = ((Object.values((r2.query || {}).pages || {})[0] || {}).imageinfo || [])[0]; if (!ii) return null;
