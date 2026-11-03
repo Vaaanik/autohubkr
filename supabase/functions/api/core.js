@@ -1551,7 +1551,6 @@ export function makeApi(db, deps) {
   const ROLE_ASK = { emoji: '👋', title: 'Вітаємо в АвтоХабі', intro: 'Сервіс для водіїв і автосервісів Кривого Рогу: гараж з історією, заявки в перевірені СТО, відповіді й нагадування прямо в Telegram.\n\nХто ви?' };
   async function tgAskRole(chat, after) {
     const rows = [[{ text: '🚗 Я водій', callback_data: 'role:driver' }], [{ text: '🔧 У мене автосервіс', callback_data: 'role:sto' }]];
-    if (!after) rows.push([{ text: '✍️ Ввести номер вручну', callback_data: 'manual' }]);
     await deps.tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text: tgHtml(after ? { emoji: '👌', title: 'Останній крок: хто ви?' } : ROLE_ASK), reply_markup: { inline_keyboard: rows } });
   }
   async function tgAskPhone(chat, st) {
