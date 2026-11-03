@@ -2226,7 +2226,7 @@ function windowsBlock(box) {
   function add() {
     openDialog('<h2 style="margin-bottom:12px">Вільне вікно</h2><div class="stack"><div><span class="f" style="display:block;font-size:14px;font-weight:600;margin-bottom:6px">Коли</span><div id="wSlot">' + slotRow(0) + '</div></div>' +
       '<div class="grid2"><div><label class="f" for="wDv">Тривалість</label><input class="i" id="wDv" inputmode="numeric" value="2"></div><div><label class="f" for="wDu">&nbsp;</label><select class="i" id="wDu"><option>год</option><option>дн</option></select></div></div>' +
-      '<div class="grid2"><div><label class="f" for="wDisc">Знижка, %</label><input class="i" id="wDisc" inputmode="numeric" value="15"></div><div><label class="f" for="wCat2">Для робіт</label><select class="i" id="wCat2"><option value="">Будь-які</option>' + M.categories.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select></div></div>' +
+      '<div class="grid2"><div><label class="f" for="wDisc">Знижка, % <span>від 5 до 30</span></label><input class="i" id="wDisc" inputmode="numeric" value="15"></div><div><label class="f" for="wCat2">Для робіт</label><select class="i" id="wCat2"><option value="">Будь-які</option>' + M.categories.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select></div></div>' +
       '<div><label class="f" for="wNote">Примітка <span>необов\'язково</span></label><input class="i" id="wNote" placeholder="Знижка на роботу, запчастини окремо"></div><div id="wErr"></div>' +
       '<div class="row"><button class="btn ghost" data-close style="flex:1">Скасувати</button><button class="btn" id="wGo" style="flex:1">Виставити</button></div></div>');
     $('#wGo').onclick = function () {

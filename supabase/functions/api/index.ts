@@ -2090,7 +2090,7 @@ function makeApi(db, deps) {
     const at = slot_(r.at);
     const dv = Number(r.dur_value) || 1, du = r.dur_unit === 'дн' ? 'дн' : 'год';
     if (!(dv > 0 && dv <= (du === 'дн' ? 14 : 12))) fail('Перевірте тривалість');
-    const disc = int(r.discount); if (!(disc >= 5 && disc <= 70)) fail('Знижка від 5 до 70%');
+    const disc = int(r.discount); if (!(disc >= 5 && disc <= 30)) fail('Знижка від 5 до 30%');
     if ((await db.where('sto_windows', 'sto_id', st.id)).filter((w) => w.status === 'open' && w.at >= kyivNow()).length >= 30) fail('Можна до 30 відкритих вікон');
     const w = { id: id(), sto_id: st.id, at, dur_value: dv, dur_unit: du, category: r.category ? oneOf(r.category, CATEGORIES) : '', discount: disc, note: s_(r.note).slice(0, 200), status: 'open', request_id: '', created: now() };
     await db.insert('sto_windows', w);
