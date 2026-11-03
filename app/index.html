@@ -1166,7 +1166,9 @@ function stockPhoto(c) {
     var t = function (pg) { return stockNorm(pg.title); };
     return pages.filter(function (pg) { return t(pg).indexOf(mTok) >= 0 && t(pg).indexOf(mk) >= 0; })[0] ||
       pages.filter(function (pg) { return (' ' + t(pg) + ' ').indexOf(' ' + mTok + ' ') >= 0; })[0] ||
-      pages.filter(function (pg) { return t(pg).indexOf(mk) === 0 && t(pg).split(' ').length > 1 && !/\b(auto|motors?|company|group|automobiles?)\b/.test(t(pg)); })[0] || null;
+      // інша назва статті — лише якщо в ній справді є фото цієї моделі
+      pages.filter(function (pg) { return t(pg).indexOf(mk) === 0 && t(pg).split(' ').length > 1 && !/\b(auto|motors?|company|group|automobiles?)\b/.test(t(pg)) &&
+        (pg.images || []).some(function (im) { return (' ' + stockNorm(im.title.replace(/^File:/, '')) + ' ').indexOf(' ' + mTok + ' ') >= 0; }); })[0] || null;
   };
   var BAD = /interior|interieur|innenraum|cockpit|dashboard|engine|motor |logo|museum|badge|emblem|wheel|seat|boot|trunk|\.svg|\.ogg|\.gif|\.png|\.tif/;
   var score = function (page, gen) {
@@ -1174,10 +1176,10 @@ function stockPhoto(c) {
     (page.images || []).forEach(function (im) {
       var f = im.title, base = f.replace(/^File:/, ''), n = stockNorm(base);
       if (BAD.test(f.toLowerCase())) return;
-      if (n.indexOf(mTok) < 0 && n.indexOf(mk) < 0) return;
+      if (n.indexOf(mTok) < 0) return;
       // рік моделі — лише на початку назви файлу («2016 …», «2009-2010 …»); дати зйомки в дужках не рахуємо
       var m = base.match(/^(19[5-9]\d|20[0-4]\d)(?:\s*[-–]\s*(19[5-9]\d|20[0-4]\d))?\b/);
-      var sc = n.indexOf(mTok) < 0 ? 30 : 18;
+      var sc = 18;
       if (m && year) { var lo = +m[1], hi = +(m[2] || m[1]); sc = year >= lo && year <= hi ? 0 : Math.min(Math.abs(year - lo), Math.abs(year - hi)) * 3; }
       else if (m) sc = 12;
       if (/\bfront|frontansicht|front view|front right|front left|\bf \d/.test(n)) sc -= 2;
