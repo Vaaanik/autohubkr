@@ -273,6 +273,8 @@ fieldset.mod legend span{font-weight:400;color:var(--soft);font-size:13px}
 .dash.has-photo{padding-top:0}
 .dash-photo{margin:0 -16px 12px;height:170px;overflow:hidden;position:relative}
 .dash-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.stock-tag{position:absolute;top:10px;left:12px;z-index:1;font-size:12px;font-weight:600;color:#fff;background:rgba(6,17,31,.62);border-radius:99px;padding:3px 9px;backdrop-filter:blur(4px)}
+.stock-cr{font-size:12px;color:var(--chrome);margin-top:10px;line-height:1.4}.stock-cr a{color:inherit}
 .dash-photo::after{content:"";position:absolute;inset:auto 0 0 0;height:60%;background:linear-gradient(transparent,var(--night2))}
 .dash.has-photo h3,.dash.has-photo h1{margin-top:-34px;position:relative;text-shadow:0 1px 8px rgba(0,0,0,.6)}
 .dash.has-photo .go{top:auto;bottom:auto;margin-top:-30px;right:14px}
@@ -1135,6 +1137,74 @@ function bindGroupCard() {
   if ($('#grpX')) $('#grpX').onclick = hide;
   if ($('#grpGo')) $('#grpGo').addEventListener('click', function () { setTimeout(hide, 500); });
 }
+/* Фото моделі з Вікіпедії (Wikimedia Commons, вільні ліцензії), якщо власного фото авто немає.
+   Беремо статтю про модель і фото, у назві якого рік найближчий до року авто (файли там зазвичай звуться «2016 Skoda Octavia … Front»). */
+var STOCK_V = 1, stockMem = {};
+var MAKE_EN = { 'ваз': 'Lada', 'лада': 'Lada', 'заз': 'ZAZ', 'газ': 'GAZ', 'уаз': 'UAZ', 'москвич': 'Moskvitch', 'богдан': 'Bogdan', 'vw': 'Volkswagen', 'mercedes': 'Mercedes-Benz', 'мерседес': 'Mercedes-Benz' };
+function stockNorm(t) { return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9а-яіїєґ]+/g, ' ').trim(); }
+function stockKey(c) { return 'ah_cimg' + STOCK_V + '_' + stockNorm(c.make + ' ' + c.model).replace(/ /g, '_') + '_' + (c.year || ''); }
+function stockCached(c) {
+  var k = stockKey(c); if (k in stockMem) return stockMem[k];
+  try { var v = JSON.parse(localStorage.getItem(k) || 'null'); if (v && Date.now() - v.t < 30 * 864e5) return (stockMem[k] = v.p); } catch (e) {}
+  return undefined;
+}
+function stockPhoto(c) {
+  var k = stockKey(c), hit = stockCached(c);
+  if (hit !== undefined) return Promise.resolve(hit);
+  if (stockMem['p' + k]) return stockMem['p' + k];
+  var make = MAKE_EN[stockNorm(c.make)] || c.make, model = String(c.model || '').trim(), year = +c.year || 0;
+  var mTok = stockNorm(model).split(' ').filter(function (w) { return w.length > 1 && !/^[a-z]\d$/.test(w); })[0] || stockNorm(model);
+  var W = 'https://en.wikipedia.org/w/api.php?origin=*&format=json&action=query&';
+  var save = function (v) { stockMem[k] = v; try { localStorage.setItem(k, JSON.stringify({ t: Date.now(), p: v })); } catch (e) {} return v; };
+  var pr = fetch(W + 'generator=search&gsrlimit=4&gsrsearch=' + encodeURIComponent(make + ' ' + model) + '&prop=images|pageimages&imlimit=300&piprop=name')
+    .then(function (r) { return r.json(); }).then(function (r) {
+      var pages = Object.values((r.query || {}).pages || {}).sort(function (a, b) { return a.index - b.index; });
+      // стаття про саму модель: у назві є і марка, і модель
+      var mk = stockNorm(make).split(' ')[0];
+      var page = pages.filter(function (pg) { var t = stockNorm(pg.title); return t.indexOf(mTok) >= 0 && t.indexOf(mk) >= 0; })[0];
+      if (!page) return null;
+      var BAD = /interior|interieur|innenraum|cockpit|dashboard|engine|motor |logo|museum|badge|emblem|wheel|seat|boot|trunk|\.svg|\.ogg|\.gif|\.png/;
+      var best = null;
+      (page.images || []).forEach(function (im) {
+        var f = im.title, n = stockNorm(f.replace(/^File:/, ''));
+        if (BAD.test(f.toLowerCase()) || n.indexOf(mTok) < 0) return;
+        var ys = (f.match(/\b(19[5-9]\d|20[0-4]\d)\b/g) || []).map(Number);
+        var sc = 50;
+        if (ys.length && year) { var lo = Math.min.apply(null, ys), hi = Math.max.apply(null, ys); sc = year >= lo && year <= hi ? 0 : Math.min(Math.abs(year - lo), Math.abs(year - hi)) * 3; }
+        else if (ys.length) sc = 20;
+        if (/\bfront|frontansicht|front view|\bf \d/.test(n)) sc -= 2;
+        if (/\brear|heck|\bh \d|back view/.test(n)) sc += 4;
+        if (!best || sc < best.sc) best = { f: f, sc: sc };
+      });
+      var file = best && best.sc < 40 ? best.f : (page.pageimage && !/\.svg|\.png|logo/i.test(page.pageimage) ? 'File:' + page.pageimage : (best && best.f));
+      if (!file) return null;
+      return fetch(W + 'prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=900&titles=' + encodeURIComponent(file)).then(function (r2) { return r2.json(); }).then(function (r2) {
+        var ii = ((Object.values((r2.query || {}).pages || {})[0] || {}).imageinfo || [])[0]; if (!ii) return null;
+        var md = ii.extmetadata || {}, txt = function (x) { var d = document.createElement('div'); d.innerHTML = (md[x] || {}).value || ''; return d.textContent.trim().slice(0, 60); };
+        return { u: ii.thumburl || ii.url, a: txt('Artist'), l: txt('LicenseShortName'), d: ii.descriptionurl || '' };
+      });
+    }).then(save).catch(function () { delete stockMem['p' + k]; return null; });
+  stockMem['p' + k] = pr;
+  return pr;
+}
+function stockImg(v, alt) { return '<div class="dash-photo stock"><img src="' + esc(v.u) + '" alt="' + esc(alt || '') + '" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.remove()"><span class="stock-tag">Фото моделі</span></div>'; }
+function stockCredit(v) { return '<div class="stock-cr">Ілюстрація моделі, не ваше авто. Фото: ' + esc(v.a || 'Wikimedia Commons') + (v.l ? ', ' + esc(v.l) : '') + (v.d ? ' · <a href="' + esc(v.d) + '" target="_blank" rel="noopener">джерело</a>' : '') + '</div>'; }
+/* Дорисовує фото моделі в картку, якщо його ще немає в кеші */
+function stockFill(el, c, alt, after) {
+  if (!el || c.photo) return;
+  if (el.querySelector('.dash-photo')) return;
+  stockPhoto(c).then(function (v) {
+    if (!v || !document.body.contains(el) || el.querySelector('.dash-photo')) return;
+    el.classList.add('has-photo'); el.insertAdjacentHTML('afterbegin', stockImg(v, alt));
+    if (after) after(v);
+  });
+}
+function carPhotoHtml(c, alt) {
+  if (c.photo) return '<div class="dash-photo"><img src="' + esc(c.photo) + '" alt="' + esc(alt || '') + '" loading="lazy"></div>';
+  var v = stockCached(c); return v ? stockImg(v, alt) : '';
+}
+function carHasPhoto(c) { return !!(c.photo || stockCached(c)); }
+
 function renderGarage() {
   loading();
   (state.cars ? Promise.resolve(state.cars) : loadCars()).then(function (cars) {
@@ -1142,8 +1212,8 @@ function renderGarage() {
       '<div class="tools"><a href="#/ai" class="tool"><span class="tool-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2M8.5 11h5M11 8.5v5"/></svg></span><b>Розшифрувати помилку</b><small>Код OBD або звук → причини й ціни</small></a><a href="#/prices" class="tool"><span class="tool-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9-9-9z"/><circle cx="8" cy="8" r="1.6"/></svg></span><b>Скільки коштує</b><small>Ціни сервісів міста</small></a><a href="#/windows" class="tool tool-w"><span class="tool-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2h5"/></svg></span><b>Вільні вікна зі знижкою</b><small>Без черги, запис одразу підтверджено</small></a></div>' +
       (cars.length ? cars.map(function (c) {
         var spec = carSpec(c);
-        return '<a class="dash' + (c.photo ? ' has-photo' : '') + '" href="#/car/' + esc(c.id) + '" aria-label="' + esc(c.make + ' ' + c.model) + ': історія і план ТО">' +
-          (c.photo ? '<div class="dash-photo"><img src="' + esc(c.photo) + '" alt="" loading="lazy"></div>' : '') +
+        return '<a class="dash' + (carHasPhoto(c) ? ' has-photo' : '') + '" data-car="' + esc(c.id) + '" href="#/car/' + esc(c.id) + '" aria-label="' + esc(c.make + ' ' + c.model) + ': історія і план ТО">' +
+          carPhotoHtml(c, '') +
           '<h3>' + esc(c.make + ' ' + c.model) + (c.year ? '<span class="yr">' + esc(c.year) + '</span>' : '') + '</h3><span class="go" aria-hidden="true">›</span>' +
           (spec ? '<div class="spec">' + esc(spec) + '</div>' : '') +
           '<div class="dash-row"><div>' + plateHtml(c.plate) + '</div><div><div class="odo-l">Пробіг</div>' + odoHtml(c.mileage) + '</div></div>' +
@@ -1151,6 +1221,7 @@ function renderGarage() {
       }).join('') + '<a class="btn wide" href="#/new" style="margin-top:6px">Нова заявка в СТО</a>'
       : '<div class="card empty"><b>Додайте своє авто</b>Оберіть марку й модель зі списку, і ми складемо план обслуговування за пробігом.<div style="margin-top:14px"><button class="btn" id="addCar2">Додати авто</button></div></div>');
     bindGroupCard();
+    cars.forEach(function (c) { stockFill($('.dash[data-car="' + c.id + '"]', view), c, ''); });
     $('#addCar').onclick = function () { carDialog(); };
     var b2 = $('#addCar2'); if (b2) b2.onclick = function () { carDialog(); };
   }).catch(fail);
@@ -1374,13 +1445,13 @@ function renderCar(id) {
       return '<button type="button" class="plan-row st-' + p.st + '" data-svc="' + esc(p.s[0]) + '"><span class="plan-dot" aria-hidden="true"></span><span class="plan-t"><b>' + esc(p.s[1]) + '</b><small>' + esc(p.note) + '</small></span><span class="plan-st">' + stLbl[p.st] + '</span></button>';
     };
     view.innerHTML = '<a href="#/garage" class="back">‹ Гараж</a>' +
-      '<div class="dash' + (car.photo ? ' has-photo' : '') + '">' + (car.photo ? '<div class="dash-photo"><img src="' + esc(car.photo) + '" alt="Фото ' + esc(car.make + ' ' + car.model) + '"></div>' : '') +
+      '<div class="dash' + (carHasPhoto(car) ? ' has-photo' : '') + '" id="carDash">' + carPhotoHtml(car, 'Фото ' + car.make + ' ' + car.model) +
       '<h1 style="color:#fff;font-size:22px">' + esc(car.make + ' ' + car.model) + (car.year ? '<span class="yr" style="font-size:18px">' + esc(car.year) + '</span>' : '') + '</h1>' +
       (spec ? '<div class="spec">' + esc(spec) + '</div>' : '') + (car.modification ? '<div class="spec" style="opacity:.8">' + esc(car.modification) + '</div>' : '') +
       '<div class="dash-row"><div>' + plateHtml(car.plate) + '</div><button type="button" id="odoBtn" class="odo-btn" aria-label="Оновити пробіг"><div class="odo-l">Пробіг ✎</div>' + odoHtml(car.mileage) + '</button></div>' +
       (car.vin ? '<div class="vin">VIN ' + esc(car.vin) + '</div>' : '') +
       '<div class="acts"><a class="btn sm" href="#/new?car=' + esc(car.id) + '">Заявка в СТО</a><button class="btn sm ghost" id="kmBtn">Оновити пробіг</button><button class="btn sm ghost" id="passBtn">Паспорт для продажу</button><button class="btn sm ghost" id="addHist">Додати запис</button><button class="btn sm ghost" id="editCar">Редагувати</button>' +
-      '<label class="btn sm ghost" id="photoBtn">' + (car.photo ? 'Змінити фото' : 'Додати фото') + '<input type="file" accept="image/*" id="carPhoto" class="sr"></label></div></div>' +
+      '<label class="btn sm ghost" id="photoBtn">' + (car.photo ? 'Змінити фото' : 'Додати своє фото') + '<input type="file" accept="image/*" id="carPhoto" class="sr"></label></div>' + (!car.photo && stockCached(car) ? stockCredit(stockCached(car)) : '') + '</div>' +
       '<div class="card"><div class="between" style="margin-bottom:6px"><h2>План обслуговування</h2>' + (car.mileage ? '' : '<span class="mini">вкажіть пробіг</span>') + '</div>' +
         (urgent.length ? urgent.map(planRow).join('') : (car.mileage ? '<p class="small" style="margin:4px 0 8px">Термінових робіт немає' + (okc ? ': ' + okc + ' позицій за графіком.' : '.') + '</p>' : '<p class="small muted" style="margin:4px 0">Додайте пробіг у «Редагувати», і план порахується автоматично.</p>')) +
         (nodata.length ? '<details class="plan-more"><summary>Немає даних про ' + nodata.length + ' ' + (nodata.length === 1 ? 'роботу' : nodata.length < 5 ? 'роботи' : 'робіт') + ' для такого пробігу</summary>' +
@@ -1454,6 +1525,7 @@ function renderCar(id) {
         $('#yesDelH').onclick = function () { api('history.delete', { id: b.dataset.del }).then(function () { closeDialog(); toast('Запис видалено'); route(); }).catch(fail); };
       };
     });
+    stockFill($('#carDash'), car, 'Фото ' + car.make + ' ' + car.model, function (v) { $('#carDash').insertAdjacentHTML('beforeend', stockCredit(v)); });
     $('#carPhoto').onchange = function () {
       var f = this.files[0]; if (!f) return;
       var lbl = $('#photoBtn'); lbl.classList.add('busy'); lbl.firstChild.textContent = 'Завантажую…';
