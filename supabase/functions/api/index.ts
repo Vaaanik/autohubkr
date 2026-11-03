@@ -234,6 +234,7 @@ function makeApi(db, deps) {
     p.services = String(s.services || '').split(', ').filter(String);
     p.listed = !s.owner_id && s.partner !== true;
     if (s.founder === true) p.founder = true;
+    if (s.prices && typeof s.prices === 'object') p.works = PRICE_WORKS.filter((w) => s.prices[w[0]]).map((w) => ({ name: w[1], from: s.prices[w[0]].from || null, to: s.prices[w[0]].to || null }));
     p.logo = s.logo && deps.storagePub ? deps.storagePub.url(s.logo) : '';
     p.photos = (Array.isArray(s.photos) ? s.photos : []).map((x) => deps.storagePub ? deps.storagePub.url(x) : '').filter(Boolean);
     if (!s.owner_id && s.partner === true) p.managed = true;   // партнер без власного акаунта: заявки веде зв'язковий
@@ -763,14 +764,18 @@ function makeApi(db, deps) {
     PRICE_WORKS.forEach((w) => {
       const p = src[w[0]]; if (!p) return;
       const a = int(p.from), b = int(p.to);
-      if (!a && !b) return;
+      if (!a && !b) { if (p.on === true) out[w[0]] = { on: true }; return; }   // робимо, ціну уточнюємо
       const lo = a || b, hi = Math.max(b || a, lo);
       if (lo < 0 || hi > 500000) fail('Перевірте ціну: ' + w[1]);
-      out[w[0]] = { from: lo, to: hi };
+      out[w[0]] = { on: true, from: lo, to: hi };
     });
-    await db.update('stos', st.id, { prices: out, prices_at: today() });
+    // категорії позначених робіт додаємо до послуг сервісу, щоб водії знаходили його в каталозі
+    const cats = new Set(String(st.services || '').split(', ').filter(Boolean));
+    PRICE_WORKS.forEach((w) => { if (out[w[0]]) cats.add(w[2]); });
+    const services = CATEGORIES.filter((c) => cats.has(c)).join(', ');
+    await db.update('stos', st.id, { prices: out, prices_at: today(), services });
     await kvDel('prices_city');
-    return { prices: out };
+    return { prices: out, services: services.split(', ').filter(Boolean) };
   }
   async function stoPricesGet(r) { const st = await mySto(r); return { prices: st.prices || {}, works: PRICE_WORKS }; }
   async function cityPrices() {
@@ -778,11 +783,12 @@ function makeApi(db, deps) {
     const stos = (await db.where('stos', 'active', true)).filter((s) => s.prices && typeof s.prices === 'object' && Object.keys(s.prices).length);
     const med = (a) => { const x = a.slice().sort((p, q) => p - q), m = Math.floor(x.length / 2); return x.length % 2 ? x[m] : Math.round((x[m - 1] + x[m]) / 2); };
     const works = PRICE_WORKS.map((w) => {
-      const offers = stos.filter((s) => s.prices[w[0]]).map((s) => ({ id: s.id, name: s.name, district: s.district, from: Number(s.prices[w[0]].from), to: Number(s.prices[w[0]].to), partner: !!s.owner_id || s.partner === true }));
+      const does = stos.filter((s) => s.prices[w[0]] && !s.prices[w[0]].from).map((s) => ({ id: s.id, name: s.name, district: s.district, partner: !!s.owner_id || s.partner === true }));
+      const offers = stos.filter((s) => s.prices[w[0]] && s.prices[w[0]].from).map((s) => ({ id: s.id, name: s.name, district: s.district, from: Number(s.prices[w[0]].from), to: Number(s.prices[w[0]].to), partner: !!s.owner_id || s.partner === true }));
       offers.sort((a, b) => a.from - b.from);
       const mids = offers.map((o) => (o.from + o.to) / 2);
       return { code: w[0], name: w[1], cat: w[2], n: offers.length, min: offers.length ? offers[0].from : null, max: offers.length ? Math.max(...offers.map((o) => o.to)) : null,
-        typical: offers.length ? Math.round(med(mids) / 10) * 10 : null, offers: offers.slice(0, 8) };
+        typical: offers.length ? Math.round(med(mids) / 10) * 10 : null, offers: offers.slice(0, 8), does: does.slice(0, 8), doesN: does.length };
     });
     const res = { works, stos: stos.length, at: today() };
     await kvPut('prices_city', JSON.stringify(res), 600);
