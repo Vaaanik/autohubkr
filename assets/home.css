@@ -211,3 +211,6 @@
   .h-final .wrap{border-radius:22px;padding:40px 18px}
   .topnav .sw{display:none}
 }
+
+.h-head p.credit{font-size:13px;color:var(--ink-soft);margin-top:6px}
+.h-head p.credit a{color:inherit}
