@@ -38,7 +38,7 @@
 
   // поява блоків
   var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if ('IntersectionObserver' in window && !reduce) {
+  if ('IntersectionObserver' in window && !reduce && !document.documentElement.classList.contains('fx')) {
     var els = document.querySelectorAll('.pain,.fc,.sc2,.steps3 li,.founder,.faq details');
     var io = new IntersectionObserver(function (es) {
       es.forEach(function (x) { if (x.isIntersecting) { x.target.classList.add('in'); io.unobserve(x.target); } });

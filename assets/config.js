@@ -14,6 +14,9 @@ window.AUTOHUB_CONFIG = {
   tgDrivers:  "https://t.me/+E2OKvVJcxyM0ODRi",   // група водіїв
   tgServices: "https://t.me/+jMooGlmSlZRlNjFi",   // група сервісів
 
+  // Ефекти анімації на сторінках сайту (anime.js + Motion). false — вимкнути й повернути сторінки до вигляду без ефектів.
+  fx: true,
+
   // Скільки місць у тесті
   driversTotal:  300,
   servicesTotal: 30,
