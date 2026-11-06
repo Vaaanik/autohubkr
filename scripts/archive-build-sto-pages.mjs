@@ -102,7 +102,7 @@ fs.writeFileSync(path.join(outDir, 'index.html'), head('Автосервіси �
     <select id="fSvc" aria-label="Послуга"><option value="">Усі послуги</option>${allSvc.map((x) => `<option>${esc(x)}</option>`).join('')}</select>
     <select id="fDist" aria-label="Район"><option value="">Усі райони</option>${allDist.map((x) => `<option>${esc(x)}</option>`).join('')}</select>
   </div>
-  <div class="note" style="background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:16px 18px;margin:0 0 18px"><b>Водій з Кривого Рогу?</b> Долучайтеся до закритого тесту АвтоХабу: гараж з історією ремонтів, нагадування про ТО й заявки в сервіси. <a href="../drivers/#join">Заповнити анкету водія</a>. Власник сервісу? <a href="../services/#join">Анкета для сервісів</a>.</div>
+  <div class="note" style="background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:16px 18px;margin:0 0 18px"><b>Водій з Кривого Рогу?</b> Долучайтеся до закритого тесту АвтоХабу: гараж з історією ремонтів, нагадування про ТО й заявки в сервіси. <a href="../app/?reg=driver">Заповнити анкету водія</a>. Власник сервісу? <a href="../#sto">Анкета для сервісів</a>.</div>
   <div class="sto-grid" id="grid">${stos.map(card).join('\n')}</div>
   <p id="none" hidden>За цими фільтрами сервісів немає.</p>
 </div></section>
@@ -141,9 +141,9 @@ for (const s of stos) {
   <div class="sto-cta">
     ${s.listed ? (s.phone ? `<a class="btn" href="${esc(telHref(s.phone))}">Зателефонувати</a>` : '') : `<a class="btn" href="${esc(appLink)}">Надіслати заявку через АвтоХаб</a>`}
     <a class="btn dark" href="../../app/">Гараж і план ТО для вашого авто</a>
-    <a class="btn dark" href="../../drivers/#join">Долучитися до тесту АвтоХабу</a>
+    <a class="btn dark" href="../../app/?reg=driver">Долучитися до тесту АвтоХабу</a>
   </div>
-  ${s.listed ? `<p class="req-note" style="margin-top:14px">Цей сервіс ще не підключений до АвтоХабу, дані з відкритих каталогів. Ви власник? <a href="../../services/">Підключіть сервіс безкоштовно</a> і отримуйте заявки від водіїв.</p>` : ''}
+  ${s.listed ? `<p class="req-note" style="margin-top:14px">Цей сервіс ще не підключений до АвтоХабу, дані з відкритих каталогів. Ви власник? <a href="../../#sto">Підключіть сервіс безкоштовно</a> і отримуйте заявки від водіїв.</p>` : ''}
   ${s.photos && s.photos.length ? `<h2 style="margin-top:30px">Фото робіт і цеху</h2><div class="sto-gal">${s.photos.map((u) => `<img src="${esc(u)}" alt="Фото ${esc(s.name)}" loading="lazy">`).join('')}</div>` : ''}
   ${s.lastReviews && s.lastReviews.length ? `<h2 style="margin-top:30px">Відгуки водіїв</h2>${s.lastReviews.map((v) => `<div class="sto-rv">${stars(v.rating)} <span style="color:var(--ink-soft);font-size:14px">${esc(v.date)}</span><div>${esc(v.text || 'Без коментаря')}</div></div>`).join('')}` : ''}
 </div></section>
@@ -151,7 +151,7 @@ for (const s of stos) {
 ` + foot('../../'));
 }
 
-const pages = ['/', '/drivers/', '/services/', '/sto/', '/privacy/'].concat(stos.map((s) => `/sto/${s.slug}/`));
+const pages = ['/', '/sto/', '/privacy/'].concat(stos.map((s) => `/sto/${s.slug}/`));
 const day = new Date().toISOString().slice(0, 10);
 fs.writeFileSync(path.join(ROOT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
