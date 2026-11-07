@@ -24,6 +24,7 @@ const db = {
   update: async (t, id, patch) => chk(await sb.from(t).update(patch).eq(pk(t), id).select('*').single()),
   upsert: async (t, o) => { chk(await sb.from(t).upsert(o)); },
   removeWhere: async (t, c, v) => { chk(await sb.from(t).delete().eq(c, v)); },
+  removeBefore: async (t, c, v) => { chk(await sb.from(t).delete().lt(c, v)); },
   removePrefix: async (t, c, prefix) => { chk(await sb.from(t).delete().like(c, prefix.replace(/[%_\\]/g, (m) => '\\' + m) + '%')); }
 };
 
