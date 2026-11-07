@@ -388,6 +388,118 @@ html.dark .leaflet-popup-content-wrapper,html.dark .leaflet-popup-tip{background
 html.dark .ai{border-color:#25416B}
 html.dark .qr-card{--ink:#0F2340;--soft:#51637A;--faint:#64748B;--line2:#E7ECF2;--card:#fff;--volt-d:#1462D6;color:var(--ink)}
 @media print{html.dark{--paper:#fff;--card:#fff;--ink:#0F2340;--soft:#51637A;--line:#D8E0EA;--line2:#E7ECF2}}
+
+/* ===== Комп'ютерна версія: від 1024px — бічне меню, широкий вміст, колонки. На телефоні нічого не змінюється. ===== */
+.dt-only,.dt-install{display:none}
+@media (min-width:1024px){
+  :root{--side:244px}
+  .dt-only{display:revert}.mb-only{display:none!important}
+  h1{font-size:30px}
+  .shell{max-width:none;margin:0}
+  header.bar{padding-left:24px;padding-right:28px}
+  header .who{max-width:40%}
+  body.has-tabs .shell{padding-left:var(--side)}
+  body.has-tabs header.bar{margin-left:calc(-1 * var(--side))}
+  main{padding:28px 36px 56px;width:100%;max-width:1320px;margin:0 auto}
+  .viewbar{padding-left:36px;padding-right:36px}
+  body.has-tabs .viewbar{margin-left:calc(-1 * var(--side));padding-left:calc(var(--side) + 36px)}
+  .vb-in,.vb-sub{max-width:640px;margin-left:0}
+  /* бічне меню */
+  nav.tabs{top:60px;bottom:0;right:auto;width:var(--side);flex-direction:column;justify-content:flex-start;border-top:0;border-right:1px solid var(--line2);
+    padding:18px 12px;background:var(--card);backdrop-filter:none;overflow-y:auto}
+  nav.tabs[hidden]{display:none}
+  nav.tabs .in{flex-direction:column;max-width:none;gap:2px}
+  nav.tabs a{flex:none;flex-direction:row;justify-content:flex-start;gap:12px;font-size:15px;padding:11px 14px;border-radius:12px;color:var(--soft)}
+  nav.tabs a svg{width:21px;height:21px}
+  nav.tabs a:hover{background:var(--paper);color:var(--ink)}
+  nav.tabs a.on{background:var(--volt-bg);color:var(--volt-d)}
+  nav.tabs a.on::before{top:9px;bottom:9px;left:-12px;right:auto;width:3px;height:auto;border-radius:0 3px 3px 0}
+  .toast{bottom:28px}
+  .dt-install:not([hidden]){display:block;margin-top:auto;text-align:left;border:1px dashed var(--line);background:var(--paper);color:var(--ink);border-radius:12px;padding:12px 14px;font-weight:600;font-size:14px;cursor:pointer}
+  .dt-install:hover{border-color:var(--volt);color:var(--volt-d)}
+  .dt-install small{display:block;font-weight:400;font-size:12px;color:var(--soft);margin-top:2px}
+  body.has-tabs .toast{left:calc(50% + var(--side) / 2)}
+  dialog{width:min(640px,92vw)}
+  dialog.wide-dlg{width:min(880px,92vw)}
+  .card{padding:18px 20px}
+  .page-head{margin-bottom:18px}
+  .btn.wide{width:auto;min-width:280px}
+  .map.tall{height:calc(100vh - 260px)}
+
+  /* колонки, які розкладає deskLayout() */
+  .dcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+  .dcols>.dcol>*:last-child{margin-bottom:0}
+  .dcols .btn.wide{width:100%}
+  #view>h1+.dcols{margin-top:18px}
+  .sp-pane:not([hidden]){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 20px;align-items:start}
+  .sp-tabs{max-width:640px}
+
+  /* гараж: інструменти в рядок, авто сіткою */
+  #view[data-scr="garage"]{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:18px;align-items:start}
+  #view[data-scr="garage"]>:not(.dash){grid-column:1/-1;margin:0}
+  #view[data-scr="garage"] .dash{margin:0;height:100%}
+  #view[data-scr="garage"] .dash-photo{height:210px}
+  .tools{grid-template-columns:repeat(3,minmax(0,1fr))}.tool-w{grid-column:auto}
+  .tool{padding:16px}
+  /* списки карток сіткою */
+  #view[data-scr="requests"]{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:18px;align-items:start}
+  #view[data-scr="requests"]>h1,#view[data-scr="requests"]>.note{grid-column:1/-1}
+  #view[data-scr="requests"]>.card{margin:0}
+  #wL,#arL,#alL,#auL,#aList{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;align-items:start}
+  #wL>.card,#arL>.card,#alL>.card,#auL>.card,#aList>.card{margin:0}
+  #wCat{max-width:900px}
+  #prL{columns:2;column-gap:20px}#prL>.card{break-inside:avoid;display:inline-block;width:100%}
+  #prQ,#jQ,#aQ,#auQ{max-width:520px}
+  /* нова заявка: форма зліва, вибір сервісу справа */
+  #nForm{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:0 20px;align-items:start}
+  #nForm>*{grid-column:2}
+  #nForm>.card:first-child{grid-column:1;grid-row:1/span 20}
+  #nForm .btn.wide{width:100%}
+  /* адмін: плитки в рядок */
+  .tiles{grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
+  #view[data-scr="admin"]>.card{display:inline-block;width:calc(50% - 10px);vertical-align:top}
+  #view[data-scr="admin"]>.card+.card{margin-left:16px}
+
+  /* кабінет сервісу: заявки колонками */
+  .kanban{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
+  .kb-col{background:var(--seg);border-radius:var(--r-card);padding:10px;min-height:120px}
+  .kb-col>h2{display:flex;justify-content:space-between;align-items:center;font-size:16px;padding:4px 6px 10px}
+  .kb-col>h2 span{font:600 13px var(--body);color:var(--soft);background:var(--card);border-radius:99px;padding:2px 10px}
+  .kb-col .card{margin-bottom:10px;padding:14px 16px}
+  .kb-col .card:last-child{margin-bottom:0}
+  .kb-col .empty{padding:20px 10px;font-size:14px}
+  .kb-col .row .btn.sm{flex:1 1 auto}
+  .kb-more{display:block;width:100%;margin-top:4px}
+  /* журнал робіт: таблиця */
+  .jt-bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .jt-bar .search{margin:0;flex:1 1 320px}
+  .jt-bar .seg{margin:0!important;flex:0 1 520px}
+  .jt-bar .row{margin:0!important}
+  .jt-wrap{background:var(--card);border:1px solid var(--line2);border-radius:var(--r-card);overflow:hidden}
+  table.jt{width:100%;border-collapse:collapse;font-size:14px}
+  .jt th{text-align:left;font-weight:600;color:var(--soft);font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding:12px 14px;background:var(--paper);border-bottom:1px solid var(--line2);white-space:nowrap}
+  .jt td{padding:12px 14px;border-top:1px solid var(--line2);vertical-align:middle}
+  .jt tr:first-child td{border-top:0}
+  .jt tbody tr{cursor:pointer}
+  .jt tbody tr:hover td{background:var(--volt-bg)}
+  .jt .plate{transform:scale(.86);transform-origin:left center}
+  .jt .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .jt td.work{max-width:360px}
+  .jt td a{white-space:nowrap}
+  #view{align-content:start}
+  .jt .mini{margin-top:2px}
+
+  /* вхід: картка по центру */
+  body.is-login{background:radial-gradient(70% 60% at 50% 30%,#0E2547 0%,var(--night) 75%)}
+  body.is-login main{max-width:480px;padding:48px 0}
+  body.is-login .login-hero{margin:0;background:none;padding:10px 20px 54px}
+  body.is-login .login-sheet{margin:-36px 0 0;border-radius:24px}
+  body.is-login .btn.wide{width:100%}
+}
+@media (min-width:1024px) and (max-width:1279px){
+  .kanban{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kb-col.kb-archive{grid-column:1/-1}
+}
 </style>
 </head>
 <body>
@@ -400,7 +512,7 @@ html.dark .qr-card{--ink:#0F2340;--soft:#51637A;--faint:#64748B;--line2:#E7ECF2;
   <div class="viewbar" id="viewbar" hidden></div>
   <main id="view"><div class="spin">Завантаження…</div></main>
 </div>
-<nav class="tabs" id="tabs" hidden><div class="in" id="tabsIn"></div></nav>
+<nav class="tabs" id="tabs" hidden><div class="in" id="tabsIn"></div><button type="button" class="dt-install" id="dtInstall" hidden>Встановити на комп'ютер<small>Окреме вікно й значок на робочому столі</small></button></nav>
 <dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -416,6 +528,59 @@ var state = { token: null, user: null, sto: null, meta: null, cars: null };
 
 /* ---------- утиліти ---------- */
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+/* ---------- комп'ютерна версія ---------- */
+// Широкий екран (від 1024px): бічне меню й колонки. Перехід через межу перемальовує поточний екран.
+var WIDE = window.matchMedia ? matchMedia('(min-width:1024px)') : { matches: false };
+function isWide() { return !!WIDE.matches; }
+try { WIDE.addEventListener('change', function () { if (state.token && !document.querySelector('dialog[open]')) route(); }); } catch (e) {}
+// Розкладка в дві колонки для екранів, де порядок важливий (сторінка авто). pick(el) → 'l' | 'r' | 'top'.
+var DESK_SPLIT = {
+  profile: 'balance', 'admin-settings': 'balance',
+  car: function (el) {
+    if (el.classList.contains('back')) return 'top';
+    if (el.id === 'carDash' || el.dataset.col === 'l') return 'l';
+    return 'r';
+  }
+};
+function deskLayout() {
+  var mode = DESK_SPLIT[view.dataset.scr];
+  if (!isWide() || !mode) return;
+  var kids = Array.prototype.slice.call(view.children), wrap = view.querySelector(':scope > .dcols');
+  if (!wrap && (kids.length < 2 || kids[0].classList.contains('spin'))) return;
+  var loose = kids.filter(function (el) { return el !== wrap && !el.dataset.top; });
+  if (!loose.length) return;
+  var l, r;
+  if (!wrap) {
+    wrap = document.createElement('div'); l = document.createElement('div'); r = document.createElement('div');
+    wrap.className = 'dcols'; l.className = 'dcol l'; r.className = 'dcol r'; wrap.appendChild(l); wrap.appendChild(r);
+  } else { l = wrap.children[0]; r = wrap.children[1]; }
+  // висоти рахуємо до перенесення; «balance» кладе картку в коротшу колонку, порядок усередині колонки зберігається
+  var hl = l.offsetHeight, hr = r.offsetHeight, plan = loose.map(function (el, i) {
+    var c;
+    if (mode === 'balance') {
+      if (!wrap.parentNode && i === 0 && el.tagName === 'H1') c = 'top';
+      else if (el.id === 'out') c = hl <= hr ? 'l' : 'r';
+      else { var h = el.offsetHeight + 12; if (hl <= hr) { hl += h; c = 'l'; } else { hr += h; c = 'r'; } }
+    } else c = mode(el);
+    return c;
+  });
+  if (!wrap.parentNode) view.appendChild(wrap);
+  loose.forEach(function (el, i) {
+    if (plan[i] === 'top') { el.dataset.top = '1'; view.insertBefore(el, wrap); }
+    else (plan[i] === 'l' ? l : r).appendChild(el);
+  });
+}
+try { new MutationObserver(deskLayout).observe(view, { childList: true }); } catch (e) {}
+// Встановлення як програми (Chrome, Edge): кнопка в бічному меню, коли браузер це дозволяє
+var installEv = null;
+window.addEventListener('beforeinstallprompt', function (e) {
+  e.preventDefault(); installEv = e;
+  var b = document.getElementById('dtInstall'); if (!b) return;
+  b.hidden = false;
+  b.onclick = function () { if (!installEv) return; installEv.prompt(); installEv.userChoice.then(function (c) { if (c.outcome === 'accepted') b.hidden = true; installEv = null; }); };
+});
+window.addEventListener('appinstalled', function () { var b = document.getElementById('dtInstall'); if (b) b.hidden = true; installEv = null; });
+
 function $(sel, root) { return (root || document).querySelector(sel); }
 function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
@@ -533,6 +698,7 @@ var IC = {
 /* ---------- навігація ---------- */
 function setTabs(items, active) {
   var nav = document.getElementById('tabs');
+  document.body.classList.toggle('has-tabs', !!items);
   if (!items) { nav.hidden = true; return; }
   nav.hidden = false;
   document.getElementById('tabsIn').innerHTML = items.map(function (t) {
@@ -567,6 +733,7 @@ function drawBack(h) {
 }
 function route() {
   var h = location.hash.replace(/^#/, '').split('?')[0] || '/';
+  view.dataset.scr = /^\/(car|rate|p)\//.test(h) ? h.split('/')[1] : h.slice(1).replace(/\/(?=[a-z]*\d)[a-z0-9]{8,}$/i, '').replace(/\//g, '-') || 'home';
   drawBack(h);
   var who = document.getElementById('who');
   drawViewbar();
@@ -1485,14 +1652,14 @@ function renderCar(id) {
       (car.vin ? '<div class="vin">VIN ' + esc(car.vin) + '</div>' : '') +
       '<div class="acts"><a class="btn sm" href="#/new?car=' + esc(car.id) + '">Заявка в СТО</a><button class="btn sm ghost" id="kmBtn">Оновити пробіг</button><button class="btn sm ghost" id="passBtn">Паспорт для продажу</button><button class="btn sm ghost" id="addHist">Додати запис</button><button class="btn sm ghost" id="editCar">Редагувати</button>' +
       '<label class="btn sm ghost" id="photoBtn">' + (car.photo ? 'Змінити фото' : 'Додати своє фото') + '<input type="file" accept="image/*" id="carPhoto" class="sr"></label></div>' + (!car.photo && stockCached(car) ? stockCredit(stockCached(car)) : '') + '</div>' +
-      '<div class="card"><div class="between" style="margin-bottom:6px"><h2>План обслуговування</h2>' + (car.mileage ? '' : '<span class="mini">вкажіть пробіг</span>') + '</div>' +
+      '<div class="card" data-col="l"><div class="between" style="margin-bottom:6px"><h2>План обслуговування</h2>' + (car.mileage ? '' : '<span class="mini">вкажіть пробіг</span>') + '</div>' +
         (urgent.length ? urgent.map(planRow).join('') : (car.mileage ? '<p class="small" style="margin:4px 0 8px">Термінових робіт немає' + (okc ? ': ' + okc + ' позицій за графіком.' : '.') + '</p>' : '<p class="small muted" style="margin:4px 0">Додайте пробіг у «Редагувати», і план порахується автоматично.</p>')) +
         (nodata.length ? '<details class="plan-more"><summary>Немає даних про ' + nodata.length + ' ' + (nodata.length === 1 ? 'роботу' : nodata.length < 5 ? 'роботи' : 'робіт') + ' для такого пробігу</summary>' +
           '<p class="mini" style="margin:0 0 6px">Натисніть на роботу й вкажіть, коли її робили. Тоді план підкаже, коли наступна.</p><div class="plan-compact">' +
           nodata.map(function (p) { return '<button type="button" class="pc-row" data-svc="' + esc(p.s[0]) + '"><span>' + esc(p.s[1]) + '</span><small>' + esc(p.note) + '</small></button>'; }).join('') + '</div></details>' : '') +
         '<p class="mini" style="margin:8px 0 0">Інтервали орієнтовні. Точні дивіться в сервісній книжці вашого авто. Натисніть на роботу, щоб записати, коли її робили.</p></div>' +
       kmCard(car) + aboutCard(car) +
-      (car.osago_until === undefined ? '' : '<div class="card"><div class="between" style="margin-bottom:4px"><h2>Документи й страховка</h2><button type="button" class="link" id="editDocs">Змінити</button></div>' +
+      (car.osago_until === undefined ? '' : '<div class="card" data-col="l"><div class="between" style="margin-bottom:4px"><h2>Документи й страховка</h2><button type="button" class="link" id="editDocs">Змінити</button></div>' +
         carDocs().map(function (d) {
           var i = docInfo(car[d[0]]), mt = (car.docs_meta || {})[d[0]];
           var sub = car[d[0]] ? 'до ' + esc(dt(car[d[0]])) + (mt && (mt.insurer || mt.number) ? ' · ' + esc([mt.insurer, mt.number ? '№ ' + mt.number : ''].filter(Boolean).join(', ')) : '')
@@ -1912,7 +2079,7 @@ function bindVisit(root, list, side, after) {
 }
 
 /* ---------- СТО: заявки ---------- */
-var stoTab = 'active';
+var stoTab = 'active', stoArchAll = false;
 function renderStoRequests() {
   loading();
   Promise.all([api('req.list'), staffCache ? Promise.resolve(staffCache) : loadStaff()]).then(function (res) {
@@ -1922,16 +2089,16 @@ function renderStoRequests() {
       active: all.filter(function (q) { return q.status === 'accepted' || q.status === 'in_work'; }),
       archive: all.filter(function (q) { return ['done', 'declined', 'cancelled'].indexOf(q.status) !== -1; }) };
     if (stoTab === 'active' && !groups.active.length && groups.new.length) stoTab = 'new';
-    var pending = state.sto && !state.sto.active;
+    var pending = state.sto && !state.sto.active, wide = isWide();
     view.innerHTML = (pending ? '<div class="note warn" style="margin-bottom:12px"><b>Сервіс на перевірці.</b> Ми зв\'яжемося з вами протягом 1–2 днів, після цього водії побачать вас у каталозі.</div>' : '') +
-      '<h1 style="margin-bottom:12px">Заявки</h1><div class="seg" style="margin-bottom:12px">' +
+      '<h1 style="margin-bottom:12px">Заявки</h1>' + (wide ? '' : '<div class="seg" style="margin-bottom:12px">' +
       [['new', 'Нові'], ['active', 'В роботі'], ['archive', 'Архів']].map(function (t) {
         return '<button type="button" data-t="' + t[0] + '" class="' + (stoTab === t[0] ? 'on' : '') + '">' + t[1] + (groups[t[0]].length ? ' · ' + groups[t[0]].length : '') + '</button>';
-      }).join('') + '</div>' + groupCard() + '<div id="stoReqs"></div>';
+      }).join('') + '</div>') + groupCard() + '<div id="stoReqs"' + (wide ? ' class="kanban"' : '') + '></div>';
     bindGroupCard();
     $$('[data-t]').forEach(function (b) { b.onclick = function () { stoTab = b.dataset.t; renderStoRequests(); }; });
     var list = groups[stoTab];
-    $('#stoReqs').innerHTML = list.length ? list.map(function (q) {
+    var cardOf = function (q) {
       var d = q.driver || {};
       var body = '<div class="between"><div><h3>' + esc(q.category) + '</h3><div class="mini">' + esc(q.car) + ' · ' + esc(dt(q.created)) + '</div></div><span class="badge b-' + esc(q.status) + '">' + esc(q.status_label) + '</span></div>' +
         '<p style="margin:8px 0">' + esc(q.description) + '</p>' + photosRow(q) +
@@ -1955,8 +2122,20 @@ function renderStoRequests() {
       if (q.status === 'accepted') acts += (q.visited ? '' : '<button class="btn sm ' + (q.visited === undefined ? 'dark' : 'ghost') + '" data-act="in_work" data-id="' + esc(q.id) + '">' + (q.visited === undefined ? 'Авто в роботі' : 'Авто в роботі без коду') + '</button>') + '<button class="btn sm" data-act="done" data-id="' + esc(q.id) + '">Завершити</button>';
       if (q.status === 'in_work') acts += '<button class="btn sm" data-act="done" data-id="' + esc(q.id) + '">Завершити</button>';
       return '<div class="card">' + body + (acts ? '<div class="row" style="margin-top:12px;flex-wrap:wrap">' + acts + '</div>' : '') + '</div>';
-    }).join('') : '<div class="card empty"><b>' + ({ new: 'Нових заявок немає', active: 'Немає заявок у роботі', archive: 'Архів порожній' })[stoTab] + '</b>' +
-      (stoTab === 'new' ? 'Коли водій обере ваш сервіс, заявка з\'явиться тут, а телефон водія відкриється після того, як ви її приймете.' : '') + '</div>';
+    };
+    var emptyOf = function (t) {
+      return '<div class="card empty"><b>' + ({ new: 'Нових заявок немає', active: 'Немає заявок у роботі', archive: 'Архів порожній' })[t] + '</b>' +
+        (t === 'new' ? 'Коли водій обере ваш сервіс, заявка з\'явиться тут, а телефон водія відкриється після того, як ви її приймете.' : '') + '</div>';
+    };
+    if (wide) {
+      // ПК: усі три групи поруч; в архіві спершу 6 останніх
+      $('#stoReqs').innerHTML = [['new', 'Нові'], ['active', 'В роботі'], ['archive', 'Архів']].map(function (t) {
+        var g = groups[t[0]], cut = t[0] === 'archive' && !stoArchAll ? g.slice(0, 6) : g;
+        return '<section class="kb-col kb-' + t[0] + '"><h2>' + t[1] + '<span>' + g.length + '</span></h2>' + (g.length ? cut.map(cardOf).join('') : emptyOf(t[0])) +
+          (cut.length < g.length ? '<button type="button" class="btn sm ghost kb-more" id="kbMore">Показати всі ' + g.length + '</button>' : '') + '</section>';
+      }).join('');
+      if ($('#kbMore')) $('#kbMore').onclick = function () { stoArchAll = true; renderStoRequests(); };
+    } else $('#stoReqs').innerHTML = list.length ? list.map(cardOf).join('') : emptyOf(stoTab);
     $$('[data-act]').forEach(function (b) { b.onclick = function () { stoAction(b.dataset.act, all.filter(function (q) { return q.id === b.dataset.id; })[0]); }; });
     bindVisit($('#stoReqs'), all, 'sto', renderStoRequests);
     $$('[data-master]').forEach(function (sel) {
@@ -2031,15 +2210,15 @@ function renderStoJobs() {
     view.innerHTML = '<div class="page-head"><h1>Журнал робіт</h1><button class="btn sm" id="jAdd">Додати роботу</button></div>' +
       '<div class="tiles" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px"><div class="tile"><b>' + inMonth.length + '</b><span>робіт цього місяця</span></div>' +
         '<div class="tile"><b>' + esc(sum ? Math.round(sum).toLocaleString('uk-UA') : '0') + '</b><span>грн цього місяця</span></div><div class="tile' + (inWork ? ' warn' : '') + '"><b>' + inWork + '</b><span>в роботі зараз</span></div></div>' +
-      '<input class="i search" id="jQ" type="search" placeholder="Пошук: номер авто, телефон, ім\'я, марка" value="' + esc(jobsQ) + '">' +
+      '<div class="jt-bar"><input class="i search" id="jQ" type="search" placeholder="Пошук: номер авто, телефон, ім\'я, марка" value="' + esc(jobsQ) + '">' +
       '<div class="seg" id="jF" style="margin:10px 0 12px">' + [['all', 'Усі'], ['in_work', 'В роботі'], ['done', 'Виконані'], ['autohub', 'Через АвтоХаб']].map(function (t) {
         return '<button type="button" data-f="' + t[0] + '" class="' + (jobsFilter === t[0] ? 'on' : '') + '">' + t[1] + '</button>'; }).join('') + '</div>' +
-      (staff.length ? '<div class="row" style="gap:8px;margin-bottom:10px;align-items:center"><span class="small muted">Майстер</span>' + masterSelect('jM', jobsMaster, staff, 'Усі майстри') + '</div>' +
+      (staff.length ? '<div class="row" style="gap:8px;margin-bottom:10px;align-items:center"><span class="small muted">Майстер</span>' + masterSelect('jM', jobsMaster, staff, 'Усі майстри') + '</div></div>' +
         (function () {
           var per = {}; inMonth.forEach(function (j) { if (!j.master_name) return; var k = j.master_name; per[k] = per[k] || { n: 0, s: 0 }; per[k].n++; per[k].s += Number(j.price) || 0; });
           var ks = Object.keys(per).sort(function (a, b) { return per[b].s - per[a].s; });
           return ks.length ? '<details class="plan-more" style="margin-bottom:10px"><summary>Майстри цього місяця</summary>' + ks.map(function (k) { return '<div class="between small" style="padding:4px 0"><span>' + esc(k) + '</span><span>' + per[k].n + ' робіт · <b>' + esc(money(per[k].s) || '0 грн') + '</b></span></div>'; }).join('') + '</details>' : '';
-        })() : '') +
+        })() : '</div>') +
       '<div id="jSum"></div><div id="jL"></div>' +
       '<p class="mini" style="margin-top:10px">Записуйте всі роботи, навіть клієнтів, які прийшли не через АвтоХаб: за номером авто знайдете всю історію клієнта. Клієнтів у журналі: ' + Object.keys(clients).length + '.</p>';
     function draw() {
@@ -2055,6 +2234,20 @@ function renderStoJobs() {
       var plateHit = q && list.length && list.every(function (j) { return norm(j.plate) === q; });
       $('#jSum').innerHTML = plateHit ? '<div class="note info" style="margin-bottom:10px"><b>' + esc(list[0].plate) + '</b> · ' + esc(list[0].car || '') + ': ' + list.length + ' ' + (list.length === 1 ? 'візит' : list.length < 5 ? 'візити' : 'візитів') +
         ', разом ' + esc(money(list.reduce(function (a, j) { return a + (Number(j.price) || 0); }, 0)) || '0 грн') + (list[0].client_name ? ' · ' + esc(list[0].client_name) : '') + '</div>' : '';
+      if (isWide() && list.length) {
+        // ПК: таблиця, рядок відкриває картку роботи
+        $('#jL').innerHTML = '<div class="jt-wrap"><table class="jt"><thead><tr><th>Дата</th><th>Авто</th><th>Роботи</th><th>Майстер</th><th>Клієнт</th><th class="num">Сума</th><th>Статус</th></tr></thead><tbody>' +
+          list.map(function (j) {
+            return '<tr data-jid="' + esc(j.id) + '" tabindex="0"><td style="white-space:nowrap">' + esc(dt(j.date)) + (j.mileage ? '<div class="mini">' + esc(km(j.mileage)) + '</div>' : '') + '</td>' +
+              '<td><b>' + esc(j.car || 'Авто не вказано') + '</b>' + (j.plate ? '<div>' + plateHtml(j.plate) + '</div>' : '') + '</td>' +
+              '<td class="work">' + esc(j.work) + '</td>' +
+              '<td>' + (j.master_name ? esc(j.master_name) + (j.status === 'in_work' ? masterState(j.master_state) : '') : '<span class="muted">—</span>') + '</td>' +
+              '<td>' + esc(j.client_name || '') + (j.client_phone ? '<div><a href="' + esc(telHref(j.client_phone)) + '">' + esc(fmtPhone(j.client_phone)) + '</a></div>' : '') + '</td>' +
+              '<td class="num"><b>' + esc(money(j.price)) + '</b></td>' +
+              '<td>' + (j.status === 'in_work' ? '<span class="badge b-in_work">В роботі</span>' : j.source === 'АвтоХаб' ? '<span class="badge b-done">АвтоХаб</span>' : '<span class="badge b-accepted">Виконано</span>') + '</td></tr>';
+          }).join('') + '</tbody></table></div>';
+        return;
+      }
       $('#jL').innerHTML = list.length ? list.map(function (j) {
         return '<div class="card" data-jid="' + esc(j.id) + '" style="cursor:pointer"><div class="between"><div><b>' + esc(j.car || 'Авто не вказано') + '</b>' + (j.plate ? ' ' + plateHtml(j.plate) : '') +
           '<div class="mini">' + esc(dt(j.date)) + (j.mileage ? ' · ' + esc(km(j.mileage)) : '') + '</div></div>' +
@@ -2071,6 +2264,7 @@ function renderStoJobs() {
       var c = e.target.closest('[data-jid]'); if (!c) return;
       jobDialog(all.filter(function (j) { return j.id === c.dataset.jid; })[0], all, staff);
     };
+    $('#jL').onkeydown = function (e) { if (e.key === 'Enter' && e.target.matches('tr[data-jid]')) e.target.click(); };
     $('#jAdd').onclick = function () { jobDialog(null, all, staff); };
     draw();
   }).catch(fail);
