@@ -1,8 +1,8 @@
 /**
  * АвтоХаб MVP: серверна частина застосунку autohubkr.com/app/.
- * Дані зберігаються в Google Таблиці SHEET_ID (листи створюються автоматично).
- * Окремий скрипт (не прив'язаний до таблиці): так його можна створити в акаунті owner@example.com,
- * коли в браузері відкрито кілька акаунтів Google.
+ * Дані зберігаються в Google Таблиці з властивості скрипту SHEET_ID (листи створюються автоматично).
+ * Окремий скрипт (не прив'язаний до таблиці): так його можна створити в потрібному акаунті Google,
+ * коли в браузері відкрито кілька акаунтів.
  *
  * Розгортання: «Розгорнути» → «Нове розгортання» → «Веб-застосунок»,
  * виконувати від імені «Я», доступ «Усі». Адресу /exec вписати в assets/config.js → appEndpoint.
@@ -20,11 +20,14 @@
  * GEMINI_API_KEY = ключ з aistudio.google.com. Необов'язково: GEMINI_MODEL.
  */
 
-var ADMIN_EMAIL = 'owner@example.com';
+// Адресу адміністратора й ID таблиці в код не пишемо (репозиторій публічний).
+// Лист іде власнику скрипту; іншу адресу можна задати властивістю ADMIN_EMAIL
+// («Налаштування проєкту» → «Властивості скрипту»).
+var ADMIN_EMAIL = PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL') || Session.getEffectiveUser().getEmail();
 // З 31.10.2026 дані й логіка живуть у Supabase (supabase/functions/api). Цей скрипт лише пересилає листи адміністратору.
 var MIGRATED = true;
 var RELAY_LIMIT = 60; // листів на годину
-var SHEET_ID = 'SHEET_ID_REMOVED'; // «АвтоХаб MVP: дані застосунку»
+var SHEET_ID = PropertiesService.getScriptProperties().getProperty('SHEET_ID') || ''; // «АвтоХаб MVP: дані застосунку» (архів)
 var SESSION_DAYS = 60;
 var MAX_LEN = 1500;
 

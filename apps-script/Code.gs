@@ -12,7 +12,7 @@
  *  5. Скопіюйте адресу веб-застосунку (закінчується на /exec) у assets/config.js, поле formEndpoint.
  *
  * Листи «Водії» й «Сервіси» та заголовки створюються автоматично під час першої заявки.
- * Про кожну нову заявку приходить лист на NOTIFY_EMAIL.
+ * Про кожну нову заявку приходить лист власнику скрипту (див. notifyEmail_).
  * Перегляди сторінок пишуться в лист «Переходи» без листів на пошту.
  */
 
@@ -38,8 +38,14 @@ var SHEETS = {
 
 var MAX_LEN = 2000;
 
-// Куди надсилати сповіщення про нові заявки. Щоб вимкнути, залиште порожнім: ''.
-var NOTIFY_EMAIL = 'owner@example.com';
+// Куди надсилати сповіщення про нові заявки. Адресу в код не пишемо (репозиторій публічний):
+// за замовчуванням лист іде власнику скрипту. Інша адреса — властивість скрипту NOTIFY_EMAIL
+// («Налаштування проєкту» → «Властивості скрипту»); значення off вимикає листи.
+function notifyEmail_() {
+  var v = PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAIL');
+  if (v === 'off') return '';
+  return v || Session.getEffectiveUser().getEmail();
+}
 
 function doPost(e) {
   var lock = LockService.getScriptLock();
@@ -85,7 +91,8 @@ function doGet() {
 }
 
 function notify_(cfg, row, url) {
-  if (!NOTIFY_EMAIL) return;
+  var to = notifyEmail_();
+  if (!to) return;
   var who = cfg.name === 'Водії' ? row[1] : row[1] + ' (' + row[2] + ')';
   var subject = 'Нова заявка (' + cfg.name + '): ' + who;
   var lines = [], html = [];
@@ -96,7 +103,7 @@ function notify_(cfg, row, url) {
               '</td><td style="padding:4px 0"><b>' + esc_(row[i]).replace(/\n/g, '<br>') + '</b></td></tr>');
   }
   MailApp.sendEmail({
-    to: NOTIFY_EMAIL,
+    to: to,
     subject: subject,
     body: lines.join('\n') + '\n\nТаблиця: ' + url,
     htmlBody: '<p style="font:15px Arial">Нова заявка на сайті АвтоХаб, лист «' + esc_(cfg.name) + '».</p>' +
