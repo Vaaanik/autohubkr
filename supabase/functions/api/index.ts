@@ -139,6 +139,8 @@ const list_ = (v, allowed) => (Array.isArray(v) ? v : []).filter((x) => allowed.
 const date_ = (v) => { const x = s_(v); return /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : ''; };
 const pick = (o, keys) => { const r = {}; keys.forEach((k) => { r[k] = o[k] === null || o[k] === undefined ? '' : o[k]; }); return r; };
 const isActive = (s) => s.active === true || String(s.active).toUpperCase() === 'TRUE';
+// Службовий сервіс адміністратора для перевірок: водії, лічильники й ціни міста його не бачать.
+const isTestSto = (s) => s.source === 'тест';
 function phone_(v) {
   let d = String(v || '').replace(/\D/g, '');
   if (d.length === 10 && d[0] === '0') d = '38' + d;
@@ -382,6 +384,7 @@ function makeApi(db, deps) {
     const user = { id: id(), role, name, phone, pin_hash: await hash(pin, salt), salt, sto_id: sto ? sto.id : '', created: now(), phone_ok: !!(ver.ok || ver.chat) };
     if (ver.chat) { for (const o of await db.where('users', 'tg_chat', ver.chat)) await db.update('users', o.id, { tg_chat: '' }); user.tg_chat = ver.chat; }
     try { await db.insert('users', user); } catch (e) { if (String(e.message || e).indexOf('duplicate') !== -1) fail('Цей номер уже зареєстровано. Увійдіть або зверніться до підтримки.'); throw e; }
+    bg(leadJoined(user, role));
     if (sto) {
       sto.owner_id = user.id;
       // Картка з анкети чи довідника з тим самим телефоном: прив'язуємо її, щоб не було дубля.
@@ -402,6 +405,16 @@ function makeApi(db, deps) {
         '\nПослуги: ' + sto.services + '\nКонтакт: ' + name + ', ' + phone + '\n\nАктивуйте сервіс в адмін-панелі: autohubkr.com/app/ → СТО → Перевірка.');
     }
     return session(user);
+  }
+
+  // Анкета з лендингу з тим самим номером: позначаємо «Приєднався», щоб адмін бачив, хто вже в застосунку.
+  async function leadJoined(user, role) {
+    const kind = role === 'sto' ? 'service' : 'driver';
+    for (const l of await db.where('leads', 'kind', kind)) {
+      if (l.status !== 'new' && l.status !== 'contacted') continue;
+      let ph = ''; try { ph = phone_(String(l.contact || '')); } catch (e) { ph = ''; }
+      if (ph && ph === user.phone) await db.update('leads', l.id, { status: 'joined', data: Object.assign({}, l.data || {}, { user_id: user.id }) });
+    }
   }
 
   async function login(r) {
@@ -438,8 +451,11 @@ function makeApi(db, deps) {
   }
 
   /* --- каталог СТО --- */
+  // Активні сервіси для водіїв: без видалених і без тестового сервісу адміністратора (його бачить лише сам адмін).
+  const shownStos = async (withTest) => (await db.where('stos', 'active', true)).filter((s) => s.deleted !== true && (withTest || !isTestSto(s)));
   async function catalog(r) {
-    const [stos, reviews, done] = await Promise.all([db.where('stos', 'active', true), db.all('reviews'), db.where('requests', 'status', 'done')]);
+    let admin = false; if (r.token) { try { const a = await auth(r); admin = a.role === 'admin' || !!a.isAdmin; } catch (e) { admin = false; } }
+    const [stos, reviews, done] = await Promise.all([shownStos(admin), db.all('reviews'), db.where('requests', 'status', 'done')]);
     let list = stos;
     if (r.category) { list = list.filter((s) => String(s.services).indexOf(r.category) !== -1); bg(logSearch(r.district, r.category)); }
     if (r.district) list = list.filter((s) => s.district === r.district);
@@ -780,7 +796,7 @@ function makeApi(db, deps) {
   async function stoPricesGet(r) { const st = await mySto(r); return { prices: st.prices || {}, works: PRICE_WORKS }; }
   async function cityPrices() {
     const c = await kvGet('prices_city'); if (c) return JSON.parse(c);
-    const stos = (await db.where('stos', 'active', true)).filter((s) => s.prices && typeof s.prices === 'object' && Object.keys(s.prices).length);
+    const stos = (await shownStos(false)).filter((s) => s.prices && typeof s.prices === 'object' && Object.keys(s.prices).length);
     const med = (a) => { const x = a.slice().sort((p, q) => p - q), m = Math.floor(x.length / 2); return x.length % 2 ? x[m] : Math.round((x[m - 1] + x[m]) / 2); };
     const works = PRICE_WORKS.map((w) => {
       const does = stos.filter((s) => s.prices[w[0]] && !s.prices[w[0]].from).map((s) => ({ id: s.id, name: s.name, district: s.district, partner: !!s.owner_id || s.partner === true }));
@@ -1053,7 +1069,7 @@ function makeApi(db, deps) {
     return { stats: {
       drivers: users.filter((u) => u.role === 'driver').length, stoUsers: users.filter((u) => u.role === 'sto').length,
       newUsersWeek: users.filter((u) => String(u.created) >= week).length, cars: cars.filter((c) => !c.deleted).length,
-      partners: stos.filter((s) => s.owner_id && isActive(s)).length, pending: stos.filter((s) => s.owner_id && !isActive(s)).length,
+      partners: stos.filter((s) => (s.owner_id || s.partner === true) && isActive(s) && s.deleted !== true && !isTestSto(s)).length, pending: stos.filter((s) => s.owner_id && !isActive(s)).length,
       listed: stos.filter((s) => !s.owner_id).length, noCoords: stos.filter((s) => !s.lat).length,
       requests: reqs.length, requestsWeek: reqs.filter((q) => String(q.created) >= week).length, byStatus, reviews: reviews.length,
       leadsDrivers: leads.filter((l) => l.kind === 'driver').length, leadsServices: leads.filter((l) => l.kind === 'service').length,
@@ -1109,11 +1125,11 @@ function makeApi(db, deps) {
     if (r.partner !== undefined) { patch.partner = r.partner === true; if (patch.partner) patch.active = true; }
     if (r.founder !== undefined) {
       patch.founder = r.founder === true;
-      if (patch.founder && sto.founder !== true && (await db.all('stos')).filter((x) => x.founder === true && x.deleted !== true).length >= 30) fail('Уже 30 партнерів-засновників');
+      if (patch.founder && sto.founder !== true && (await db.all('stos')).filter((x) => x.founder === true && x.deleted !== true && !isTestSto(x)).length >= 30) fail('Уже 30 партнерів-засновників');
     }
     // перші 30 партнерів автоматично отримують статус «Партнер-засновник»
-    if ((patch.active === true || patch.partner === true) && r.founder === undefined && sto.founder !== true && (sto.owner_id || patch.partner === true)) {
-      if ((await db.all('stos')).filter((x) => x.founder === true && x.deleted !== true).length < 30) patch.founder = true;
+    if ((patch.active === true || patch.partner === true) && r.founder === undefined && sto.founder !== true && !isTestSto(sto) && (sto.owner_id || patch.partner === true)) {
+      if ((await db.all('stos')).filter((x) => x.founder === true && x.deleted !== true && !isTestSto(x)).length < 30) patch.founder = true;
     }
     if (f.name !== undefined) patch.name = need(f.name, 'Вкажіть назву');
     if (f.district !== undefined) patch.district = f.district ? oneOf(f.district, DISTRICTS) : '';
@@ -1387,7 +1403,7 @@ function makeApi(db, deps) {
   async function statsPublic() {
     const cached = await kvGet('stats_public');
     if (cached) return JSON.parse(cached);
-    const [leads, stos] = await Promise.all([db.all('leads'), db.where('stos', 'active', true)]);
+    const [leads, stos] = await Promise.all([db.all('leads'), shownStos(false)]);
     const res = { drivers: leads.filter((l) => l.kind === 'driver').length, services: leads.filter((l) => l.kind === 'service').length, catalog: stos.length, tgBot: await botName(), counterMin: SET.counter_min };
     await kvPut('stats_public', JSON.stringify(res), 300);
     return res;
@@ -1763,7 +1779,7 @@ function makeApi(db, deps) {
       const uid = await kvGet('tglink_' + start[1]);
       if (!uid) { await tgSend(chat, { emoji: '⌛', title: 'Посилання застаріло', intro: 'Відкрийте застосунок і натисніть «Підключити Telegram» ще раз.' }); return {}; }
       await kvDel('tglink_' + start[1]);
-      (await db.where('users', 'tg_chat', chat)).forEach((o) => { if (o.id !== uid) db.update('users', o.id, { tg_chat: '' }); });
+      for (const o of await db.where('users', 'tg_chat', chat)) if (o.id !== uid) await db.update('users', o.id, { tg_chat: '' });
       const u = await db.update('users', uid, { tg_chat: chat });
       const what = u.role === 'sto' ? 'нові заявки від водіїв' : u.role === 'admin' ? 'нові заявки, анкети, сервіси на перевірці й спори' : 'відповіді сервісів на ваші заявки';
       await tgSend(chat, { emoji: '🎉', title: 'Telegram підключено, ' + u.name, intro: 'Тепер сюди приходитимуть ' + what + '. Вимкнути: команда /stop або кнопка в застосунку.' });
@@ -2106,7 +2122,7 @@ function makeApi(db, deps) {
   }
   async function winList(r) {
     await auth(r);
-    const [rows, stos] = await Promise.all([db.where('sto_windows', 'status', 'open'), db.where('stos', 'active', true)]);
+    const [rows, stos] = await Promise.all([db.where('sto_windows', 'status', 'open'), shownStos(false)]);
     const by = {}; stos.forEach((s) => { if (s.deleted !== true && (s.owner_id || s.partner === true)) by[s.id] = s; });
     const list = rows.filter((w) => by[w.sto_id] && w.at >= kyivNow() && (!r.category || !w.category || w.category === r.category)).sort((a, b) => a.at < b.at ? -1 : 1).slice(0, 60);
     return { windows: list.map((w) => pubWin(w, by[w.sto_id])) };
@@ -2191,6 +2207,8 @@ function makeApi(db, deps) {
   async function cronDaily(r) {
     if (!deps.isServiceKey || !(await deps.isServiceKey(s_(r.key)))) fail('Немає доступу');
     const t0 = today(), out = { docs: 0, to: 0, tires: 0, reports: 0 };
+    // прострочені записи короткочасного сховища (ліміти, коди, кеш) більше не потрібні
+    if (db.removeBefore) await db.removeBefore('kv', 'expires', new Date().toISOString()).catch((e) => console.error('kv cleanup', e));
     const once = async (k, days) => { if (await kvGet(k)) return false; await kvPut(k, 1, days * 86400); return true; };
     const users = await db.all('users'), byId = {}, byPhone = {};
     users.forEach((u) => { byId[u.id] = u; if (u.phone) byPhone[u.phone] = u; });
@@ -2492,6 +2510,7 @@ const db = {
   update: async (t, id, patch) => chk(await sb.from(t).update(patch).eq(pk(t), id).select('*').single()),
   upsert: async (t, o) => { chk(await sb.from(t).upsert(o)); },
   removeWhere: async (t, c, v) => { chk(await sb.from(t).delete().eq(c, v)); },
+  removeBefore: async (t, c, v) => { chk(await sb.from(t).delete().lt(c, v)); },
   removePrefix: async (t, c, prefix) => { chk(await sb.from(t).delete().like(c, prefix.replace(/[%_\\]/g, (m) => '\\' + m) + '%')); }
 };
 
