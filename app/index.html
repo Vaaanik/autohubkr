@@ -691,9 +691,13 @@ function api(action, data, opt) {
   // адміністратор у режимі перегляду «водій» або «сервіс»
   var v = store('ah_view');
   if (state.token && !(opt && opt.admin) && (v === 'driver' || v === 'sto')) { body.as = v; if (v === 'sto') body.as_sto = store('ah_as_sto') || ''; }
+  // запит, яким екран завантажує себе (поки крутиться «Завантаження…»): якщо людина вже пішла на інший екран,
+  // запізніла відповідь не має перемальовувати новий екран старим
+  var from = location.hash, isLoad = action !== 'boot' && !!view.querySelector(':scope > .spin');
   return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
     .then(function (r) { return r.json(); }, function () { throw new Error("Немає зв'язку. Перевірте інтернет."); })
     .then(function (res) {
+      if (isLoad && location.hash !== from) return new Promise(function () {});
       if (res.ok) return res;
       if (res.error === 'Увійдіть знову') { logoutLocal(); go('/login'); }
       throw new Error(res.error || 'Помилка');
